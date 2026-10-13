@@ -1,121 +1,234 @@
 import 'package:flutter/material.dart';
+import 'package:theja_aura/services/aura_tunnel_service.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const AuraApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class AuraApp extends StatelessWidget {
+  const AuraApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: "Theja's Aura",
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6750A4),
+          brightness: Brightness.dark,
+        ),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const AuraDashboardScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class AuraDashboardScreen extends StatefulWidget {
+  const AuraDashboardScreen({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<AuraDashboardScreen> createState() => _AuraDashboardScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _AuraDashboardScreenState extends State<AuraDashboardScreen> {
+  final AuraTunnelService _tunnelService = AuraTunnelService();
+  TunnelStatus _status = TunnelStatus.disconnected;
+  final TextEditingController _domainInputController = TextEditingController();
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  // Default blocklist seed + user rules
+  final List<AuraRuleItem> _rules = [
+    const AuraRuleItem(domain: 'googleads.g.doubleclick.net', isEnabled: true, isBlocked: true),
+    const AuraRuleItem(domain: 'pagead2.googlesyndication.com', isEnabled: true, isBlocked: true),
+    const AuraRuleItem(domain: 'analytics.facebook.com', isEnabled: true, isBlocked: true),
+    const AuraRuleItem(domain: 'telemetry.app.com', isEnabled: true, isBlocked: true),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initStatus();
+    _tunnelService.statusStream.listen((newStatus) {
+      if (mounted) setState(() => _status = newStatus);
     });
+  }
+
+  Future<void> _initStatus() async {
+    final current = await _tunnelService.getStatus();
+    if (mounted) setState(() => _status = current);
+    await _tunnelService.syncRules(_rules);
+  }
+
+  Future<void> _toggleTunnel() async {
+    try {
+      if (_status == TunnelStatus.connected) {
+        await _tunnelService.stopTunnel();
+      } else {
+        await _tunnelService.syncRules(_rules);
+        await _tunnelService.startTunnel();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tunnel Action Failed: $e')),
+        );
+      }
+      print(e);
+    }
+  }
+
+  Future<void> _addCustomDomain() async {
+    final domain = _domainInputController.text.trim();
+    if (domain.isEmpty) return;
+
+    setState(() {
+      _rules.insert(0, AuraRuleItem(domain: domain, isEnabled: true, isBlocked: true));
+      _domainInputController.clear();
+    });
+    await _tunnelService.syncRules(_rules);
+  }
+
+  Future<void> _toggleRule(int index, bool val) async {
+    setState(() {
+      final old = _rules[index];
+      _rules[index] = AuraRuleItem(
+        domain: old.domain,
+        isEnabled: val,
+        isBlocked: old.isBlocked,
+      );
+    });
+    await _tunnelService.syncRules(_rules);
+  }
+
+  Future<void> _deleteRule(int index) async {
+    setState(() {
+      _rules.removeAt(index);
+    });
+    await _tunnelService.syncRules(_rules);
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    final isConnected = _status == TunnelStatus.connected;
+    final isBusy = _status == TunnelStatus.connecting || _status == TunnelStatus.disconnecting;
+
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text("Theja's Aura"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _initStatus,
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: Column(
+        children: [
+          // Status Shield Card
+          Card(
+            margin: const EdgeInsets.all(16),
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Icon(
+                    isConnected ? Icons.shield : Icons.shield_outlined,
+                    size: 72,
+                    color: isConnected ? Colors.green : Colors.grey,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    isConnected ? 'Protection Active' : 'Protection Disabled',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Upstream: Quad9 (9.9.9.9) • Local Split-Tunnel DNS',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: isBusy ? null : _toggleTunnel,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isConnected ? Colors.red.shade900 : Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(180, 46),
+                    ),
+                    child: Text(
+                      isBusy
+                          ? 'Please Wait...'
+                          : isConnected
+                              ? 'Stop Firewall'
+                              : 'Enable Firewall',
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+          ),
+
+          // Custom Domain Input
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _domainInputController,
+                    decoration: const InputDecoration(
+                      labelText: 'Add Custom Domain (e.g. google.com)',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _addCustomDomain(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  icon: const Icon(Icons.add),
+                  onPressed: _addCustomDomain,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          const Divider(),
+
+          // Active Rules List
+          Expanded(
+            child: ListView.builder(
+              itemCount: _rules.length,
+              itemBuilder: (context, index) {
+                final rule = _rules[index];
+                return ListTile(
+                  leading: Icon(
+                    rule.isEnabled ? Icons.block : Icons.check_circle_outline,
+                    color: rule.isEnabled ? Colors.redAccent : Colors.grey,
+                  ),
+                  title: Text(rule.domain),
+                  subtitle: Text(rule.isEnabled ? 'Blocked' : 'Disabled'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Switch(
+                        value: rule.isEnabled,
+                        onChanged: (val) => _toggleRule(index, val),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () => _deleteRule(index),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
