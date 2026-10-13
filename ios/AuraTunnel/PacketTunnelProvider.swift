@@ -14,10 +14,16 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
     open override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         os_log(.info, log: Self.log, "startTunnel invoked")
 
-        // 1. Load active rules from shared App Group container
-        loadRulesFromAppGroup()
+        // 1. Wire up fatal error callback so the tunnel is cancelled if the resolver fails
+        resolver.onFatalError = { [weak self] error in
+            os_log(.error, log: Self.log, "Fatal DNS resolver failure: %{public}@ — canceling tunnel", error.localizedDescription)
+            self?.cancelTunnelWithError(error)
+        }
 
-        // 2. Start local DNS socket resolver on 127.0.0.1:53
+        // 2. Load active rules from shared App Group container
+        _ = loadRulesFromAppGroup()
+
+        // 3. Start local DNS socket resolver on 127.0.0.1:53
         let started = resolver.start()
         guard started else {
             os_log(.error, log: Self.log, "Failed to start local DNS resolver on 127.0.0.1:53")
@@ -26,7 +32,7 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
 
-        // 3. Configure Tunnel Network Settings following Lockdown pattern
+        // 4. Configure Tunnel Network Settings following Lockdown pattern
         let tunnelSettings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
 
         // Direct system DNS to the local loopback resolver with global match
@@ -68,16 +74,29 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
     open override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
         if let command = String(data: messageData, encoding: .utf8), command == "reload_rules" {
             os_log(.info, log: Self.log, "handleAppMessage: reloading rules from App Group")
-            loadRulesFromAppGroup()
-            completionHandler?(Data([1]))
+            let applied = loadRulesFromAppGroup()
+            if applied {
+                completionHandler?(Data([1]))
+            } else {
+                os_log(.error, log: Self.log, "handleAppMessage: reload_rules failed to apply rules from storage")
+                completionHandler?(Data([0]))
+            }
         } else {
             completionHandler?(nil)
         }
     }
 
-    private func loadRulesFromAppGroup() {
-        let rules = AuraRuleStore.loadRules()
-        os_log(.info, log: Self.log, "Loaded %{public}ld rules from App Group", rules.count)
-        dnsEngine.setRules(rules)
+    @discardableResult
+    private func loadRulesFromAppGroup() -> Bool {
+        let result = AuraRuleStore.loadRulesResult()
+        switch result {
+        case .success(let rules):
+            os_log(.info, log: Self.log, "Loaded %{public}ld rules from App Group", rules.count)
+            dnsEngine.setRules(rules)
+            return true
+        case .failure(let error):
+            os_log(.error, log: Self.log, "Failed to load rules from App Group: %{public}@ — retaining existing in-memory rules", error.localizedDescription)
+            return false
+        }
     }
 }

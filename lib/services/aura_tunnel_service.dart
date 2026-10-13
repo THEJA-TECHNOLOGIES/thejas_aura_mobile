@@ -80,6 +80,23 @@ class AuraTunnelService {
     await _controlChannel.invokeMethod<void>('stopTunnel');
   }
 
+  /// Queries persisted rules stored in the App Group.
+  /// Returns null if native loading failed (e.g. file corrupt or channel error),
+  /// or an empty list if no rules are stored.
+  Future<List<AuraRuleItem>?> getRules() async {
+    try {
+      final List<dynamic>? raw =
+          await _controlChannel.invokeMethod<List<dynamic>>('getRules');
+      if (raw == null) return null;
+      return raw
+          .map((item) =>
+              AuraRuleItem.fromMap(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Atomically synchronizes domain rules to App Group storage and signals running tunnel if active.
   Future<bool> syncRules(List<AuraRuleItem> rules) async {
     try {

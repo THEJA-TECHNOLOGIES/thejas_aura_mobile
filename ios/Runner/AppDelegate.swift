@@ -83,6 +83,23 @@ import os.log
                     }
                 }
 
+            case "getRules":
+                let storeResult = RunnerRuleStore.loadRulesResult()
+                switch storeResult {
+                case .success(let rules):
+                    let ruleDicts = rules.map { $0.toDictionary() }
+                    os_log(.info, log: Self.log, "[MethodChannel] getRules loaded %{public}ld rule(s) from App Group", ruleDicts.count)
+                    result(ruleDicts)
+                case .failure(let error):
+                    let nsError = error as NSError
+                    os_log(.error, log: Self.log, "[MethodChannel] getRules FAILED — domain=%{public}@ code=%{public}ld description=%{public}@", nsError.domain, nsError.code, nsError.localizedDescription)
+                    result(FlutterError(
+                        code: "LOAD_RULES_FAILED",
+                        message: error.localizedDescription,
+                        details: ["domain": nsError.domain, "code": nsError.code]
+                    ))
+                }
+
             case "syncRules":
                 guard let args = call.arguments as? [[String: Any]] else {
                     os_log(.error, log: Self.log, "[MethodChannel] syncRules FAILED — invalid arguments")
@@ -92,10 +109,8 @@ import os.log
 
                 var rules: [AuraRule] = []
                 for item in args {
-                    if let domain = item["domain"] as? String {
-                        let isEnabled = item["isEnabled"] as? Bool ?? true
-                        let isBlocked = item["isBlocked"] as? Bool ?? true
-                        rules.append(AuraRule(domain: domain, isEnabled: isEnabled, isBlocked: isBlocked))
+                    if let rule = AuraRule(dictionary: item) {
+                        rules.append(rule)
                     }
                 }
 

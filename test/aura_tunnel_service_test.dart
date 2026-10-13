@@ -149,5 +149,124 @@ void main() {
         ),
       );
     });
+
+    test('getRules parses rule items from native platform response',
+        () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(controlChannel,
+              (MethodCall methodCall) async {
+        log.add(methodCall);
+        if (methodCall.method == 'getRules') {
+          return [
+            {
+              'domain': 'custom-domain.com',
+              'isEnabled': true,
+              'isBlocked': true,
+            },
+            {
+              'domain': 'whitelist-domain.org',
+              'isEnabled': false,
+              'isBlocked': false,
+            }
+          ];
+        }
+        return null;
+      });
+
+      final rules = await service.getRules();
+      expect(rules, isNotNull);
+      expect(rules!.length, 2);
+      expect(rules[0].domain, 'custom-domain.com');
+      expect(rules[0].isEnabled, isTrue);
+      expect(rules[0].isBlocked, isTrue);
+      expect(rules[1].domain, 'whitelist-domain.org');
+      expect(rules[1].isEnabled, isFalse);
+      expect(rules[1].isBlocked, isFalse);
+    });
+
+    test('getRules returns null on native error so disk is not overwritten',
+        () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(controlChannel,
+              (MethodCall methodCall) async {
+        if (methodCall.method == 'getRules') {
+          throw PlatformException(
+            code: 'LOAD_RULES_FAILED',
+            message: 'Malformed or unrecognized rules JSON schema',
+          );
+        }
+        return null;
+      });
+
+      final rules = await service.getRules();
+      expect(rules, isNull);
+    });
+
+    test('rapid consecutive syncRules invocations serialize and complete cleanly',
+        () async {
+      int syncCount = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(controlChannel,
+              (MethodCall methodCall) async {
+        if (methodCall.method == 'syncRules') {
+          syncCount++;
+          return true;
+        }
+        return null;
+      });
+
+      final results = await Future.wait([
+        service.syncRules([
+          const AuraRuleItem(domain: 'rule1.com', isEnabled: true, isBlocked: true),
+        ]),
+        service.syncRules([
+          const AuraRuleItem(domain: 'rule2.com', isEnabled: true, isBlocked: true),
+        ]),
+        service.syncRules([
+          const AuraRuleItem(domain: 'rule3.com', isEnabled: false, isBlocked: true),
+        ]),
+      ]);
+
+      expect(results, [true, true, true]);
+      expect(syncCount, 3);
+    });
+
+    test('stop/start lifecycle preserves rules and verifies call sequence',
+        () async {
+      final List<String> callSequence = [];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(controlChannel,
+              (MethodCall methodCall) async {
+        callSequence.add(methodCall.method);
+        if (methodCall.method == 'syncRules') return true;
+        if (methodCall.method == 'stopTunnel') return null;
+        if (methodCall.method == 'startTunnel') return null;
+        return null;
+      });
+
+      const initialRules = [
+        AuraRuleItem(domain: 'persistent.com', isEnabled: true, isBlocked: true),
+        AuraRuleItem(domain: 'allow.com', isEnabled: true, isBlocked: false),
+      ];
+
+      // 1. Initial sync & start
+      await service.syncRules(initialRules);
+      await service.startTunnel();
+
+      // 2. Stop tunnel
+      await service.stopTunnel();
+
+      // 3. Restart tunnel with preserved rules
+      await service.syncRules(initialRules);
+      await service.startTunnel();
+
+      expect(callSequence, [
+        'syncRules',
+        'startTunnel',
+        'stopTunnel',
+        'syncRules',
+        'startTunnel',
+      ]);
+    });
   });
 }

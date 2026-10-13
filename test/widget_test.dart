@@ -6,25 +6,31 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:theja_aura/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('AuraApp dashboard smoke test', (WidgetTester tester) async {
+    const MethodChannel controlChannel =
+        MethodChannel('com.thejatech.aura/tunnel_control');
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(controlChannel, (MethodCall call) async {
+      if (call.method == 'getStatus') return 'disconnected';
+      if (call.method == 'getRules') return <dynamic>[];
+      if (call.method == 'syncRules') return true;
+      return null;
+    });
+
     await tester.pumpWidget(const AuraApp());
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text("Theja's Aura"), findsOneWidget);
+    expect(find.text('Protection Disabled'), findsOneWidget);
+    expect(find.text('Enable Firewall'), findsOneWidget);
   });
 }

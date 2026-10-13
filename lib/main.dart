@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:theja_aura/services/aura_tunnel_service.dart';
 
@@ -33,35 +34,88 @@ class AuraDashboardScreen extends StatefulWidget {
   State<AuraDashboardScreen> createState() => _AuraDashboardScreenState();
 }
 
-class _AuraDashboardScreenState extends State<AuraDashboardScreen> {
+class _AuraDashboardScreenState extends State<AuraDashboardScreen>
+    with WidgetsBindingObserver {
   final AuraTunnelService _tunnelService = AuraTunnelService();
   TunnelStatus _status = TunnelStatus.disconnected;
   final TextEditingController _domainInputController = TextEditingController();
+  StreamSubscription<TunnelStatus>? _statusSubscription;
 
-  // Default blocklist seed + user rules
-  final List<AuraRuleItem> _rules = [
-    const AuraRuleItem(domain: 'googleads.g.doubleclick.net', isEnabled: true, isBlocked: true),
-    const AuraRuleItem(domain: 'pagead2.googlesyndication.com', isEnabled: true, isBlocked: true),
-    const AuraRuleItem(domain: 'analytics.facebook.com', isEnabled: true, isBlocked: true),
-    const AuraRuleItem(domain: 'telemetry.app.com', isEnabled: true, isBlocked: true),
+  // Default seed rules for first launch
+  static const List<AuraRuleItem> _defaultRules = [
+    AuraRuleItem(domain: 'googleads.g.doubleclick.net', isEnabled: true, isBlocked: true),
+    AuraRuleItem(domain: 'pagead2.googlesyndication.com', isEnabled: true, isBlocked: true),
+    AuraRuleItem(domain: 'analytics.facebook.com', isEnabled: true, isBlocked: true),
+    AuraRuleItem(domain: 'telemetry.app.com', isEnabled: true, isBlocked: true),
   ];
+
+  List<AuraRuleItem> _rules = [];
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initStatus();
-    _tunnelService.statusStream.listen((newStatus) {
+    _statusSubscription = _tunnelService.statusStream.listen((newStatus) {
       if (mounted) setState(() => _status = newStatus);
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _statusSubscription?.cancel();
+    _domainInputController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _initStatus();
+    }
+  }
+
   Future<void> _initStatus() async {
     final current = await _tunnelService.getStatus();
-    if (mounted) setState(() => _status = current);
-    await _tunnelService.syncRules(_rules);
+    final savedRules = await _tunnelService.getRules();
+
+    if (!mounted) return;
+
+    if (savedRules == null) {
+      // Native rule load failed or was corrupted.
+      // Do NOT overwrite disk with default rules! Preserve whatever is on disk.
+      setState(() {
+        _status = current;
+        _isInitialized = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Warning: Failed to read rule store. Existing rules preserved.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _status = current;
+      if (savedRules.isNotEmpty) {
+        _rules = savedRules;
+      } else {
+        // Genuinely empty (first launch or user cleared rules)
+        _rules = List.of(_defaultRules);
+      }
+      _isInitialized = true;
+    });
+
+    // If rules were empty (first launch), persist the defaults to App Group storage
+    if (savedRules.isEmpty) {
+      await _tunnelService.syncRules(_rules);
+    }
   }
 
   Future<void> _toggleTunnel() async {
+    if (!_isInitialized) return;
+
     try {
       if (_status == TunnelStatus.connected) {
         await _tunnelService.stopTunnel();
@@ -75,44 +129,89 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen> {
           SnackBar(content: Text('Tunnel Action Failed: $e')),
         );
       }
-      print(e);
+      debugPrint('Tunnel toggle error: $e');
     }
   }
 
   Future<void> _addCustomDomain() async {
-    final domain = _domainInputController.text.trim();
-    if (domain.isEmpty) return;
+    final rawDomain = _domainInputController.text.trim();
+    if (rawDomain.isEmpty) return;
+
+    final normalized = rawDomain.toLowerCase();
+    if (_rules.any((r) => r.domain.toLowerCase() == normalized)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rule for "$rawDomain" already exists')),
+        );
+      }
+      return;
+    }
+
+    final updated = [
+      AuraRuleItem(domain: rawDomain, isEnabled: true, isBlocked: true),
+      ..._rules,
+    ];
 
     setState(() {
-      _rules.insert(0, AuraRuleItem(domain: domain, isEnabled: true, isBlocked: true));
+      _rules = updated;
       _domainInputController.clear();
     });
-    await _tunnelService.syncRules(_rules);
+
+    final success = await _tunnelService.syncRules(_rules);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Warning: Failed to persist rule to App Group')),
+      );
+    }
   }
 
   Future<void> _toggleRule(int index, bool val) async {
+    if (index < 0 || index >= _rules.length) return;
+
+    final updated = List<AuraRuleItem>.from(_rules);
+    final old = updated[index];
+    updated[index] = AuraRuleItem(
+      domain: old.domain,
+      isEnabled: val,
+      isBlocked: old.isBlocked,
+    );
+
     setState(() {
-      final old = _rules[index];
-      _rules[index] = AuraRuleItem(
-        domain: old.domain,
-        isEnabled: val,
-        isBlocked: old.isBlocked,
-      );
+      _rules = updated;
     });
-    await _tunnelService.syncRules(_rules);
+
+    final success = await _tunnelService.syncRules(_rules);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Warning: Failed to update rule in App Group')),
+      );
+    }
   }
 
   Future<void> _deleteRule(int index) async {
+    if (index < 0 || index >= _rules.length) return;
+
+    final updated = List<AuraRuleItem>.from(_rules);
+    updated.removeAt(index);
+
     setState(() {
-      _rules.removeAt(index);
+      _rules = updated;
     });
-    await _tunnelService.syncRules(_rules);
+
+    final success = await _tunnelService.syncRules(_rules);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Warning: Failed to remove rule from App Group')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isConnected = _status == TunnelStatus.connected;
-    final isBusy = _status == TunnelStatus.connecting || _status == TunnelStatus.disconnecting;
+    final isBusy = !_isInitialized ||
+        _status == TunnelStatus.connecting ||
+        _status == TunnelStatus.disconnecting;
 
     return Scaffold(
       appBar: AppBar(
@@ -158,11 +257,13 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen> {
                       minimumSize: const Size(180, 46),
                     ),
                     child: Text(
-                      isBusy
-                          ? 'Please Wait...'
-                          : isConnected
-                              ? 'Stop Firewall'
-                              : 'Enable Firewall',
+                      !_isInitialized
+                          ? 'Loading...'
+                          : isBusy
+                              ? 'Please Wait...'
+                              : isConnected
+                                  ? 'Stop Firewall'
+                                  : 'Enable Firewall',
                     ),
                   ),
                 ],

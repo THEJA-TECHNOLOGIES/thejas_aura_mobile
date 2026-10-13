@@ -4,14 +4,35 @@ import os.log
 
 /// Lightweight native UDP DNS resolver running inside the AuraTunnel extension.
 /// Binds to 127.0.0.1:53 via POSIX socket, intercepts system DNS queries,
-/// evaluates them against local rules, and forwards permitted queries to Quad9.
+/// evaluates them against local rules, and forwards permitted queries upstream
+/// concurrently to Quad9 with fallback to Cloudflare and IPv6 endpoints.
 public final class AuraLocalDNSResolver {
+
+    public struct UpstreamResolver {
+        public let address: String
+        public let port: UInt16
+        public let isIPv6: Bool
+
+        public init(address: String, port: UInt16 = 53, isIPv6: Bool = false) {
+            self.address = address
+            self.port = port
+            self.isIPv6 = isIPv6
+        }
+    }
 
     private static let log = OSLog(subsystem: "com.thejatech.aura.AuraTunnel", category: "AuraLocalDNSResolver")
 
     private let engine: AuraDNSEngine
-    private let upstreamAddress = "9.9.9.9"
-    private let upstreamPort: UInt16 = 53
+    private let upstreams: [UpstreamResolver] = [
+        UpstreamResolver(address: "9.9.9.9", port: 53, isIPv6: false),           // Primary Quad9
+        UpstreamResolver(address: "1.1.1.1", port: 53, isIPv6: false),           // Fallback Cloudflare
+        UpstreamResolver(address: "8.8.8.8", port: 53, isIPv6: false),           // Fallback Google
+        UpstreamResolver(address: "2620:fe::fe", port: 53, isIPv6: true),       // Quad9 IPv6
+        UpstreamResolver(address: "2606:4700:4700::1111", port: 53, isIPv6: true) // Cloudflare IPv6
+    ]
+
+    public var onFatalError: ((Error) -> Void)?
+
     private var serverSocket: Int32 = -1
     private var dispatchSource: DispatchSourceRead?
     private let queue = DispatchQueue(label: "com.thejatech.aura.dnsresolver", qos: .userInitiated)
@@ -27,7 +48,10 @@ public final class AuraLocalDNSResolver {
 
         let sock = socket(AF_INET, SOCK_DGRAM, 0)
         guard sock >= 0 else {
-            os_log(.error, log: Self.log, "Failed to create UDP socket: errno %{public}d", errno)
+            let err = errno
+            os_log(.error, log: Self.log, "Failed to create UDP socket: errno %{public}d", err)
+            let nsErr = NSError(domain: NSPOSIXErrorDomain, code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Failed to create UDP socket: \(err)"])
+            onFatalError?(nsErr)
             return false
         }
 
@@ -43,7 +67,7 @@ public final class AuraLocalDNSResolver {
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = in_port_t(53).bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr)
 
         let bindResult = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
@@ -55,6 +79,8 @@ public final class AuraLocalDNSResolver {
             let bindErr = errno
             os_log(.error, log: Self.log, "Failed to bind UDP socket to 127.0.0.1:53: errno %{public}d (%{public}s)", bindErr, strerror(bindErr))
             close(sock)
+            let nsErr = NSError(domain: NSPOSIXErrorDomain, code: Int(bindErr), userInfo: [NSLocalizedDescriptionKey: "Failed to bind 127.0.0.1:53: \(bindErr)"])
+            onFatalError?(nsErr)
             return false
         }
 
@@ -63,15 +89,19 @@ public final class AuraLocalDNSResolver {
 
         let source = DispatchSource.makeReadSource(fileDescriptor: sock, queue: queue)
         source.setEventHandler { [weak self] in
-            self?.handleIncomingQuery()
+            self?.handleIncomingQueries()
         }
-        source.setCancelHandler {
+        source.setCancelHandler { [weak self] in
             close(sock)
+            if self?.isRunning == true {
+                let cancelErr = NSError(domain: "AuraLocalDNSResolver", code: -1, userInfo: [NSLocalizedDescriptionKey: "DNS listener socket cancelled unexpectedly"])
+                self?.onFatalError?(cancelErr)
+            }
         }
         source.resume()
         dispatchSource = source
 
-        os_log(.info, log: Self.log, "Local DNS resolver successfully bound to 127.0.0.1:53")
+        os_log(.info, log: Self.log, "Local DNS resolver successfully bound to 127.0.0.1:53 (upstreams: %{public}ld endpoints configured)", self.upstreams.count)
         return true
     }
 
@@ -84,119 +114,222 @@ public final class AuraLocalDNSResolver {
         os_log(.info, log: Self.log, "Local DNS resolver stopped")
     }
 
-    // MARK: - Query Handling
+    // MARK: - Query Handling (Non-blocking loop)
 
-    private func handleIncomingQuery() {
-        var clientAddr = sockaddr_in()
-        var addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-        var buffer = [UInt8](repeating: 0, count: 4096)
+    private func handleIncomingQueries() {
+        while isRunning {
+            var clientAddr = sockaddr_storage()
+            var addrLen = socklen_t(MemoryLayout<sockaddr_storage>.size)
+            var buffer = [UInt8](repeating: 0, count: 4096)
 
-        let bytesRead = withUnsafeMutablePointer(to: &clientAddr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
-                recvfrom(serverSocket, &buffer, buffer.count, 0, sa, &addrLen)
+            let bytesRead = withUnsafeMutablePointer(to: &clientAddr) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                    recvfrom(serverSocket, &buffer, buffer.count, 0, sa, &addrLen)
+                }
             }
+
+            if bytesRead < 0 {
+                let err = errno
+                if err == EWOULDBLOCK || err == EAGAIN {
+                    break // All pending packets drained from kernel socket buffer
+                }
+                break
+            }
+            guard bytesRead > 0 else { break }
+
+            let requestData = Data(buffer[0..<bytesRead])
+            processQuery(requestData: requestData, clientAddr: clientAddr, addrLen: addrLen)
         }
+    }
 
-        guard bytesRead > 0 else { return }
-        let requestData = Data(buffer[0..<bytesRead])
-
-        // Parse Question
+    private func processQuery(requestData: Data, clientAddr: sockaddr_storage, addrLen: socklen_t) {
         if let question = AuraDNSEngine.parseQuestion(data: requestData) {
             let evaluation = engine.evaluate(domain: question.name)
 
             switch evaluation {
             case .blocked(let ruleDomain):
-                os_log(.info, log: Self.log, "[BLOCK] Intercepted %{public}@ (matched rule: %{public}@, type: %{public}u) -> Synthesizing 0.0.0.0/::", question.name, ruleDomain, question.qType)
+                os_log(
+                    .info,
+                    log: Self.log,
+                    "[BLOCK] Intercepted %{public}@ (matched rule: %{public}@, type: %{public}u) -> Synthesizing 0.0.0.0/::",
+                    question.name,
+                    ruleDomain,
+                    question.qType
+                )
                 if let response = AuraDNSEngine.synthesizeBlockedResponse(requestData: requestData) {
                     sendResponse(response, to: clientAddr, addrLen: addrLen)
                     return
                 }
+
             case .allowed(let ruleDomain):
                 let ruleStr = ruleDomain ?? "none"
-                os_log(.info, log: Self.log, "[ALLOW] Query %{public}@ permitted (rule: %{public}@) -> Forwarding upstream", question.name, ruleStr)
+                os_log(
+                    .info,
+                    log: Self.log,
+                    "[ALLOW] Query %{public}@ permitted (rule: %{public}@, type: %{public}u) -> Forwarding upstream",
+                    question.name,
+                    ruleStr,
+                    question.qType
+                )
             }
+            forwardUpstream(requestData: requestData, clientAddr: clientAddr, addrLen: addrLen, domain: question.name)
         } else {
             os_log(.default, log: Self.log, "Received unparseable DNS payload (%{public}ld bytes) -> Forwarding upstream", requestData.count)
-        }
-
-        // Forward allowed/unmatched queries to upstream Quad9
-        forwardUpstream(requestData: requestData, clientAddr: clientAddr, addrLen: addrLen)
-    }
-
-    private func sendResponse(_ response: Data, to clientAddr: sockaddr_in, addrLen: socklen_t) {
-        var addr = clientAddr
-        response.withUnsafeBytes { rawBuffer in
-            guard let baseAddress = rawBuffer.baseAddress else { return }
-            withUnsafePointer(to: &addr) { ptr in
-                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
-                    _ = sendto(serverSocket, baseAddress, response.count, 0, sa, addrLen)
-                }
-            }
+            forwardUpstream(requestData: requestData, clientAddr: clientAddr, addrLen: addrLen, domain: nil)
         }
     }
 
-    // MARK: - Upstream Resolution (Quad9 9.9.9.9)
-
-    private func forwardUpstream(requestData: Data, clientAddr: sockaddr_in, addrLen: socklen_t) {
+    private func sendResponse(_ response: Data, to clientAddr: sockaddr_storage, addrLen: socklen_t) {
         queue.async { [weak self] in
-            guard let self = self else { return }
-
-            let upstreamSock = socket(AF_INET, SOCK_DGRAM, 0)
-            guard upstreamSock >= 0 else {
-                os_log(.error, log: Self.log, "Failed to create upstream UDP socket: errno %{public}d", errno)
-                if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
-                    self.sendResponse(servFail, to: clientAddr, addrLen: addrLen)
-                }
-                return
-            }
-            defer { close(upstreamSock) }
-
-            // Set socket timeout to 3 seconds
-            var timeout = timeval(tv_sec: 3, tv_usec: 0)
-            setsockopt(upstreamSock, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-
-            var serverAddr = sockaddr_in()
-            serverAddr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-            serverAddr.sin_family = sa_family_t(AF_INET)
-            serverAddr.sin_port = in_port_t(self.upstreamPort).bigEndian
-            serverAddr.sin_addr.s_addr = inet_addr(self.upstreamAddress)
-
-            let sent = requestData.withUnsafeBytes { raw in
-                withUnsafePointer(to: &serverAddr) { saPtr in
-                    saPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
-                        sendto(upstreamSock, raw.baseAddress, requestData.count, 0, sa, socklen_t(MemoryLayout<sockaddr_in>.size))
+            guard let self = self, self.serverSocket >= 0 else { return }
+            var addr = clientAddr
+            response.withUnsafeBytes { rawBuffer in
+                guard let baseAddress = rawBuffer.baseAddress else { return }
+                withUnsafePointer(to: &addr) { ptr in
+                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                        _ = sendto(self.serverSocket, baseAddress, response.count, 0, sa, addrLen)
                     }
                 }
             }
+        }
+    }
 
-            guard sent > 0 else {
-                os_log(.error, log: Self.log, "Failed to send query upstream to %{public}@: errno %{public}d", self.upstreamAddress, errno)
-                if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
-                    self.sendResponse(servFail, to: clientAddr, addrLen: addrLen)
+    // MARK: - Concurrent Upstream Resolution with Fallback & Timeout Budget
+
+    private func forwardUpstream(
+        requestData: Data,
+        clientAddr: sockaddr_storage,
+        addrLen: socklen_t,
+        domain: String?
+    ) {
+        // Run upstream queries concurrently on global worker queue to prevent head-of-line blocking
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self, self.isRunning else { return }
+
+            let startTime = CFAbsoluteTimeGetCurrent()
+            var responseData: Data?
+            var resolvedBy: String?
+            let maxTotalBudget: Double = 2.0 // Maximum 2.0s budget to prevent iOS mDNSResponder timeouts
+
+            for resolver in self.upstreams {
+                let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+                if timeElapsed >= maxTotalBudget {
+                    break
                 }
-                return
+
+                let remainingBudget = max(0.5, min(1.0, maxTotalBudget - timeElapsed))
+                if let data = Self.queryUpstream(resolver: resolver, requestData: requestData, timeoutSeconds: remainingBudget) {
+                    responseData = data
+                    resolvedBy = resolver.address
+                    break
+                }
             }
 
-            var responseBuffer = [UInt8](repeating: 0, count: 4096)
-            var fromAddr = sockaddr_in()
-            var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000)
 
-            let received = withUnsafeMutablePointer(to: &fromAddr) { saPtr in
-                saPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
-                    recvfrom(upstreamSock, &responseBuffer, responseBuffer.count, 0, sa, &fromLen)
-                }
-            }
-
-            if received > 0 {
-                let upstreamResponse = Data(responseBuffer[0..<received])
-                self.sendResponse(upstreamResponse, to: clientAddr, addrLen: addrLen)
+            if let response = responseData {
+                os_log(
+                    .info,
+                    log: Self.log,
+                    "[RESOLVED] %{public}@ via %{public}@ in %{public}dms (%{public}ld bytes)",
+                    domain ?? "unknown",
+                    resolvedBy ?? "upstream",
+                    elapsedMs,
+                    response.count
+                )
+                self.sendResponse(response, to: clientAddr, addrLen: addrLen)
             } else {
-                // Upstream timeout or failure -> Return ServFail
-                os_log(.error, log: Self.log, "Upstream DNS query timed out or failed to receive response -> Returning SERVFAIL")
+                os_log(
+                    .error,
+                    log: Self.log,
+                    "[SERVFAIL] %{public}@ failed all upstreams after %{public}dms -> Returning SERVFAIL",
+                    domain ?? "unknown",
+                    elapsedMs
+                )
                 if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
                     self.sendResponse(servFail, to: clientAddr, addrLen: addrLen)
                 }
             }
         }
+    }
+
+    /// Queries an upstream DNS resolver over a dedicated connected UDP socket.
+    /// Strictly validates:
+    /// 1. Transaction ID matching (RFC 1035 §4.1.1, RFC 5452)
+    /// 2. Response QR bit set (Flags byte 2, bit 7 == 1)
+    /// 3. Kernel-level destination binding via connect() to prevent rogue datagrams
+    public static func queryUpstream(
+        resolver: UpstreamResolver,
+        requestData: Data,
+        timeoutSeconds: Double
+    ) -> Data? {
+        let family: Int32 = resolver.isIPv6 ? AF_INET6 : AF_INET
+        let sock = socket(family, SOCK_DGRAM, 0)
+        guard sock >= 0 else { return nil }
+        defer { close(sock) }
+
+        let sec = time_t(floor(timeoutSeconds))
+        let usec = suseconds_t((timeoutSeconds - floor(timeoutSeconds)) * 1_000_000)
+        var tv = timeval(tv_sec: sec, tv_usec: usec)
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+
+        // Connect UDP socket to upstream endpoint so kernel strictly isolates traffic
+        if resolver.isIPv6 {
+            var addr6 = sockaddr_in6()
+            addr6.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            addr6.sin6_family = sa_family_t(AF_INET6)
+            addr6.sin6_port = in_port_t(resolver.port).bigEndian
+            guard inet_pton(AF_INET6, resolver.address, &addr6.sin6_addr) == 1 else { return nil }
+
+            let connectRes = withUnsafePointer(to: &addr6) { saPtr in
+                saPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                    connect(sock, sa, socklen_t(MemoryLayout<sockaddr_in6>.size))
+                }
+            }
+            guard connectRes == 0 else { return nil }
+        } else {
+            var addr4 = sockaddr_in()
+            addr4.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            addr4.sin_family = sa_family_t(AF_INET)
+            addr4.sin_port = in_port_t(resolver.port).bigEndian
+            guard inet_pton(AF_INET, resolver.address, &addr4.sin_addr) == 1 else { return nil }
+
+            let connectRes = withUnsafePointer(to: &addr4) { saPtr in
+                saPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                    connect(sock, sa, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            guard connectRes == 0 else { return nil }
+        }
+
+        let sent = requestData.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return -1 }
+            return send(sock, base, requestData.count, 0)
+        }
+        guard sent > 0 else { return nil }
+
+        var responseBuf = [UInt8](repeating: 0, count: 4096)
+        let received = recv(sock, &responseBuf, responseBuf.count, 0)
+
+        // RFC 1035 §4.1.1 & RFC 5452 Validation:
+        guard received >= 12 else { return nil }
+
+        // 1. Transaction ID matching
+        let reqTxId = requestData.subdata(in: 0..<2)
+        let respTxId = Data(responseBuf[0..<2])
+        guard reqTxId == respTxId else {
+            os_log(.error, log: Self.log, "Mismatched DNS transaction ID: expected %{public}@, got %{public}@", reqTxId as NSData, respTxId as NSData)
+            return nil
+        }
+
+        // 2. Response QR bit check: Flags byte 2, bit 7 must be 1 (Response)
+        let flagsByte = responseBuf[2]
+        guard (flagsByte & 0x80) != 0 else {
+            os_log(.error, log: Self.log, "Received DNS packet with QR=0 (Query, not Response)")
+            return nil
+        }
+
+        return Data(responseBuf[0..<received])
     }
 }
