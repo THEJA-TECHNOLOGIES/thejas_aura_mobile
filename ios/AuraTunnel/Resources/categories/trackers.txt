@@ -1,0 +1,66 @@
+# Category: Trackers
+# Purpose: Default behavioral tracking, fingerprinting, and attribution domain blocklist for Theja's Aura.
+# Sources: Curated subset of tracking endpoints (EasyPrivacy / Disconnect Tracking Protection).
+# Version: 2026.10.1
+# Format: One normalized domain per line. Blank lines and comments starting with '#' or '//' are ignored.
+
+scorecardresearch.com
+b.scorecardresearch.com
+pixel.facebook.com
+tr.snapchat.com
+analytics.tiktok.com
+ads.linkedin.com
+px.ads.linkedin.com
+bat.bing.com
+crwdcntrl.net
+bcp.crwdcntrl.net
+moatads.com
+z.moatads.com
+quantserve.com
+pixel.quantserve.com
+branch.io
+app.link
+appsflyer.com
+t.appsflyer.com
+adjust.com
+app.adjust.com
+singular.net
+kochava.com
+api.kochava.com
+branchster.org
+taplytics.com
+attribution.braze.com
+track.hubspot.com
+click.google-analytics.com
+telemetry.app.com
+bluekai.com
+tags.bluekai.com
+demdex.net
+dpm.demdex.net
+krxd.net
+beacon.krxd.net
+liadm.com
+rlcdn.com
+eyeota.net
+exelator.com
+agkn.com
+mookie1.com
+zemanta.com
+lotame.com
+btrll.com
+addthis.com
+s7.addthis.com
+sharethis.com
+histats.com
+chartbeat.com
+ping.chartbeat.net
+statcounter.com
+c.statcounter.com
+parsely.com
+srv.carbonads.net
+proclivitysystems.com
+mxptint.net
+imrworldwide.com
+voicefive.com
+research-int.com
+comscore.com

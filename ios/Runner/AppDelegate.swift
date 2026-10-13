@@ -166,6 +166,192 @@ import os.log
                     }
                 }
 
+            case "validateDomain":
+                guard let args = call.arguments as? [String: Any],
+                      let rawDomain = args["domain"] as? String else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'domain'", details: nil))
+                    return
+                }
+
+                switch RunnerRuleStore.validateDomain(rawDomain) {
+                case .success(let validated):
+                    result(validated)
+                case .failure(let error):
+                    result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
+            case "addRule":
+                guard let args = call.arguments as? [String: Any],
+                      let rawDomain = args["domain"] as? String,
+                      let isBlocked = args["isBlocked"] as? Bool else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'domain' and 'isBlocked'", details: nil))
+                    return
+                }
+                let isEnabled = args["isEnabled"] as? Bool ?? true
+
+                switch RunnerRuleStore.addRule(domain: rawDomain, isBlocked: isBlocked, isEnabled: isEnabled) {
+                case .success(let newRule):
+                    AuraTunnelManager.shared.notifyRulesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success:
+                            result(newRule.toDictionary())
+                        case .failure(let tunnelError):
+                            result(FlutterError(
+                                code: "EXTENSION_RELOAD_FAILED",
+                                message: "Rule saved, but active firewall failed to reload: \(tunnelError.errorDescription ?? tunnelError.underlyingDescription)",
+                                details: tunnelError.detailsDictionary
+                            ))
+                        }
+                    }
+                case .failure(let error):
+                    result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
+            case "updateRule":
+                guard let args = call.arguments as? [String: Any],
+                      let id = args["id"] as? String else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'id'", details: nil))
+                    return
+                }
+                let domain = args["domain"] as? String
+                let isBlocked = args["isBlocked"] as? Bool
+                let isEnabled = args["isEnabled"] as? Bool
+
+                switch RunnerRuleStore.updateRule(id: id, domain: domain, isBlocked: isBlocked, isEnabled: isEnabled) {
+                case .success(let updatedRule):
+                    AuraTunnelManager.shared.notifyRulesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success:
+                            result(updatedRule.toDictionary())
+                        case .failure(let tunnelError):
+                            result(FlutterError(
+                                code: "EXTENSION_RELOAD_FAILED",
+                                message: "Rule updated, but active firewall failed to reload: \(tunnelError.errorDescription ?? tunnelError.underlyingDescription)",
+                                details: tunnelError.detailsDictionary
+                            ))
+                        }
+                    }
+                case .failure(let error):
+                    result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
+            case "deleteRule":
+                guard let args = call.arguments as? [String: Any],
+                      let id = args["id"] as? String else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'id'", details: nil))
+                    return
+                }
+
+                switch RunnerRuleStore.deleteRule(id: id) {
+                case .success(let deletedRule):
+                    AuraTunnelManager.shared.notifyRulesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success:
+                            result(deletedRule.toDictionary())
+                        case .failure(let tunnelError):
+                            result(FlutterError(
+                                code: "EXTENSION_RELOAD_FAILED",
+                                message: "Rule deleted, but active firewall failed to reload: \(tunnelError.errorDescription ?? tunnelError.underlyingDescription)",
+                                details: tunnelError.detailsDictionary
+                            ))
+                        }
+                    }
+                case .failure(let error):
+                    result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
+            case "toggleRule":
+                guard let args = call.arguments as? [String: Any],
+                      let id = args["id"] as? String,
+                      let isEnabled = args["isEnabled"] as? Bool else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'id' and 'isEnabled'", details: nil))
+                    return
+                }
+
+                switch RunnerRuleStore.toggleRule(id: id, isEnabled: isEnabled) {
+                case .success(let updatedRule):
+                    AuraTunnelManager.shared.notifyRulesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success:
+                            result(updatedRule.toDictionary())
+                        case .failure(let tunnelError):
+                            result(FlutterError(
+                                code: "EXTENSION_RELOAD_FAILED",
+                                message: "Rule toggled, but active firewall failed to reload: \(tunnelError.errorDescription ?? tunnelError.underlyingDescription)",
+                                details: tunnelError.detailsDictionary
+                            ))
+                        }
+                    }
+                case .failure(let error):
+                    result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
+            case "getCategories":
+                switch RunnerRuleStore.loadCategoryPreferences() {
+                case .success(let prefs):
+                    result(prefs)
+                case .failure(let error):
+                    result(FlutterError(code: "LOAD_CATEGORIES_FAILED", message: error.localizedDescription, details: nil))
+                }
+
+            case "setCategoryPreference":
+                guard let args = call.arguments as? [String: Any],
+                      let category = args["category"] as? String,
+                      let isEnabled = args["isEnabled"] as? Bool else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'category' and 'isEnabled'", details: nil))
+                    return
+                }
+
+                switch RunnerRuleStore.setCategoryPreference(category: category, isEnabled: isEnabled) {
+                case .success(let updatedPrefs):
+                    AuraTunnelManager.shared.notifyCategoriesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success:
+                            result(updatedPrefs)
+                        case .failure(let tunnelError):
+                            result(FlutterError(
+                                code: "EXTENSION_RELOAD_FAILED",
+                                message: "Category saved, but active firewall failed to reload: \(tunnelError.errorDescription ?? tunnelError.underlyingDescription)",
+                                details: tunnelError.detailsDictionary
+                            ))
+                        }
+                    }
+                case .failure(let error):
+                    result(FlutterError(code: "SAVE_CATEGORIES_FAILED", message: error.localizedDescription, details: nil))
+                }
+
+            case "setAllCategoryPreferences":
+                guard let args = call.arguments as? [String: Any],
+                      let rawPrefs = args["preferences"] as? [String: Any] else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'preferences' map", details: nil))
+                    return
+                }
+
+                var typedPrefs: [String: Bool] = [:]
+                for (cat, val) in rawPrefs {
+                    if let boolVal = val as? Bool {
+                        typedPrefs[cat] = boolVal
+                    }
+                }
+
+                do {
+                    try RunnerRuleStore.saveCategoryPreferences(typedPrefs)
+                    AuraTunnelManager.shared.notifyCategoriesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success:
+                            result(typedPrefs)
+                        case .failure(let tunnelError):
+                            result(FlutterError(
+                                code: "EXTENSION_RELOAD_FAILED",
+                                message: "Categories saved, but active firewall failed to reload: \(tunnelError.errorDescription ?? tunnelError.underlyingDescription)",
+                                details: tunnelError.detailsDictionary
+                            ))
+                        }
+                    }
+                } catch {
+                    result(FlutterError(code: "SAVE_CATEGORIES_FAILED", message: error.localizedDescription, details: nil))
+                }
+
             default:
                 os_log(.default, log: Self.log, "[MethodChannel] Unhandled method: %{public}@", call.method)
                 result(FlutterMethodNotImplemented)
@@ -173,6 +359,110 @@ import os.log
         }
 
         statusChannel.setStreamHandler(TunnelStatusStreamHandler())
+
+        // Activity Repository Channel (Read-only, paginated, off main thread)
+        let activityRepository = AuraActivityRepository()
+        let activityChannel = FlutterMethodChannel(name: "com.thejatech.aura/activity", binaryMessenger: messenger)
+
+        activityChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
+            let args = call.arguments as? [String: Any]
+
+            switch call.method {
+            case "getActivity":
+                let limit = (args?["limit"] as? Int) ?? 25
+                let cursorTimestamp = (args?["cursorTimestamp"] as? NSNumber)?.int64Value
+                let cursorId = (args?["cursorId"] as? NSNumber)?.int64Value
+                let outcome = args?["outcome"] as? String
+                let searchDomain = args?["searchDomain"] as? String
+                let startTime = (args?["startTime"] as? NSNumber)?.int64Value
+                let endTime = (args?["endTime"] as? NSNumber)?.int64Value
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let paginated = try activityRepository.queryActivity(
+                            limit: limit,
+                            cursorTimestamp: cursorTimestamp,
+                            cursorId: cursorId,
+                            outcome: outcome,
+                            searchDomain: searchDomain,
+                            startTime: startTime,
+                            endTime: endTime
+                        )
+                        let payload = paginated.toDictionary()
+                        DispatchQueue.main.async {
+                            result(payload)
+                        }
+                    } catch let err as AuraRepositoryError {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: err.errorCode, message: err.localizedDescription, details: nil))
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: "QUERY_FAILED", message: error.localizedDescription, details: nil))
+                        }
+                    }
+                }
+
+            case "getDashboardStats":
+                let timeWindowMillis = (args?["timeWindowMillis"] as? NSNumber)?.int64Value ?? 86_400_000
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let stats = try activityRepository.getDashboardStats(
+                            timeWindowMillis: timeWindowMillis
+                        )
+                        let payload = stats.toDictionary()
+                        DispatchQueue.main.async {
+                            result(payload)
+                        }
+                    } catch let err as AuraRepositoryError {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: err.errorCode, message: err.localizedDescription, details: nil))
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: "STATS_FAILED", message: error.localizedDescription, details: nil))
+                        }
+                    }
+                }
+
+            case "getTopBlockedDomains":
+                let limit = (args?["limit"] as? Int) ?? 5
+                let timeWindowMillis = (args?["timeWindowMillis"] as? NSNumber)?.int64Value
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let topList = try activityRepository.getTopBlockedDomains(
+                            limit: limit,
+                            timeWindowMillis: timeWindowMillis
+                        )
+                        let payload = topList.map { $0.toDictionary() }
+                        DispatchQueue.main.async {
+                            result(payload)
+                        }
+                    } catch let err as AuraRepositoryError {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: err.errorCode, message: err.localizedDescription, details: nil))
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: "TOP_BLOCKED_FAILED", message: error.localizedDescription, details: nil))
+                        }
+                    }
+                }
+
+            case "checkpoint":
+                DispatchQueue.global(qos: .utility).async {
+                    let success = activityRepository.checkpointPassive()
+                    DispatchQueue.main.async {
+                        result(success)
+                    }
+                }
+
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
     }
 }
 

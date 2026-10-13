@@ -32,6 +32,7 @@ public final class AuraLocalDNSResolver {
     ]
 
     public var onFatalError: ((Error) -> Void)?
+    public var activityWriter: AuraActivityWriter?
 
     private var serverSocket: Int32 = -1
     private var dispatchSource: DispatchSourceRead?
@@ -40,6 +41,18 @@ public final class AuraLocalDNSResolver {
 
     public init(engine: AuraDNSEngine) {
         self.engine = engine
+    }
+
+    public static func queryTypeToString(_ qType: UInt16) -> String {
+        switch qType {
+        case 1: return "A"
+        case 28: return "AAAA"
+        case 5: return "CNAME"
+        case 15: return "MX"
+        case 16: return "TXT"
+        case 65: return "HTTPS"
+        default: return "TYPE\(qType)"
+        }
     }
 
     /// Starts listening on 127.0.0.1:53.
@@ -144,38 +157,64 @@ public final class AuraLocalDNSResolver {
 
     private func processQuery(requestData: Data, clientAddr: sockaddr_storage, addrLen: socklen_t) {
         if let question = AuraDNSEngine.parseQuestion(data: requestData) {
-            let evaluation = engine.evaluate(domain: question.name)
+            let decision = engine.evaluate(domain: question.name)
+            let qTypeStr = Self.queryTypeToString(question.qType)
 
-            switch evaluation {
-            case .blocked(let ruleDomain):
+            if decision.isBlocked {
                 os_log(
                     .info,
                     log: Self.log,
-                    "[BLOCK] Intercepted %{public}@ (matched rule: %{public}@, type: %{public}u) -> Synthesizing 0.0.0.0/::",
+                    "[BLOCK] Intercepted %{public}@ (source: %{public}@, rule: %{public}@, categories: %{public}@, type: %{public}u) -> Synthesizing 0.0.0.0/::",
                     question.name,
-                    ruleDomain,
+                    decision.matchedSource,
+                    decision.matchedRule ?? "unknown",
+                    decision.matchedCategories.joined(separator: ","),
                     question.qType
                 )
                 if let response = AuraDNSEngine.synthesizeBlockedResponse(requestData: requestData) {
                     sendResponse(response, to: clientAddr, addrLen: addrLen)
+
+                    let record = ActivityRecord(
+                        domain: question.name,
+                        queryType: qTypeStr,
+                        outcome: "blocked",
+                        matchedSource: decision.matchedSource,
+                        matchedRuleId: decision.matchedRule,
+                        matchedCategories: decision.matchedCategories,
+                        reason: decision.reason
+                    )
+                    activityWriter?.enqueue(record)
                     return
                 }
-
-            case .allowed(let ruleDomain):
-                let ruleStr = ruleDomain ?? "none"
+            } else {
                 os_log(
                     .info,
                     log: Self.log,
-                    "[ALLOW] Query %{public}@ permitted (rule: %{public}@, type: %{public}u) -> Forwarding upstream",
+                    "[ALLOW] Query %{public}@ permitted (source: %{public}@, rule: %{public}@, type: %{public}u) -> Forwarding upstream",
                     question.name,
-                    ruleStr,
+                    decision.matchedSource,
+                    decision.matchedRule ?? "none",
                     question.qType
                 )
             }
-            forwardUpstream(requestData: requestData, clientAddr: clientAddr, addrLen: addrLen, domain: question.name)
+            forwardUpstream(
+                requestData: requestData,
+                clientAddr: clientAddr,
+                addrLen: addrLen,
+                domain: question.name,
+                queryType: qTypeStr,
+                decision: decision
+            )
         } else {
             os_log(.default, log: Self.log, "Received unparseable DNS payload (%{public}ld bytes) -> Forwarding upstream", requestData.count)
-            forwardUpstream(requestData: requestData, clientAddr: clientAddr, addrLen: addrLen, domain: nil)
+            forwardUpstream(
+                requestData: requestData,
+                clientAddr: clientAddr,
+                addrLen: addrLen,
+                domain: nil,
+                queryType: "UNKNOWN",
+                decision: nil
+            )
         }
     }
 
@@ -200,7 +239,9 @@ public final class AuraLocalDNSResolver {
         requestData: Data,
         clientAddr: sockaddr_storage,
         addrLen: socklen_t,
-        domain: String?
+        domain: String?,
+        queryType: String,
+        decision: AuraDNSEngine.MatchDecision?
     ) {
         // Run upstream queries concurrently on global worker queue to prevent head-of-line blocking
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -238,6 +279,19 @@ public final class AuraLocalDNSResolver {
                     response.count
                 )
                 self.sendResponse(response, to: clientAddr, addrLen: addrLen)
+
+                if let domain = domain {
+                    let record = ActivityRecord(
+                        domain: domain,
+                        queryType: queryType,
+                        outcome: "allowed",
+                        matchedSource: decision?.matchedSource ?? "none",
+                        matchedRuleId: decision?.matchedRule,
+                        matchedCategories: decision?.matchedCategories ?? [],
+                        reason: nil
+                    )
+                    self.activityWriter?.enqueue(record)
+                }
             } else {
                 os_log(
                     .error,
@@ -248,6 +302,19 @@ public final class AuraLocalDNSResolver {
                 )
                 if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
                     self.sendResponse(servFail, to: clientAddr, addrLen: addrLen)
+                }
+
+                if let domain = domain {
+                    let record = ActivityRecord(
+                        domain: domain,
+                        queryType: queryType,
+                        outcome: "failed",
+                        matchedSource: decision?.matchedSource ?? "none",
+                        matchedRuleId: decision?.matchedRule,
+                        matchedCategories: decision?.matchedCategories ?? [],
+                        reason: "Upstream resolution failed or timed out"
+                    )
+                    self.activityWriter?.enqueue(record)
                 }
             }
         }

@@ -23,6 +23,18 @@
 		A1110009294A000100000001 /* AuraTunnel.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A1110010294A000100000001 /* AuraTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A1110018294A000100000001 /* AuraTunnelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110016294A000100000001 /* AuraTunnelManager.swift */; };
 		A1110019294A000100000001 /* RunnerRuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110017294A000100000001 /* RunnerRuleStore.swift */; };
+		A1110071294A000100000001 /* AuraActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110070294A000100000001 /* AuraActivityRepository.swift */; };
+		A1110051294A000100000001 /* AuraPSLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110050294A000100000001 /* AuraPSLValidator.swift */; };
+		A1110053294A000100000001 /* AuraCategoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110052294A000100000001 /* AuraCategoryStore.swift */; };
+		A1110055294A000100000001 /* public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* public_suffix_list.dat */; };
+		A1110057294A000100000001 /* ads.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110056294A000100000001 /* ads.txt */; };
+		A1110059294A000100000001 /* trackers.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110058294A000100000001 /* trackers.txt */; };
+		A1110061294A000100000001 /* analytics.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110060294A000100000001 /* analytics.txt */; };
+		A1110065294A000100000001 /* AuraActivityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110064294A000100000001 /* AuraActivityDatabase.swift */; };
+		A1110081294A000100000001 /* AuraPSLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110050294A000100000001 /* AuraPSLValidator.swift */; };
+		A1110082294A000100000001 /* AuraCategoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110052294A000100000001 /* AuraCategoryStore.swift */; };
+		A1110083294A000100000001 /* AuraDNSEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110006294A000100000001 /* AuraDNSEngine.swift */; };
+		A1110084294A000100000001 /* public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* public_suffix_list.dat */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +106,14 @@
 		A1110015294A000100000001 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		A1110016294A000100000001 /* AuraTunnelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraTunnelManager.swift; sourceTree = "<group>"; };
 		A1110017294A000100000001 /* RunnerRuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerRuleStore.swift; sourceTree = "<group>"; };
+		A1110070294A000100000001 /* AuraActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityRepository.swift; sourceTree = "<group>"; };
+		A1110050294A000100000001 /* AuraPSLValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraPSLValidator.swift; sourceTree = "<group>"; };
+		A1110052294A000100000001 /* AuraCategoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraCategoryStore.swift; sourceTree = "<group>"; };
+		A1110054294A000100000001 /* public_suffix_list.dat */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/public_suffix_list.dat"; sourceTree = "<group>"; };
+		A1110056294A000100000001 /* ads.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/categories/ads.txt"; sourceTree = "<group>"; };
+		A1110058294A000100000001 /* trackers.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/categories/trackers.txt"; sourceTree = "<group>"; };
+		A1110060294A000100000001 /* analytics.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/categories/analytics.txt"; sourceTree = "<group>"; };
+		A1110064294A000100000001 /* AuraActivityDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityDatabase.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -164,6 +184,7 @@
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				A1110016294A000100000001 /* AuraTunnelManager.swift */,
 				A1110017294A000100000001 /* RunnerRuleStore.swift */,
+				A1110070294A000100000001 /* AuraActivityRepository.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -175,6 +196,13 @@
 				A1110004294A000100000001 /* AuraLocalDNSResolver.swift */,
 				A1110006294A000100000001 /* AuraDNSEngine.swift */,
 				A1110008294A000100000001 /* AuraRuleStore.swift */,
+				A1110050294A000100000001 /* AuraPSLValidator.swift */,
+				A1110052294A000100000001 /* AuraCategoryStore.swift */,
+				A1110054294A000100000001 /* public_suffix_list.dat */,
+				A1110056294A000100000001 /* ads.txt */,
+				A1110058294A000100000001 /* trackers.txt */,
+				A1110060294A000100000001 /* analytics.txt */,
+				A1110064294A000100000001 /* AuraActivityDatabase.swift */,
 				A1110013294A000100000001 /* Info.plist */,
 				A1110014294A000100000001 /* AuraTunnel.entitlements */,
 			);
@@ -305,6 +333,7 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				A1110084294A000100000001 /* public_suffix_list.dat in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -362,6 +391,10 @@
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				A1110018294A000100000001 /* AuraTunnelManager.swift in Sources */,
 				A1110019294A000100000001 /* RunnerRuleStore.swift in Sources */,
+				A1110071294A000100000001 /* AuraActivityRepository.swift in Sources */,
+				A1110081294A000100000001 /* AuraPSLValidator.swift in Sources */,
+				A1110082294A000100000001 /* AuraCategoryStore.swift in Sources */,
+				A1110083294A000100000001 /* AuraDNSEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -373,6 +406,9 @@
 				A1110003294A000100000001 /* AuraLocalDNSResolver.swift in Sources */,
 				A1110005294A000100000001 /* AuraDNSEngine.swift in Sources */,
 				A1110007294A000100000001 /* AuraRuleStore.swift in Sources */,
+				A1110051294A000100000001 /* AuraPSLValidator.swift in Sources */,
+				A1110053294A000100000001 /* AuraCategoryStore.swift in Sources */,
+				A1110065294A000100000001 /* AuraActivityDatabase.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -393,6 +429,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1110055294A000100000001 /* public_suffix_list.dat in Resources */,
+				A1110057294A000100000001 /* ads.txt in Resources */,
+				A1110059294A000100000001 /* trackers.txt in Resources */,
+				A1110061294A000100000001 /* analytics.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

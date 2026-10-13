@@ -397,4 +397,51 @@ public final class AuraTunnelManager: NSObject {
             }
         }
     }
+
+    /// Signals a currently connected tunnel to reload its category preferences from App Group storage.
+    public func notifyCategoriesUpdated(completion: @escaping (Result<Bool, AuraTunnelError>) -> Void) {
+        let sendIPC: (NETunnelProviderManager) -> Void = { manager in
+            guard let session = manager.connection as? NETunnelProviderSession else {
+                os_log(.info, log: Self.log, "[sendProviderMessage] Connection is not a NETunnelProviderSession; skipping live reload_categories IPC")
+                completion(.success(false))
+                return
+            }
+
+            let currentStatus = session.status
+            guard currentStatus == .connected else {
+                os_log(.info, log: Self.log, "[sendProviderMessage] Tunnel status is %{public}@, not .connected; skipping live reload_categories IPC", Status.from(vpnStatus: currentStatus).rawValue)
+                completion(.success(false))
+                return
+            }
+
+            let message = Data("reload_categories".utf8)
+            os_log(.info, log: Self.log, "[sendProviderMessage] Sending 'reload_categories' IPC to connected extension...")
+            do {
+                try session.sendProviderMessage(message) { responseData in
+                    if let responseData = responseData, responseData == Data([1]) {
+                        os_log(.info, log: Self.log, "[sendProviderMessage] Extension acknowledged 'reload_categories'.")
+                        completion(.success(true))
+                    } else if let responseData = responseData {
+                        os_log(.error, log: Self.log, "[sendProviderMessage] Extension rejected 'reload_categories' with response: %{public}@", responseData as NSData)
+                        completion(.failure(AuraTunnelError(stage: "sendProviderMessage", code: -2, description: "Extension failed to reload categories")))
+                    } else {
+                        os_log(.error, log: Self.log, "[sendProviderMessage] Extension returned nil response for 'reload_categories'.")
+                        completion(.failure(AuraTunnelError(stage: "sendProviderMessage", code: -1, description: "Extension returned nil response to reload_categories message")))
+                    }
+                }
+            } catch {
+                completion(.failure(AuraTunnelError(stage: "sendProviderMessage", error: error)))
+            }
+        }
+
+        getManager { result in
+            switch result {
+            case .success(let manager):
+                sendIPC(manager)
+            case .failure(let error):
+                os_log(.info, log: Self.log, "[sendProviderMessage] Could not load manager (%{public}@); skipping live reload_categories IPC", error.underlyingDescription)
+                completion(.success(false))
+            }
+        }
+    }
 }

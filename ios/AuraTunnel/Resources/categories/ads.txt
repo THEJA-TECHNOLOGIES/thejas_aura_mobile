@@ -1,0 +1,55 @@
+# Category: Ads
+# Purpose: Default advertising network and ad-serving domain blocklist for Theja's Aura.
+# Sources: Curated subset of standard ad-serving endpoints (EasyList / Peter Lowe's Ad and Tracking Server List).
+# Version: 2026.10.1
+# Format: One normalized domain per line. Blank lines and comments starting with '#' or '//' are ignored.
+
+doubleclick.net
+googleads.g.doubleclick.net
+pagead2.googlesyndication.com
+adservice.google.com
+ads.pubmatic.com
+adnxs.com
+ib.adnxs.com
+c.amazon-adsystem.com
+aax.amazon-adsystem.com
+advertising.apple.com
+iadsdk.apple.com
+ads.yahoo.com
+gemini.yahoo.com
+taboola.com
+trc.taboola.com
+outbrain.com
+widgets.outbrain.com
+rubiconproject.com
+fastlane.rubiconproject.com
+openx.net
+delivery.openx.net
+criteo.com
+static.criteo.net
+casalemedia.com
+adroll.com
+d.adroll.com
+smartadserver.com
+applovin.com
+ads.mopub.com
+unityads.unity3d.com
+vungle.com
+chartboost.com
+inmobi.com
+ironsrc.com
+media.net
+popads.net
+adcolony.com
+spotxchange.com
+sovrn.com
+sharethrough.com
+triplelift.com
+indexexchange.com
+teads.tv
+revcontent.com
+gumgum.com
+bidswitch.net
+adtechus.com
+yieldmo.com
+undertone.com

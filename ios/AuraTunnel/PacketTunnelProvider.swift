@@ -10,6 +10,8 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let dnsEngine = AuraDNSEngine()
     private lazy var resolver = AuraLocalDNSResolver(engine: self.dnsEngine)
+    private let activityDatabase = AuraActivityDatabase()
+    private lazy var activityWriter = AuraActivityWriter(database: self.activityDatabase)
 
     open override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         os_log(.info, log: Self.log, "startTunnel invoked")
@@ -20,19 +22,35 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
             self?.cancelTunnelWithError(error)
         }
 
-        // 2. Load active rules from shared App Group container
-        _ = loadRulesFromAppGroup()
+        // 2. Open activity database and start asynchronous queue writer
+        if activityDatabase.open() {
+            // Prune records older than 30-day retention boundary
+            let thirtyDaysAgo = Int64(Date().timeIntervalSince1970 * 1000) - Int64(30 * 24 * 60 * 60 * 1000)
+            activityDatabase.pruneRetention(cutoffUtcMillis: thirtyDaysAgo)
 
-        // 3. Start local DNS socket resolver on 127.0.0.1:53
+            activityWriter.start()
+            resolver.activityWriter = activityWriter
+            os_log(.info, log: Self.log, "Activity database opened and writer started")
+        } else {
+            os_log(.error, log: Self.log, "Activity database failed to open; continuing tunnel without activity logging")
+        }
+
+        // 3. Load active rules and categories from shared App Group container
+        _ = loadRulesFromAppGroup()
+        loadCategoriesAndPreferences()
+
+        // 4. Start local DNS socket resolver on 127.0.0.1:53
         let started = resolver.start()
         guard started else {
             os_log(.error, log: Self.log, "Failed to start local DNS resolver on 127.0.0.1:53")
+            resolver.activityWriter = nil
+            activityWriter.flushAndClose(timeout: 0.5)
             let error = NSError(domain: "AuraTunnel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to bind local DNS resolver to 127.0.0.1:53"])
             completionHandler(error)
             return
         }
 
-        // 4. Configure Tunnel Network Settings following Lockdown pattern
+        // 5. Configure Tunnel Network Settings following Lockdown pattern
         let tunnelSettings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
 
         // Direct system DNS to the local loopback resolver with global match
@@ -57,6 +75,8 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
                     nsError.localizedDescription
                 )
                 self?.resolver.stop()
+                self?.resolver.activityWriter = nil
+                self?.activityWriter.flushAndClose(timeout: 0.5)
                 completionHandler(error)
             } else {
                 os_log(.info, log: Self.log, "setTunnelNetworkSettings applied successfully. System DNS routed to 127.0.0.1.")
@@ -68,20 +88,30 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
     open override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         os_log(.info, log: Self.log, "stopTunnel invoked with reason: %{public}ld", reason.rawValue)
         resolver.stop()
+        resolver.activityWriter = nil
+        activityWriter.flushAndClose(timeout: 0.5)
         completionHandler()
     }
 
     open override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
-        if let command = String(data: messageData, encoding: .utf8), command == "reload_rules" {
-            os_log(.info, log: Self.log, "handleAppMessage: reloading rules from App Group")
-            let applied = loadRulesFromAppGroup()
-            if applied {
-                completionHandler?(Data([1]))
-            } else {
-                os_log(.error, log: Self.log, "handleAppMessage: reload_rules failed to apply rules from storage")
-                completionHandler?(Data([0]))
-            }
-        } else {
+        guard let command = String(data: messageData, encoding: .utf8) else {
+            completionHandler?(nil)
+            return
+        }
+
+        switch command {
+        case "reload_rules":
+            os_log(.info, log: Self.log, "handleAppMessage: reloading rules and category preferences from App Group")
+            let rulesApplied = loadRulesFromAppGroup()
+            let categoriesApplied = loadCategoriesAndPreferences()
+            completionHandler?((rulesApplied && categoriesApplied) ? Data([1]) : Data([0]))
+
+        case "reload_categories":
+            os_log(.info, log: Self.log, "handleAppMessage: reloading category preferences from App Group")
+            let categoriesApplied = loadCategoriesAndPreferences()
+            completionHandler?(categoriesApplied ? Data([1]) : Data([0]))
+
+        default:
             completionHandler?(nil)
         }
     }
@@ -96,6 +126,23 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
             return true
         case .failure(let error):
             os_log(.error, log: Self.log, "Failed to load rules from App Group: %{public}@ — retaining existing in-memory rules", error.localizedDescription)
+            return false
+        }
+    }
+
+    @discardableResult
+    private func loadCategoriesAndPreferences() -> Bool {
+        let bundled = AuraCategoryStore.loadAllBundledCategories()
+        dnsEngine.setCategories(bundled)
+
+        let result = AuraCategoryStore.loadPreferencesResult()
+        switch result {
+        case .success(let prefs):
+            dnsEngine.setCategoryPreferences(prefs)
+            os_log(.info, log: Self.log, "Loaded %{public}ld bundled categories and %{public}ld category preferences", bundled.count, prefs.count)
+            return true
+        case .failure(let error):
+            os_log(.error, log: Self.log, "Failed to load category preferences from App Group: %{public}@ — using fallback/existing preferences", error.localizedDescription)
             return false
         }
     }

@@ -1,27 +1,116 @@
 import Foundation
+import os.log
 
 /// Pure Swift, clean-room DNS and domain-matching engine for Theja's Aura.
 /// Zero GPL dependencies. Compliant with RFC 1035 and RFC 3596 specifications.
+/// Includes Mozilla Public Suffix List (PSL) validation and multi-category attribution.
 public final class AuraDNSEngine {
 
     public struct Rule: Codable, Equatable {
+        public let id: String
         public let domain: String
         public let isEnabled: Bool
         public let isBlocked: Bool // true: block, false: allow/whitelist
 
-        public init(domain: String, isEnabled: Bool = true, isBlocked: Bool = true) {
-            self.domain = AuraDNSEngine.normalizeDomain(domain)
+        enum CodingKeys: String, CodingKey {
+            case id, domain, isEnabled, isBlocked
+        }
+
+        public init(id: String? = nil, domain: String, isEnabled: Bool = true, isBlocked: Bool = true) {
+            let normalized = AuraDNSEngine.normalizeDomain(domain)
+            self.id = (id == nil || id?.isEmpty == true) ? normalized : id!
+            self.domain = normalized
             self.isEnabled = isEnabled
             self.isBlocked = isBlocked
         }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let rawDomain = try container.decode(String.self, forKey: .domain)
+            let normalized = AuraDNSEngine.normalizeDomain(rawDomain)
+            let rawId = try container.decodeIfPresent(String.self, forKey: .id)
+            self.id = (rawId == nil || rawId?.isEmpty == true) ? normalized : rawId!
+            self.domain = normalized
+            self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+            self.isBlocked = try container.decodeIfPresent(Bool.self, forKey: .isBlocked) ?? true
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+            try container.encode(domain, forKey: .domain)
+            try container.encode(isEnabled, forKey: .isEnabled)
+            try container.encode(isBlocked, forKey: .isBlocked)
+        }
     }
 
+    /// Legacy match result for backward-compatible call sites.
     public enum MatchResult: Equatable {
         case blocked(matchedRule: String)
         case allowed(matchedRule: String?)
     }
 
+    /// Structured, deterministic decision for a queried domain.
+    public struct MatchDecision: Equatable {
+        public let isBlocked: Bool
+        public let matchedSource: String // "allowlist", "custom", "default", "none"
+        public let matchedRule: String?   // The rule domain that triggered the decision (if any)
+        public let matchedCategories: [String] // Sorted array of matching enabled categories
+        public let reason: String
+
+        public var legacyMatchResult: MatchResult {
+            if isBlocked {
+                return .blocked(matchedRule: matchedRule ?? matchedCategories.first ?? "")
+            } else {
+                return .allowed(matchedRule: matchedRule)
+            }
+        }
+
+        public static func allowedByAllowlist(rule: String) -> MatchDecision {
+            return MatchDecision(
+                isBlocked: false,
+                matchedSource: "allowlist",
+                matchedRule: rule,
+                matchedCategories: [],
+                reason: "Allowed by custom allowlist rule: \(rule)"
+            )
+        }
+
+        public static func allowedDefault(domain: String) -> MatchDecision {
+            return MatchDecision(
+                isBlocked: false,
+                matchedSource: "none",
+                matchedRule: nil,
+                matchedCategories: [],
+                reason: "Permitted domain"
+            )
+        }
+
+        public static func blockedByCustom(rule: String, categories: [String] = []) -> MatchDecision {
+            let catStr = categories.isEmpty ? "" : " (also matches: \(categories.joined(separator: ", ")))"
+            return MatchDecision(
+                isBlocked: true,
+                matchedSource: "custom",
+                matchedRule: rule,
+                matchedCategories: categories,
+                reason: "Blocked by custom rule: \(rule)\(catStr)"
+            )
+        }
+
+        public static func blockedByDefault(categories: [String], matchedDomain: String) -> MatchDecision {
+            return MatchDecision(
+                isBlocked: true,
+                matchedSource: "default",
+                matchedRule: matchedDomain,
+                matchedCategories: categories,
+                reason: "Blocked by \(categories.joined(separator: ", "))"
+            )
+        }
+    }
+
     private var rules: [String: Rule] = [:]
+    private var categories: [String: Set<String>] = [:]
+    private var categoryPreferences: [String: Bool] = [:]
     private let lock = NSLock()
 
     public init() {}
@@ -55,7 +144,7 @@ public final class AuraDNSEngine {
         return domain
     }
 
-    /// Sets or replaces the active rule set. Thread-safe.
+    /// Sets or replaces the active custom rule set. Thread-safe.
     public func setRules(_ newRules: [Rule]) {
         lock.lock()
         defer { lock.unlock() }
@@ -68,41 +157,130 @@ public final class AuraDNSEngine {
         }
     }
 
-    /// Evaluates a domain against active rules:
-    /// - Policy: Exact domain matches or subdomain matches (e.g. `ads.google.com` matches `google.com`).
-    /// - Allowlist Precedence: If an allow rule matches the domain, it takes precedence over block rules.
-    public func evaluate(domain: String) -> MatchResult {
+    /// Sets or replaces default category domain lists (e.g. "Ads", "Trackers", "Analytics"). Thread-safe.
+    public func setCategories(_ newCategories: [String: Set<String>]) {
+        lock.lock()
+        defer { lock.unlock() }
+        categories = newCategories
+    }
+
+    /// Sets or replaces category enable/disable preferences. Thread-safe.
+    public func setCategoryPreferences(_ prefs: [String: Bool]) {
+        lock.lock()
+        defer { lock.unlock() }
+        categoryPreferences = prefs
+    }
+
+    // MARK: - Candidate Suffix Generation with PSL Guard
+
+    /// Generates candidate domain suffixes for matching against rules (e.g. "ads.google.com" -> ["ads.google.com", "google.com"]).
+    /// Enforces:
+    /// 1. Strict label boundaries (whole '.' separated labels only).
+    /// 2. PSL Guard: Excludes candidate suffixes that are bare Public Suffixes (e.g. "com", "co.uk", "gov.au").
+    public static func generateCandidateSuffixes(
+        for domain: String,
+        pslValidator: AuraPSLValidator = .shared
+    ) -> [String] {
+        let normalized = normalizeDomain(domain)
+        guard !normalized.isEmpty else { return [] }
+
+        let parts = normalized.split(separator: ".").map(String.init)
+        guard parts.count >= 2 else { return [] }
+
+        var candidates: [String] = []
+        for i in 0..<parts.count {
+            let candidate = parts[i...].joined(separator: ".")
+            // Exclude bare public suffixes from rule candidate evaluation
+            if !pslValidator.isPublicSuffix(candidate) {
+                candidates.append(candidate)
+            }
+        }
+        return candidates
+    }
+
+    // MARK: - Deterministic Domain Evaluation & Rule Precedence
+
+    /// Evaluates a domain against custom rules and default blocklist categories.
+    ///
+    /// Semantics:
+    /// 1. An applicable enabled custom allow rule takes precedence over ALL blocking rules.
+    /// 2. Otherwise, a matching enabled custom block rule blocks the query.
+    /// 3. Otherwise, any matching enabled default category blocks the query.
+    /// 4. If multiple enabled default categories match, all matching categories are recorded deterministically.
+    /// 5. Disabling one category does not unblock a domain still matched by another enabled category or custom block rule.
+    /// 6. A child allow rule (e.g. "mail.google.com") permits itself and its subdomains, but does NOT allow parent or sibling domains.
+    public func evaluate(domain: String) -> MatchDecision {
         let target = AuraDNSEngine.normalizeDomain(domain)
-        if target.isEmpty {
-            return .allowed(matchedRule: nil)
+        guard !target.isEmpty else {
+            return .allowedDefault(domain: "")
         }
 
         lock.lock()
         let currentRules = self.rules
+        let currentCategories = self.categories
+        let currentPrefs = self.categoryPreferences
         lock.unlock()
 
-        let parts = target.split(separator: ".")
-        var candidates: [String] = []
-        for i in 0..<parts.count {
-            let candidate = parts[i...].joined(separator: ".")
-            candidates.append(candidate)
+        let candidates = AuraDNSEngine.generateCandidateSuffixes(for: target)
+        guard !candidates.isEmpty else {
+            return .allowedDefault(domain: target)
         }
 
-        // 1. Check Allowlist first across all candidates (Allowlist precedence)
+        // 1. Check Custom Allowlist first (highest precedence across all candidates)
         for candidate in candidates {
             if let rule = currentRules[candidate], rule.isEnabled && !rule.isBlocked {
-                return .allowed(matchedRule: candidate)
+                return .allowedByAllowlist(rule: candidate)
             }
         }
 
-        // 2. Check Blocklist across candidates
+        // 2. Check Custom Blocklist across candidates
+        var matchedCustomBlock: String? = nil
         for candidate in candidates {
             if let rule = currentRules[candidate], rule.isEnabled && rule.isBlocked {
-                return .blocked(matchedRule: candidate)
+                matchedCustomBlock = candidate
+                break
             }
         }
 
-        return .allowed(matchedRule: nil)
+        // Check matching enabled categories across candidates
+        var matchingEnabledCategories = Set<String>()
+        var firstCategoryMatchedDomain: String? = nil
+
+        for (catName, domainSet) in currentCategories {
+            let isEnabled = currentPrefs[catName] ?? true // Defaults to true if preference missing
+            if isEnabled {
+                for candidate in candidates {
+                    if domainSet.contains(candidate) {
+                        matchingEnabledCategories.insert(catName)
+                        if firstCategoryMatchedDomain == nil {
+                            firstCategoryMatchedDomain = candidate
+                        }
+                        break
+                    }
+                }
+            }
+        }
+
+        let sortedCategories = matchingEnabledCategories.sorted()
+
+        // If custom block matched:
+        if let customRule = matchedCustomBlock {
+            return .blockedByCustom(rule: customRule, categories: sortedCategories)
+        }
+
+        // 3. Check Default Categories (if any enabled category matched)
+        if !sortedCategories.isEmpty {
+            let matchedDomain = firstCategoryMatchedDomain ?? target
+            return .blockedByDefault(categories: sortedCategories, matchedDomain: matchedDomain)
+        }
+
+        // 4. Default Allow
+        return .allowedDefault(domain: target)
+    }
+
+    /// Legacy evaluation method for callers expecting MatchResult.
+    public func evaluateLegacy(domain: String) -> MatchResult {
+        return evaluate(domain: domain).legacyMatchResult
     }
 
     // MARK: - DNS Packet Parsing & Synthesis
@@ -172,7 +350,7 @@ public final class AuraDNSEngine {
         return DNSQuestion(name: fullDomain, qType: qType, qClass: qClass, rawLength: (current + 4) - offset)
     }
 
-    /// Synthesizes a RFC 1035 compliant DNS response sinkholing blocked queries to 0.0.0.0 (for A) or :: (for AAAA).
+    /// Synthesizes an RFC 1035 compliant DNS response sinkholing blocked queries to 0.0.0.0 (for A) or :: (for AAAA).
     public static func synthesizeBlockedResponse(requestData: Data) -> Data? {
         guard let header = parseHeader(data: requestData), header.qdCount > 0 else { return nil }
         guard let question = parseQuestion(data: requestData, offset: 12) else { return nil }

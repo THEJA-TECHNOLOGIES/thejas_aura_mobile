@@ -25,27 +25,74 @@ enum TunnelStatus {
 }
 
 class AuraRuleItem {
+  final String id;
   final String domain;
   final bool isEnabled;
   final bool isBlocked;
 
   const AuraRuleItem({
+    String? id,
     required this.domain,
     this.isEnabled = true,
     this.isBlocked = true,
-  });
+  }) : id = id ?? domain;
 
   Map<String, dynamic> toMap() => {
+        'id': id,
         'domain': domain,
         'isEnabled': isEnabled,
         'isBlocked': isBlocked,
       };
 
-  factory AuraRuleItem.fromMap(Map<String, dynamic> map) => AuraRuleItem(
-        domain: map['domain'] as String,
-        isEnabled: map['isEnabled'] as bool? ?? true,
-        isBlocked: map['isBlocked'] as bool? ?? true,
-      );
+  factory AuraRuleItem.fromMap(Map<String, dynamic> map) {
+    final domain = map['domain'] as String;
+    final rawId = map['id'] as String?;
+    return AuraRuleItem(
+      id: (rawId == null || rawId.isEmpty) ? domain : rawId,
+      domain: domain,
+      isEnabled: map['isEnabled'] as bool? ?? true,
+      isBlocked: map['isBlocked'] as bool? ?? true,
+    );
+  }
+
+  AuraRuleItem copyWith({
+    String? id,
+    String? domain,
+    bool? isEnabled,
+    bool? isBlocked,
+  }) {
+    return AuraRuleItem(
+      id: id ?? this.id,
+      domain: domain ?? this.domain,
+      isEnabled: isEnabled ?? this.isEnabled,
+      isBlocked: isBlocked ?? this.isBlocked,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AuraRuleItem &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          domain == other.domain &&
+          isEnabled == other.isEnabled &&
+          isBlocked == other.isBlocked;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^ domain.hashCode ^ isEnabled.hashCode ^ isBlocked.hashCode;
+}
+
+/// Typed exception for rule and category management errors.
+class AuraRuleException implements Exception {
+  final String code;
+  final String message;
+
+  const AuraRuleException(this.code, this.message);
+
+  @override
+  String toString() => 'AuraRuleException: [$code] $message';
 }
 
 /// Service wrapping native platform channels for Theja's Aura Local Tunnel.
@@ -63,7 +110,8 @@ class AuraTunnelService {
   /// Queries current status of the tunnel.
   Future<TunnelStatus> getStatus() async {
     try {
-      final String? status = await _controlChannel.invokeMethod<String>('getStatus');
+      final String? status =
+          await _controlChannel.invokeMethod<String>('getStatus');
       return TunnelStatus.fromString(status ?? 'invalid');
     } catch (_) {
       return TunnelStatus.invalid;
@@ -80,6 +128,8 @@ class AuraTunnelService {
     await _controlChannel.invokeMethod<void>('stopTunnel');
   }
 
+  // MARK: - Custom Rules Operations
+
   /// Queries persisted rules stored in the App Group.
   /// Returns null if native loading failed (e.g. file corrupt or channel error),
   /// or an empty list if no rules are stored.
@@ -94,6 +144,105 @@ class AuraTunnelService {
           .toList();
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Validates a domain using the native Mozilla Public Suffix List validator.
+  /// Throws [AuraRuleException] if the domain is invalid, a public suffix, an IP, etc.
+  Future<String> validateDomain(String domain) async {
+    try {
+      final String? validated = await _controlChannel.invokeMethod<String>(
+        'validateDomain',
+        {'domain': domain},
+      );
+      return validated ?? domain;
+    } on PlatformException catch (e) {
+      throw AuraRuleException(e.code, e.message ?? 'Domain validation failed.');
+    }
+  }
+
+  /// Adds a new custom rule with PSL validation and duplicate prevention.
+  Future<AuraRuleItem> addRule({
+    required String domain,
+    required bool isBlocked,
+    bool isEnabled = true,
+  }) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'addRule',
+        {
+          'domain': domain,
+          'isBlocked': isBlocked,
+          'isEnabled': isEnabled,
+        },
+      );
+      if (raw is Map) {
+        return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
+      }
+      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native addRule.');
+    } on PlatformException catch (e) {
+      throw AuraRuleException(e.code, e.message ?? 'Failed to add rule.');
+    }
+  }
+
+  /// Updates an existing rule.
+  Future<AuraRuleItem> updateRule({
+    required String id,
+    String? domain,
+    bool? isBlocked,
+    bool? isEnabled,
+  }) async {
+    try {
+      final Map<String, dynamic> args = {'id': id};
+      if (domain != null) args['domain'] = domain;
+      if (isBlocked != null) args['isBlocked'] = isBlocked;
+      if (isEnabled != null) args['isEnabled'] = isEnabled;
+
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'updateRule',
+        args,
+      );
+      if (raw is Map) {
+        return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
+      }
+      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native updateRule.');
+    } on PlatformException catch (e) {
+      throw AuraRuleException(e.code, e.message ?? 'Failed to update rule.');
+    }
+  }
+
+  /// Deletes a custom rule by its stable identifier.
+  Future<AuraRuleItem> deleteRule(String id) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'deleteRule',
+        {'id': id},
+      );
+      if (raw is Map) {
+        return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
+      }
+      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native deleteRule.');
+    } on PlatformException catch (e) {
+      throw AuraRuleException(e.code, e.message ?? 'Failed to delete rule.');
+    }
+  }
+
+  /// Toggles the enabled/disabled state of a rule.
+  Future<AuraRuleItem> toggleRule(String id, bool isEnabled) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'toggleRule',
+        {
+          'id': id,
+          'isEnabled': isEnabled,
+        },
+      );
+      if (raw is Map) {
+        return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
+      }
+      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native toggleRule.');
+    } on PlatformException catch (e) {
+      throw AuraRuleException(e.code, e.message ?? 'Failed to toggle rule.');
     }
   }
 
@@ -114,5 +263,79 @@ class AuraTunnelService {
   Future<bool> reloadRules() async {
     final bool? sent = await _controlChannel.invokeMethod<bool>('reloadRules');
     return sent ?? false;
+  }
+
+  // MARK: - Category Preferences Operations
+
+  /// Fetches the persisted enable/disable state of default categories (Ads, Trackers, Analytics).
+  Future<Map<String, bool>> getCategories() async {
+    try {
+      final dynamic raw =
+          await _controlChannel.invokeMethod<dynamic>('getCategories');
+      if (raw is Map) {
+        final Map<String, bool> result = {};
+        for (final entry in raw.entries) {
+          result[entry.key.toString()] = entry.value as bool? ?? true;
+        }
+        return result;
+      }
+      return {'Ads': true, 'Trackers': true, 'Analytics': true};
+    } on PlatformException catch (e) {
+      throw AuraRuleException(e.code, e.message ?? 'Failed to load categories.');
+    }
+  }
+
+  /// Toggles or sets an individual category preference.
+  Future<Map<String, bool>> setCategoryPreference(
+    String category,
+    bool isEnabled,
+  ) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'setCategoryPreference',
+        {
+          'category': category,
+          'isEnabled': isEnabled,
+        },
+      );
+      if (raw is Map) {
+        final Map<String, bool> result = {};
+        for (final entry in raw.entries) {
+          result[entry.key.toString()] = entry.value as bool? ?? true;
+        }
+        return result;
+      }
+      return {'Ads': true, 'Trackers': true, 'Analytics': true};
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to update category $category.',
+      );
+    }
+  }
+
+  /// Sets all category preferences simultaneously.
+  Future<Map<String, bool>> setAllCategoryPreferences(
+    Map<String, bool> preferences,
+  ) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'setAllCategoryPreferences',
+        {'preferences': preferences},
+      );
+      if (raw is Map) {
+        final Map<String, bool> result = {};
+        for (final entry in raw.entries) {
+          result[entry.key.toString()] = entry.value as bool? ?? true;
+        }
+        return result;
+      }
+      return preferences;
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to save category preferences.',
+      );
+    }
   }
 }
