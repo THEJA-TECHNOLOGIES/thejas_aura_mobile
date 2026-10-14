@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:theja_aura/services/aura_activity_service.dart';
+import 'package:theja_aura/core/services/aura_activity_service.dart';
 
 class AuraActivityScreen extends StatefulWidget {
   final AuraActivityService? activityService;

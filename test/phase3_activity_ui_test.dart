@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theja_aura/main.dart';
 import 'package:theja_aura/screens/aura_activity_screen.dart';
-import 'package:theja_aura/services/aura_activity_service.dart';
+import 'package:theja_aura/core/services/aura_activity_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

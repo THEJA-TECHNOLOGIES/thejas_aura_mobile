@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/aura_tunnel_service.dart';
+import '../core/services/aura_tunnel_service.dart';
 
 /// Screen for managing custom DNS allowlist and blocklist rules.
 class AuraRulesScreen extends StatefulWidget {

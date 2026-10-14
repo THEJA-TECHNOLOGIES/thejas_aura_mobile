@@ -138,167 +138,174 @@ class AppColors extends ThemeExtension<AppColors> {
   });
 
   // ── Dark Preset ──────────────────────────────────────────────
+  // Bulwark dark: navy surfaces, mint primary, periwinkle secondary,
+  // amber for "yours/warn", rose for errors.
   static const dark = AppColors(
-    // Primary — inverted scale (50 = darkest, 950 = lightest in dark mode)
-    primary: Color(0xFF7669E2),
-    primary50: Color(0xFF1A1650),
-    primary100: Color(0xFF2D2580),
-    primary200: Color(0xFF3D33A8),
-    primary300: Color(0xFF4D40BE),
-    primary400: Color(0xFF5E50D4),
-    primary500: Color(0xFF7669E2),
-    primary600: Color(0xFF9289E8),
-    primary800: Color(0xFFC9C5F5),
-    primary900: Color(0xFFE4E2FA),
-    primary950: Color(0xFFF3F2FD),
+    // Primary (mint) — inverted scale (50 = darkest, 950 = lightest in dark mode)
+    primary: Color(0xFF2DD4A7),
+    primary50: Color(0xFF052B23),
+    primary100: Color(0xFF0A4136),
+    primary200: Color(0xFF0F5A4A),
+    primary300: Color(0xFF12735D),
+    primary400: Color(0xFF1DB48C),
+    primary500: Color(0xFF2DD4A7),
+    primary600: Color(0xFF5BE3BE),
+    primary800: Color(0xFFA8F0DC),
+    primary900: Color(0xFFD2F8EE),
+    primary950: Color(0xFFEAFCF7),
 
-    // Secondary — inverted scale
-    secondary: Color(0xFFE8669E),
-    secondary50: Color(0xFF4A0D2C),
-    secondary100: Color(0xFF7A1A4A),
-    secondary200: Color(0xFF9E2860),
-    secondary300: Color(0xFFB83878),
-    secondary400: Color(0xFFD44D88),
-    secondary500: Color(0xFFE8669E),
-    secondary600: Color(0xFFEF80B0),
-    secondary800: Color(0xFFFFBDD8),
-    secondary900: Color(0xFFFFE0EE),
-    secondary950: Color(0xFFFFF0F6),
+    // Secondary (periwinkle blue) — inverted scale
+    secondary: Color(0xFF7C9CFF),
+    secondary50: Color(0xFF101A47),
+    secondary100: Color(0xFF1B2B75),
+    secondary200: Color(0xFF2A41A6),
+    secondary300: Color(0xFF3A56CC),
+    secondary400: Color(0xFF5F80F5),
+    secondary500: Color(0xFF7C9CFF),
+    secondary600: Color(0xFF9DB5FF),
+    secondary800: Color(0xFFC9D6FF),
+    secondary900: Color(0xFFE3EAFF),
+    secondary950: Color(0xFFF3F6FF),
 
     white: Color(0xFFFFFFFF),
     black: Color(0xFF000000),
 
-    // Dark backgrounds (slate-950 → slate-900 → slate-800)
-    background: Color(0xFF0F172A), // slate-900
-    surfaceLight: Color(0xFF1E293B), // slate-800
-    surfaceDark: Color(0xFF334155), // slate-700
+    // Dark backgrounds: background < surfaceLight (cards/sheets) < surfaceDark (raised rows, inputs)
+    background: Color(0xFF0A1120),
+    surfaceLight: Color(0xFF101A2E),
+    surfaceDark: Color(0xFF16223A),
     // Text — light on dark
-    textPrimary: Color(0xFFF8FAFC), // near-white
-    textSecondary: Color(0xFFCBD5E1), // slate-300
-    textTertiary: Color(0xFF94A3B8), // slate-400
-    text4: Color(0xFF64748B), // slate-500
-    text5: Color(0xFF475569), // slate-600
+    textPrimary: Color(0xFFE9EFFB),
+    textSecondary: Color(0xFFC3CEE3),
+    textTertiary: Color(0xFF93A2BF), // muted
+    text4: Color(0xFF6F7F9E), // placeholder
+    text5: Color(0xFF4E5D7D), // disabled
     // Borders
-    border: Color(0xFF334155), // slate-700
-    borderLight: Color(0xFF475569), // slate-600
-    activeBorder: Color(0xFF7669E2), // primary
-    inActiveBorder: Color(0xFF475569), // slate-600
-    // Components
-    card: Color(0xFF1E293B), // slate-800
-    accent2: Color(0xFF9289E8), // primary-600 (lighter in dark)
-    accent3: Color(0xFFEF80B0), // secondary-600
-    // Grays
-    gray: Color(0xFF64748B),
-    gray2: Color(0xFF94A3B8),
-    gray4: Color(0xFF334155),
+    border: Color(0xFF22304D),
+    borderLight: Color(0xFF2E4068),
+    activeBorder: Color(0xFF2DD4A7), // primary
+    inActiveBorder: Color(0xFF2E4068),
 
-    // Browns (amber tones)
-    brown: Color(0xFFFBBF24),
-    brownLight: Color(0xFFFEF3C7),
-    brownExtraLight: Color(0xFFFEFCE8),
+    // Components
+    card: Color(0xFF101A2E),
+    accent2: Color(0xFF5BE3BE), // primary-600 (lighter in dark)
+    accent3: Color(0xFF9DB5FF), // secondary-600
+
+    // Grays
+    gray: Color(0xFF6F7F9E),
+    gray2: Color(0xFF93A2BF),
+    gray4: Color(0xFF22304D),
+
+    // Browns (amber tones) — "custom / added by you"
+    brown: Color(0xFFF6B352),
+    brownLight: Color(0xFF3D2C0E),
+    brownExtraLight: Color(0xFF2A1F0A),
 
     // Status
-    activeStatus: Color(0xFF10B981),
-    inActiveStatus: Color(0xFF64748B),
+    activeStatus: Color(0xFF2DD4A7),
+    inActiveStatus: Color(0xFF6F7F9E),
 
-    // Error
-    error: Color(0xFFEF4444),
-    errorLight: Color(0xFF7F1D1D),
-    errorExtraLight: Color(0xFF991B1B),
-    errorDark: Color(0xFFDC2626),
+    // Error (rose)
+    error: Color(0xFFFF7C8F),
+    errorLight: Color(0xFF3F1A25),
+    errorExtraLight: Color(0xFF2A1119),
+    errorDark: Color(0xFFE8566D),
 
-    // Success
-    success: Color(0xFF10B981),
-    successLight: Color(0xFF065F46),
-    successDark: Color(0xFF059669),
+    // Success (mint)
+    success: Color(0xFF2DD4A7),
+    successLight: Color(0xFF0A4136),
+    successDark: Color(0xFF1DB48C),
 
-    // Warning
-    warning: Color(0xFFF59E0B),
-    warningLight: Color(0xFF78350F),
-    warningDark: Color(0xFFD97706),
+    // Warning (amber)
+    warning: Color(0xFFF6B352),
+    warningLight: Color(0xFF3D2C0E),
+    warningDark: Color(0xFFE09A2E),
   );
 
+  // ── Light Preset ─────────────────────────────────────────────
+  // Same roles, darker accent shades so text/icons keep 4.5:1 on white.
   static const light = AppColors(
-    // Primary — normal scale (50 = lightest, 950 = darkest in light mode)
-    primary: Color(0xFF7669E2),
-    primary50: Color(0xFFF3F2FD),
-    primary100: Color(0xFFE4E2FA),
-    primary200: Color(0xFFC9C5F5),
-    primary300: Color(0xFF9289E8),
-    primary400: Color(0xFF7669E2),
-    primary500: Color(0xFF5E50D4),
-    primary600: Color(0xFF4D40BE),
-    primary800: Color(0xFF2D2580),
-    primary900: Color(0xFF1A1650),
-    primary950: Color(0xFF0D0B28),
+    // Primary (mint, deepened for light) — normal scale (50 = lightest, 950 = darkest)
+    primary: Color(0xFF0B7F65),
+    primary50: Color(0xFFE8FBF5),
+    primary100: Color(0xFFC9F5E8),
+    primary200: Color(0xFF9BE0CB),
+    primary300: Color(0xFF3FB596),
+    primary400: Color(0xFF0B7F65),
+    primary500: Color(0xFF096B55),
+    primary600: Color(0xFF075C4A),
+    primary800: Color(0xFF054536),
+    primary900: Color(0xFF03342A),
+    primary950: Color(0xFF021F19),
 
-    // Secondary
-    secondary: Color(0xFFE8669E),
-    secondary50: Color(0xFFFFF0F6),
-    secondary100: Color(0xFFFFE0EE),
-    secondary200: Color(0xFFFFBDD8),
-    secondary300: Color(0xFFEF80B0),
-    secondary400: Color(0xFFE8669E),
-    secondary500: Color(0xFFD44D88),
-    secondary600: Color(0xFFB83878),
-    secondary800: Color(0xFF7A1A4A),
-    secondary900: Color(0xFF4A0D2C),
-    secondary950: Color(0xFF2D0719),
+    // Secondary (blue)
+    secondary: Color(0xFF4864D9),
+    secondary50: Color(0xFFF0F3FE),
+    secondary100: Color(0xFFDDE4FC),
+    secondary200: Color(0xFFB9C6F7),
+    secondary300: Color(0xFF8197EA),
+    secondary400: Color(0xFF4864D9),
+    secondary500: Color(0xFF3A51B8),
+    secondary600: Color(0xFF2E4196),
+    secondary800: Color(0xFF1F2C69),
+    secondary900: Color(0xFF151E48),
+    secondary950: Color(0xFF0C1230),
 
     white: Color(0xFFFFFFFF),
     black: Color(0xFF000000),
 
     // Light backgrounds
-    background: Color(0xFFF8FAFC), // slate-50
-    surfaceLight: Color(0xFFFFFFFF), // pure white
-    surfaceDark: Color(0xFFF1F5F9), // slate-100
+    background: Color(0xFFF4F7FB),
+    surfaceLight: Color(0xFFFFFFFF),
+    surfaceDark: Color(0xFFEAF0F8),
     // Text — dark on light
-    textPrimary: Color(0xFF0F172A), // slate-900
-    textSecondary: Color(0xFF334155), // slate-700
-    textTertiary: Color(0xFF64748B), // slate-500
-    text4: Color(0xFF94A3B8), // slate-400
-    text5: Color(0xFFCBD5E1), // slate-300
+    textPrimary: Color(0xFF0F1B33),
+    textSecondary: Color(0xFF34445F),
+    textTertiary: Color(0xFF56677F), // muted
+    text4: Color(0xFF7A8AA5), // placeholder
+    text5: Color(0xFFA9B6CA), // disabled
     // Borders
-    border: Color(0xFFE2E8F0), // slate-200
-    borderLight: Color(0xFFCBD5E1), // slate-300
-    activeBorder: Color(0xFF7669E2),
-    inActiveBorder: Color(0xFFCBD5E1),
+    border: Color(0xFFD8E0EC),
+    borderLight: Color(0xFFC5D0E2),
+    activeBorder: Color(0xFF0B7F65),
+    inActiveBorder: Color(0xFFC5D0E2),
 
     // Components
     card: Color(0xFFFFFFFF),
-    accent2: Color(0xFF5E50D4),
-    accent3: Color(0xFFD44D88),
+    accent2: Color(0xFF096B55),
+    accent3: Color(0xFF3A51B8),
 
     // Grays
-    gray: Color(0xFF94A3B8),
-    gray2: Color(0xFF64748B),
-    gray4: Color(0xFFE2E8F0),
+    gray: Color(0xFF7A8AA5),
+    gray2: Color(0xFF56677F),
+    gray4: Color(0xFFD8E0EC),
 
-    // Browns
-    brown: Color(0xFFD97706),
-    brownLight: Color(0xFFFEF3C7),
-    brownExtraLight: Color(0xFFFEFCE8),
+    // Browns (amber tones)
+    brown: Color(0xFF9A5A00),
+    brownLight: Color(0xFFFDF1DC),
+    brownExtraLight: Color(0xFFFEF8EC),
 
     // Status
-    activeStatus: Color(0xFF10B981),
-    inActiveStatus: Color(0xFF94A3B8),
+    activeStatus: Color(0xFF0B7F65),
+    inActiveStatus: Color(0xFF7A8AA5),
 
     // Error
-    error: Color(0xFFEF4444),
-    errorLight: Color(0xFFFEE2E2),
-    errorExtraLight: Color(0xFFFEF2F2),
-    errorDark: Color(0xFFDC2626),
+    error: Color(0xFFD1364F),
+    errorLight: Color(0xFFFBE3E7),
+    errorExtraLight: Color(0xFFFEF2F4),
+    errorDark: Color(0xFFB52A42),
 
     // Success
-    success: Color(0xFF10B981),
-    successLight: Color(0xFFD1FAE5),
-    successDark: Color(0xFF059669),
+    success: Color(0xFF0B7F65),
+    successLight: Color(0xFFD6F2E9),
+    successDark: Color(0xFF096B55),
 
     // Warning
-    warning: Color(0xFFF59E0B),
-    warningLight: Color(0xFFFEF3C7),
-    warningDark: Color(0xFFD97706),
+    warning: Color(0xFF9A5A00),
+    warningLight: Color(0xFFFDF1DC),
+    warningDark: Color(0xFF7F4A00),
   );
+
   @override
   AppColors copyWith({
     Color? primary,

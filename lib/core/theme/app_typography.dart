@@ -54,21 +54,21 @@ class AppTypography extends ThemeExtension<AppTypography> {
       fontWeight: FontWeight.w600,
       height: 1.12,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
     displayMedium: TextStyle(
       fontSize: 45,
       fontWeight: FontWeight.w400,
       height: 1.16,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
     displaySmall: TextStyle(
       fontSize: 36,
       fontWeight: FontWeight.w400,
       height: 1.22,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
 
     // — Headline —
@@ -77,21 +77,21 @@ class AppTypography extends ThemeExtension<AppTypography> {
       fontWeight: FontWeight.w600,
       height: 1.25,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
     headlineMedium: TextStyle(
       fontSize: 28,
       fontWeight: FontWeight.w400,
       height: 1.29,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
     headlineSmall: TextStyle(
       fontSize: 24,
       fontWeight: FontWeight.w400,
       height: 1.33,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
 
     // — Title —
@@ -100,7 +100,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       fontWeight: FontWeight.w600,
       height: 1.27,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
     titleMedium: TextStyle(
       fontSize: 16,
@@ -108,7 +108,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.5,
       letterSpacing: 0.15,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
     titleSmall: TextStyle(
       fontSize: 14,
@@ -116,7 +116,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.43,
       letterSpacing: 0.1,
       fontFamily: 'Inter',
-      color: Color(0xFFF8FAFC),
+      color: Color(0xFFE9EFFB),
     ),
 
     // — Body —
@@ -126,7 +126,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.5,
       letterSpacing: 0.5,
       fontFamily: 'Inter',
-      color: Color(0xFFCBD5E1),
+      color: Color(0xFFC3CEE3),
     ),
     bodyMedium: TextStyle(
       fontSize: 14,
@@ -134,7 +134,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.43,
       letterSpacing: 0.25,
       fontFamily: 'Inter',
-      color: Color(0xFFCBD5E1),
+      color: Color(0xFFC3CEE3),
     ),
     bodySmall: TextStyle(
       fontSize: 12,
@@ -142,7 +142,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.33,
       letterSpacing: 0.4,
       fontFamily: 'Inter',
-      color: Color(0xFF94A3B8),
+      color: Color(0xFF93A2BF),
     ),
 
     // — Label —
@@ -152,7 +152,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.43,
       letterSpacing: 0.1,
       fontFamily: 'Inter',
-      color: Color(0xFFCBD5E1),
+      color: Color(0xFFC3CEE3),
     ),
     labelMedium: TextStyle(
       fontSize: 12,
@@ -160,7 +160,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.33,
       letterSpacing: 0.5,
       fontFamily: 'Inter',
-      color: Color(0xFF94A3B8),
+      color: Color(0xFF93A2BF),
     ),
     labelSmall: TextStyle(
       fontSize: 11,
@@ -168,17 +168,17 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.45,
       letterSpacing: 0.5,
       fontFamily: 'Inter',
-      color: Color(0xFF64748B),
+      color: Color(0xFF6F7F9E),
     ),
 
-    // — Custom —
+    // — Custom — (dark text: sits on bright mint buttons, white would fail contrast) —
     button: TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.w500,
       height: 1.42,
       letterSpacing: 0.1,
       fontFamily: 'Inter',
-      color: Color(0xFFFFFFFF),
+      color: Color(0xFF062A21),
     ),
     caption: TextStyle(
       fontSize: 12,
@@ -186,7 +186,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.33,
       letterSpacing: 0.4,
       fontFamily: 'Inter',
-      color: Color(0xFF94A3B8),
+      color: Color(0xFF93A2BF),
     ),
   );
   // ── LIGHT PRESET ─────────────────────────────────────────────
@@ -198,21 +198,21 @@ class AppTypography extends ThemeExtension<AppTypography> {
       fontWeight: FontWeight.w600,
       height: 1.12,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
     displayMedium: TextStyle(
       fontSize: 45,
       fontWeight: FontWeight.w400,
       height: 1.16,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
     displaySmall: TextStyle(
       fontSize: 36,
       fontWeight: FontWeight.w400,
       height: 1.22,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
 
     // Headline — slate-900
@@ -221,21 +221,21 @@ class AppTypography extends ThemeExtension<AppTypography> {
       fontWeight: FontWeight.w600,
       height: 1.25,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
     headlineMedium: TextStyle(
       fontSize: 28,
       fontWeight: FontWeight.w400,
       height: 1.29,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
     headlineSmall: TextStyle(
       fontSize: 24,
       fontWeight: FontWeight.w400,
       height: 1.33,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
 
     // Title — slate-900
@@ -244,7 +244,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       fontWeight: FontWeight.w600,
       height: 1.27,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
     titleMedium: TextStyle(
       fontSize: 16,
@@ -252,7 +252,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.50,
       letterSpacing: 0.15,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
     titleSmall: TextStyle(
       fontSize: 14,
@@ -260,7 +260,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.43,
       letterSpacing: 0.10,
       fontFamily: 'Inter',
-      color: Color(0xFF0F172A),
+      color: Color(0xFF0F1B33),
     ),
 
     // Body — slate-700 for large, slate-500 for small
@@ -270,7 +270,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.50,
       letterSpacing: 0.50,
       fontFamily: 'Inter',
-      color: Color(0xFF334155),
+      color: Color(0xFF34445F),
     ),
     bodyMedium: TextStyle(
       fontSize: 14,
@@ -278,7 +278,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.43,
       letterSpacing: 0.25,
       fontFamily: 'Inter',
-      color: Color(0xFF334155),
+      color: Color(0xFF34445F),
     ),
     bodySmall: TextStyle(
       fontSize: 12,
@@ -286,7 +286,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.33,
       letterSpacing: 0.40,
       fontFamily: 'Inter',
-      color: Color(0xFF64748B),
+      color: Color(0xFF56677F),
     ),
 
     // Label — slate-700 / slate-500 / slate-400
@@ -296,7 +296,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.43,
       letterSpacing: 0.10,
       fontFamily: 'Inter',
-      color: Color(0xFF334155),
+      color: Color(0xFF34445F),
     ),
     labelMedium: TextStyle(
       fontSize: 12,
@@ -304,7 +304,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.33,
       letterSpacing: 0.50,
       fontFamily: 'Inter',
-      color: Color(0xFF64748B),
+      color: Color(0xFF56677F),
     ),
     labelSmall: TextStyle(
       fontSize: 11,
@@ -312,7 +312,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.45,
       letterSpacing: 0.50,
       fontFamily: 'Inter',
-      color: Color(0xFF94A3B8),
+      color: Color(0xFF7A8AA5),
     ),
 
     // Button — always white (sits on colored button backgrounds)
@@ -332,7 +332,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       height: 1.33,
       letterSpacing: 0.40,
       fontFamily: 'Inter',
-      color: Color(0xFF64748B),
+      color: Color(0xFF56677F),
     ),
   );
   // ── copyWith ─────────────────────────────────────────────────

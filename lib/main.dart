@@ -1,9 +1,13 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/screens/aura_activity_screen.dart';
 import 'package:theja_aura/screens/aura_rules_screen.dart';
-import 'package:theja_aura/services/aura_activity_service.dart';
-import 'package:theja_aura/services/aura_tunnel_service.dart';
+import 'package:theja_aura/core/services/aura_activity_service.dart';
+import 'package:theja_aura/core/services/aura_tunnel_service.dart';
+
 import 'core/DI/injection.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
@@ -16,22 +20,45 @@ void main() async {
   runApp(const AuraApp());
 }
 
-class AuraApp extends StatelessWidget {
+class AuraApp extends StatefulWidget {
   const AuraApp({super.key});
 
   @override
+  State<AuraApp> createState() => _AuraAppState();
+}
+
+class _AuraAppState extends State<AuraApp> {
+  late final GoRouter _goRouter;
+  
+  @override
+  void initState() {
+    super.initState();
+    _goRouter = GoRouter(
+      initialLocation: "/",
+      navigatorKey: rootNavigatorKey,
+      routes: [
+        GoRoute(
+          path: "/",
+          builder: (context, state) =>  Scaffold(
+            appBar: AppBar(title: Text("data")),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
+      routerConfig: _goRouter,
       title: "Theja's Aura",
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6750A4),
-          brightness: Brightness.dark,
-        ),
-      ),
-      home: const AuraDashboardScreen(),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+      builder: (context, child) {
+        return child ?? Text('child');
+      },
     );
   }
 }
@@ -210,9 +237,8 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Tunnel Action Failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Tunnel Action Failed: $e')));
       }
       debugPrint('Tunnel toggle error: $e');
     }

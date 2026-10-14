@@ -51,10 +51,10 @@ extension SizedContext on BuildContext {
   double get heightInches => sizeInches.height;
 
   /// Returns fraction (0-1) of screen width in pixels
-  double widthPct(final double fraction) => fraction * widthPx;
+  double widthPct( double fraction) => fraction * widthPx;
 
   /// Returns fraction (0-1) of screen height in pixels
-  double heightPct(final double fraction) => fraction * heightPx;
+  double heightPct( double fraction) => fraction * heightPx;
 
   /// Return limited width in large size screens
   double get appMediaQuerySmallSizeWidth {

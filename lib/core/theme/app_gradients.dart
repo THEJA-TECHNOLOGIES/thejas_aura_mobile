@@ -20,6 +20,9 @@ class AppGradients extends ThemeExtension<AppGradients> {
   final LinearGradient purpleIndigo;
   final LinearGradient roseDeep;
 
+  // ── Power button face ──
+  final LinearGradient power;
+
   // ── Backgrounds ──
   final LinearGradient backgroundDark;
   final LinearGradient backgroundLight;
@@ -53,6 +56,7 @@ class AppGradients extends ThemeExtension<AppGradients> {
     required this.rosePurple,
     required this.purpleIndigo,
     required this.roseDeep,
+    required this.power,
     required this.backgroundDark,
     required this.backgroundLight,
     required this.surface,
@@ -69,89 +73,97 @@ class AppGradients extends ThemeExtension<AppGradients> {
 
   // ── Dark Preset ──────────────────────────────────────────────
   static final dark = AppGradients(
-    // Primary — lighter → base (dark mode: start lighter)
+    // Primary (mint) — base → lighter
     primary: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFF7669E2), Color(0xFF9289E8)],
+      colors: [Color(0xFF2DD4A7), Color(0xFF5BE3BE)],
     ),
     primaryReverse: const LinearGradient(
       begin: Alignment.centerRight,
       end: Alignment.centerLeft,
-      colors: [Color(0xFF7669E2), Color(0xFF9289E8)],
+      colors: [Color(0xFF2DD4A7), Color(0xFF5BE3BE)],
     ),
     primaryVertical: const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Color(0xFF7669E2), Color(0xFF9289E8)],
+      colors: [Color(0xFF2DD4A7), Color(0xFF5BE3BE)],
     ),
 
-    // Secondary
+    // Secondary (periwinkle blue)
     secondary: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFFE8669E), Color(0xFFEF80B0)],
+      colors: [Color(0xFF7C9CFF), Color(0xFF9DB5FF)],
     ),
     secondaryReverse: const LinearGradient(
       begin: Alignment.centerRight,
       end: Alignment.centerLeft,
-      colors: [Color(0xFFE8669E), Color(0xFFEF80B0)],
+      colors: [Color(0xFF7C9CFF), Color(0xFF9DB5FF)],
     ),
 
-    // Glass — purple → rose diagonal blend
+    // Glass — mint → blue blend
     glass: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFF9289E8), Color(0xFFEF80B0)],
+      colors: [Color(0xFF5BE3BE), Color(0xFF9DB5FF)],
     ),
     glassReverse: const LinearGradient(
       begin: Alignment.centerRight,
       end: Alignment.centerLeft,
-      colors: [Color(0xFF9289E8), Color(0xFFEF80B0)],
+      colors: [Color(0xFF5BE3BE), Color(0xFF9DB5FF)],
     ),
     glassVertical: const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Color(0xFF9289E8), Color(0xFFEF80B0)],
+      colors: [Color(0xFF5BE3BE), Color(0xFF9DB5FF)],
     ),
 
-    // Signature combos
+    // Signature combos (names kept from the old purple/rose palette:
+    // purpleRose = primary → secondary, purpleIndigo = primary tints)
     purpleRose: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF7669E2), Color(0xFFE8669E)],
+      colors: [Color(0xFF2DD4A7), Color(0xFF7C9CFF)],
     ),
     rosePurple: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFE8669E), Color(0xFF7669E2)],
+      colors: [Color(0xFF7C9CFF), Color(0xFF2DD4A7)],
     ),
     purpleIndigo: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF9289E8), Color(0xFF7669E2)],
+      colors: [Color(0xFF5BE3BE), Color(0xFF2DD4A7)],
     ),
     roseDeep: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFEF80B0), Color(0xFFE8669E)],
+      colors: [Color(0xFF9DB5FF), Color(0xFF7C9CFF)],
+    ),
+
+    // Power button face (≈160° like the design)
+    power: const LinearGradient(
+      begin: Alignment(-0.35, -1.0),
+      end: Alignment(0.35, 1.0),
+      colors: [Color(0xFF3BE3B5), Color(0xFF1DB48C)],
     ),
 
     // Backgrounds
     backgroundDark: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF020617), Color(0xFF0F172A)], // slate-950 → slate-900
+      colors: [Color(0xFF060B16), Color(0xFF0A1120)],
     ),
     backgroundLight: const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Color(0xFF0F172A), Color(0xFF1E293B)], // slate-900 → slate-800
+      colors: [Color(0xFF0A1120), Color(0xFF101A2E)],
     ),
     surface: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF1E293B), Color(0xFF334155)], // slate-800 → slate-700
+      colors: [Color(0xFF101A2E), Color(0xFF16223A)],
     ),
 
     // Overlays
@@ -159,16 +171,16 @@ class AppGradients extends ThemeExtension<AppGradients> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        const Color(0xFF7669E2).withValues(alpha: 0.15),
-        const Color(0xFFE8669E).withValues(alpha: 0.15),
+        const Color(0xFF2DD4A7).withValues(alpha: 0.15),
+        const Color(0xFF7C9CFF).withValues(alpha: 0.15),
       ],
     ),
     glassOverlaySubtle: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        const Color(0xFF7669E2).withValues(alpha: 0.08),
-        const Color(0xFFE8669E).withValues(alpha: 0.08),
+        const Color(0xFF2DD4A7).withValues(alpha: 0.08),
+        const Color(0xFF7C9CFF).withValues(alpha: 0.08),
       ],
     ),
     overlayBottom: LinearGradient(
@@ -205,119 +217,125 @@ class AppGradients extends ThemeExtension<AppGradients> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        const Color(0xFF7669E2).withValues(alpha: 0.10),
-        const Color(0xFFE8669E).withValues(alpha: 0.10),
+        const Color(0xFF2DD4A7).withValues(alpha: 0.10),
+        const Color(0xFF7C9CFF).withValues(alpha: 0.10),
       ],
     ),
 
-    // Password strength indicators
+    // Password strength indicators (rose / amber / mint)
     passwordWeak: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+      colors: [Color(0xFFFF7C8F), Color(0xFFE8566D)],
     ),
     passwordMedium: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+      colors: [Color(0xFFF6B352), Color(0xFFE09A2E)],
     ),
     passwordStrong: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFF10B981), Color(0xFF059669)],
+      colors: [Color(0xFF2DD4A7), Color(0xFF1DB48C)],
     ),
   );
 
   static final light = AppGradients(
+    // Primary (deep mint) — base → darker, keeps white button text readable
     primary: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFF7669E2), Color(0xFF5E50D4)],
+      colors: [Color(0xFF0B7F65), Color(0xFF096B55)],
     ),
     primaryReverse: const LinearGradient(
       begin: Alignment.centerRight,
       end: Alignment.centerLeft,
-      colors: [Color(0xFF7669E2), Color(0xFF5E50D4)],
+      colors: [Color(0xFF0B7F65), Color(0xFF096B55)],
     ),
     primaryVertical: const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Color(0xFF7669E2), Color(0xFF5E50D4)],
+      colors: [Color(0xFF0B7F65), Color(0xFF096B55)],
     ),
     secondary: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFFE8669E), Color(0xFFD44D88)],
+      colors: [Color(0xFF4864D9), Color(0xFF3A51B8)],
     ),
     secondaryReverse: const LinearGradient(
       begin: Alignment.centerRight,
       end: Alignment.centerLeft,
-      colors: [Color(0xFFE8669E), Color(0xFFD44D88)],
+      colors: [Color(0xFF4864D9), Color(0xFF3A51B8)],
     ),
     glass: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFF5E50D4), Color(0xFFD44D88)],
+      colors: [Color(0xFF096B55), Color(0xFF3A51B8)],
     ),
     glassReverse: const LinearGradient(
       begin: Alignment.centerRight,
       end: Alignment.centerLeft,
-      colors: [Color(0xFF5E50D4), Color(0xFFD44D88)],
+      colors: [Color(0xFF096B55), Color(0xFF3A51B8)],
     ),
     glassVertical: const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Color(0xFF5E50D4), Color(0xFFD44D88)],
+      colors: [Color(0xFF096B55), Color(0xFF3A51B8)],
     ),
     purpleRose: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF7669E2), Color(0xFFE8669E)],
+      colors: [Color(0xFF0B7F65), Color(0xFF4864D9)],
     ),
     rosePurple: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFE8669E), Color(0xFF7669E2)],
+      colors: [Color(0xFF4864D9), Color(0xFF0B7F65)],
     ),
     purpleIndigo: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF5E50D4), Color(0xFF7669E2)],
+      colors: [Color(0xFF096B55), Color(0xFF0B7F65)],
     ),
     roseDeep: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFD44D88), Color(0xFFE8669E)],
+      colors: [Color(0xFF3A51B8), Color(0xFF4864D9)],
+    ),
+    power: const LinearGradient(
+      begin: Alignment(-0.35, -1.0),
+      end: Alignment(0.35, 1.0),
+      colors: [Color(0xFF18A98A), Color(0xFF0B7F65)],
     ),
     backgroundDark: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFF8FAFC), Color(0xFFEFF6FF)],
+      colors: [Color(0xFFF4F7FB), Color(0xFFEAF0F8)],
     ),
     backgroundLight: const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+      colors: [Color(0xFFFFFFFF), Color(0xFFF4F7FB)],
     ),
     surface: const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFFFFFFF), Color(0xFFF1F5F9)],
+      colors: [Color(0xFFFFFFFF), Color(0xFFEAF0F8)],
     ),
     glassOverlay: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        const Color(0xFF7669E2).withValues(alpha: 0.08),
-        const Color(0xFFE8669E).withValues(alpha: 0.08),
+        const Color(0xFF0B7F65).withValues(alpha: 0.08),
+        const Color(0xFF4864D9).withValues(alpha: 0.08),
       ],
     ),
     glassOverlaySubtle: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        const Color(0xFF7669E2).withValues(alpha: 0.04),
-        const Color(0xFFE8669E).withValues(alpha: 0.04),
+        const Color(0xFF0B7F65).withValues(alpha: 0.04),
+        const Color(0xFF4864D9).withValues(alpha: 0.04),
       ],
     ),
     overlayBottom: LinearGradient(
@@ -350,24 +368,24 @@ class AppGradients extends ThemeExtension<AppGradients> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        const Color(0xFF7669E2).withValues(alpha: 0.06),
-        const Color(0xFFE8669E).withValues(alpha: 0.06),
+        const Color(0xFF0B7F65).withValues(alpha: 0.06),
+        const Color(0xFF4864D9).withValues(alpha: 0.06),
       ],
     ),
     passwordWeak: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+      colors: [Color(0xFFD1364F), Color(0xFFB52A42)],
     ),
     passwordMedium: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+      colors: [Color(0xFFB86A00), Color(0xFF9A5A00)],
     ),
     passwordStrong: const LinearGradient(
       begin: Alignment.centerLeft,
       end: Alignment.centerRight,
-      colors: [Color(0xFF10B981), Color(0xFF059669)],
+      colors: [Color(0xFF0B7F65), Color(0xFF096B55)],
     ),
   );
   @override
@@ -384,6 +402,7 @@ class AppGradients extends ThemeExtension<AppGradients> {
     LinearGradient? rosePurple,
     LinearGradient? purpleIndigo,
     LinearGradient? roseDeep,
+    LinearGradient? power,
     LinearGradient? backgroundDark,
     LinearGradient? backgroundLight,
     LinearGradient? surface,
@@ -410,6 +429,7 @@ class AppGradients extends ThemeExtension<AppGradients> {
       rosePurple: rosePurple ?? this.rosePurple,
       purpleIndigo: purpleIndigo ?? this.purpleIndigo,
       roseDeep: roseDeep ?? this.roseDeep,
+      power: power ?? this.power,
       backgroundDark: backgroundDark ?? this.backgroundDark,
       backgroundLight: backgroundLight ?? this.backgroundLight,
       surface: surface ?? this.surface,
@@ -458,6 +478,7 @@ class AppGradients extends ThemeExtension<AppGradients> {
       rosePurple: LinearGradient.lerp(rosePurple, other.rosePurple, t)!,
       purpleIndigo: LinearGradient.lerp(purpleIndigo, other.purpleIndigo, t)!,
       roseDeep: LinearGradient.lerp(roseDeep, other.roseDeep, t)!,
+      power: LinearGradient.lerp(power, other.power, t)!,
       backgroundDark: LinearGradient.lerp(
         backgroundDark,
         other.backgroundDark,

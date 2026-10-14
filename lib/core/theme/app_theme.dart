@@ -36,25 +36,17 @@ class AppTheme {
       colorScheme: ColorScheme(
         brightness: brightness,
         primary: colors.primary,
-        onPrimary: colors.white,
-        primaryContainer: isDark
-            ? const Color(0xFF2D2580)
-            : const Color(0xFFE4E2FA),
-        onPrimaryContainer: isDark
-            ? const Color(0xFFE4E2FA)
-            : const Color(0xFF1A1650),
+        onPrimary: isDark ? colors.primary50 : colors.white,
+        primaryContainer: colors.primary100,
+        onPrimaryContainer: colors.primary900,
         secondary: colors.secondary,
-        onSecondary: colors.white,
-        secondaryContainer: isDark
-            ? const Color(0xFF7A1A4A)
-            : const Color(0xFFFFE0EE),
-        onSecondaryContainer: isDark
-            ? const Color(0xFFFFE0EE)
-            : const Color(0xFF4A0D2C),
+        onSecondary: isDark ? colors.secondary50 : colors.white,
+        secondaryContainer: colors.secondary100,
+        onSecondaryContainer: colors.secondary900,
         surface: colors.surfaceLight,
         onSurface: colors.textPrimary,
         error: colors.error,
-        onError: colors.white,
+        onError: isDark ? colors.errorExtraLight : colors.white,
         outline: colors.border,
         outlineVariant: colors.borderLight,
         shadow: colors.black,
