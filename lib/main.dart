@@ -4,9 +4,15 @@ import 'package:theja_aura/screens/aura_activity_screen.dart';
 import 'package:theja_aura/screens/aura_rules_screen.dart';
 import 'package:theja_aura/services/aura_activity_service.dart';
 import 'package:theja_aura/services/aura_tunnel_service.dart';
+import 'core/DI/injection.dart';
 
-void main() {
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await configureDependencies();
   runApp(const AuraApp());
 }
 
@@ -55,9 +61,21 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
 
   // Default seed rules for first launch
   static const List<AuraRuleItem> _defaultRules = [
-    AuraRuleItem(domain: 'googleads.g.doubleclick.net', isEnabled: true, isBlocked: true),
-    AuraRuleItem(domain: 'pagead2.googlesyndication.com', isEnabled: true, isBlocked: true),
-    AuraRuleItem(domain: 'analytics.facebook.com', isEnabled: true, isBlocked: true),
+    AuraRuleItem(
+      domain: 'googleads.g.doubleclick.net',
+      isEnabled: true,
+      isBlocked: true,
+    ),
+    AuraRuleItem(
+      domain: 'pagead2.googlesyndication.com',
+      isEnabled: true,
+      isBlocked: true,
+    ),
+    AuraRuleItem(
+      domain: 'analytics.facebook.com',
+      isEnabled: true,
+      isBlocked: true,
+    ),
     AuraRuleItem(domain: 'telemetry.app.com', isEnabled: true, isBlocked: true),
   ];
 
@@ -123,7 +141,11 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
         _isInitialized = true;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Warning: Failed to read rule store. Existing rules preserved.')),
+        const SnackBar(
+          content: Text(
+            'Warning: Failed to read rule store. Existing rules preserved.',
+          ),
+        ),
       );
       _loadStats();
       return;
@@ -188,9 +210,9 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Tunnel Action Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Tunnel Action Failed: $e')));
       }
       debugPrint('Tunnel toggle error: $e');
     }
@@ -281,8 +303,10 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
     });
 
     try {
-      final updated =
-          await _tunnelService.setCategoryPreference(category, newValue);
+      final updated = await _tunnelService.setCategoryPreference(
+        category,
+        newValue,
+      );
       if (!mounted) return;
       setState(() {
         _categories = updated;
@@ -303,14 +327,10 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
 
   void _openRulesScreen() {
     Navigator.of(context)
-        .push(
-      MaterialPageRoute(
-        builder: (_) => const AuraRulesScreen(),
-      ),
-    )
+        .push(MaterialPageRoute(builder: (_) => const AuraRulesScreen()))
         .then((_) {
-      _refreshRules();
-    });
+          _refreshRules();
+        });
   }
 
   Future<void> _refreshRules() async {
@@ -331,19 +351,23 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
   }
 
   void _openActivityLog() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AuraActivityScreen(activityService: _activityService),
-      ),
-    ).then((_) {
-      _loadStats();
-    });
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) =>
+                AuraActivityScreen(activityService: _activityService),
+          ),
+        )
+        .then((_) {
+          _loadStats();
+        });
   }
 
   @override
   Widget build(BuildContext context) {
     final isConnected = _status == TunnelStatus.connected;
-    final isBusy = !_isInitialized ||
+    final isBusy =
+        !_isInitialized ||
         _status == TunnelStatus.connecting ||
         _status == TunnelStatus.disconnecting;
 
@@ -387,18 +411,26 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                     const SizedBox(height: 12),
                     Text(
                       isConnected ? 'Protection Active' : 'Protection Disabled',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Upstream: Quad9 (9.9.9.9) • Local Split-Tunnel DNS',
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: isBusy ? null : _toggleTunnel,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isConnected ? Colors.red.shade900 : Colors.deepPurple,
+                        backgroundColor: isConnected
+                            ? Colors.red.shade900
+                            : Colors.deepPurple,
                         foregroundColor: Colors.white,
                         minimumSize: const Size(180, 46),
                       ),
@@ -406,10 +438,10 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                         !_isInitialized
                             ? 'Loading...'
                             : isBusy
-                                ? 'Please Wait...'
-                                : isConnected
-                                    ? 'Stop Firewall'
-                                    : 'Enable Firewall',
+                            ? 'Please Wait...'
+                            : isConnected
+                            ? 'Stop Firewall'
+                            : 'Enable Firewall',
                       ),
                     ),
                   ],
@@ -458,11 +490,23 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
               style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
             ),
             const SizedBox(height: 12),
-            _buildCategoryRow('Ads', 'Known advertising servers & ad delivery', Icons.ad_units),
+            _buildCategoryRow(
+              'Ads',
+              'Known advertising servers & ad delivery',
+              Icons.ad_units,
+            ),
             const Divider(height: 1),
-            _buildCategoryRow('Trackers', 'Cross-site behavioral tracking & telemetry', Icons.track_changes),
+            _buildCategoryRow(
+              'Trackers',
+              'Cross-site behavioral tracking & telemetry',
+              Icons.track_changes,
+            ),
             const Divider(height: 1),
-            _buildCategoryRow('Analytics', 'Usage metrics and data broker endpoints', Icons.analytics_outlined),
+            _buildCategoryRow(
+              'Analytics',
+              'Usage metrics and data broker endpoints',
+              Icons.analytics_outlined,
+            ),
           ],
         ),
       ),
@@ -475,7 +519,11 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: isEnabled ? Colors.tealAccent : Colors.grey),
+          Icon(
+            icon,
+            size: 20,
+            color: isEnabled ? Colors.tealAccent : Colors.grey,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -519,7 +567,11 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.security, size: 20, color: Colors.indigoAccent),
+                const Icon(
+                  Icons.security,
+                  size: 20,
+                  color: Colors.indigoAccent,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Custom Firewall Rules',
@@ -528,7 +580,10 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                 const Spacer(),
                 TextButton(
                   onPressed: _openRulesScreen,
-                  child: const Text('Manage Rules', style: TextStyle(fontSize: 12)),
+                  child: const Text(
+                    'Manage Rules',
+                    style: TextStyle(fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -562,51 +617,51 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
             if (_rules.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Divider(height: 1),
-              ...List.generate(
-                _rules.length > 4 ? 4 : _rules.length,
-                (index) {
-                  final rule = _rules[index];
-                  return ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      rule.isBlocked ? Icons.block : Icons.check_circle_outline,
-                      color: rule.isEnabled
-                          ? (rule.isBlocked ? Colors.redAccent : Colors.greenAccent)
-                          : Colors.grey,
-                      size: 18,
+              ...List.generate(_rules.length > 4 ? 4 : _rules.length, (index) {
+                final rule = _rules[index];
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    rule.isBlocked ? Icons.block : Icons.check_circle_outline,
+                    color: rule.isEnabled
+                        ? (rule.isBlocked
+                              ? Colors.redAccent
+                              : Colors.greenAccent)
+                        : Colors.grey,
+                    size: 18,
+                  ),
+                  title: Text(
+                    rule.domain,
+                    style: TextStyle(
+                      fontSize: 13,
+                      decoration: rule.isEnabled
+                          ? null
+                          : TextDecoration.lineThrough,
+                      color: rule.isEnabled ? null : Colors.grey,
                     ),
-                    title: Text(
-                      rule.domain,
-                      style: TextStyle(
-                        fontSize: 13,
-                        decoration:
-                            rule.isEnabled ? null : TextDecoration.lineThrough,
-                        color: rule.isEnabled ? null : Colors.grey,
+                  ),
+                  subtitle: Text(
+                    rule.isEnabled
+                        ? (rule.isBlocked ? 'Blocked' : 'Allowed')
+                        : 'Disabled',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Switch(
+                        value: rule.isEnabled,
+                        onChanged: (val) => _toggleRule(index, val),
                       ),
-                    ),
-                    subtitle: Text(
-                      rule.isEnabled
-                          ? (rule.isBlocked ? 'Blocked' : 'Allowed')
-                          : 'Disabled',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: rule.isEnabled,
-                          onChanged: (val) => _toggleRule(index, val),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          onPressed: () => _deleteRule(index),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        onPressed: () => _deleteRule(index),
+                      ),
+                    ],
+                  ),
+                );
+              }),
               if (_rules.length > 4) ...[
                 const SizedBox(height: 4),
                 Center(
@@ -637,7 +692,11 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
           children: [
             Row(
               children: [
-                const Icon(Icons.insights, size: 20, color: Colors.deepPurpleAccent),
+                const Icon(
+                  Icons.insights,
+                  size: 20,
+                  color: Colors.deepPurpleAccent,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Firewall Activity',
@@ -646,7 +705,10 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                 const Spacer(),
                 TextButton(
                   onPressed: _openActivityLog,
-                  child: const Text('View Logs', style: TextStyle(fontSize: 12)),
+                  child: const Text(
+                    'View Logs',
+                    style: TextStyle(fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -691,7 +753,10 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                     children: [
                       Text(
                         _statsError!,
-                        style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                        style: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton(
@@ -711,7 +776,8 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                       label: 'Blocked Events',
                       value: '${_stats!.totalBlocked}',
                       color: Colors.redAccent,
-                      subtitle: '${_stats!.uniqueBlockedDomains} unique domains',
+                      subtitle:
+                          '${_stats!.uniqueBlockedDomains} unique domains',
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -730,7 +796,11 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                 const SizedBox(height: 12),
                 const Text(
                   'Top Blocked Domains',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 ...List.generate(_topBlocked.length, (i) {
@@ -741,25 +811,37 @@ class _AuraDashboardScreenState extends State<AuraDashboardScreen>
                       children: [
                         Text(
                           '${i + 1}.',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade400,
+                          ),
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             item.domain,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.red.shade900,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '${item.count}',
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
