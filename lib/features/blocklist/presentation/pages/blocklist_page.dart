@@ -1,0 +1,831 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:theja_aura/core/DI/injection.dart';
+import 'package:theja_aura/core/services/aura_default_categories.dart';
+import 'package:theja_aura/core/services/aura_tunnel_service.dart';
+
+import '../bloc/blocklist_bloc.dart';
+
+/// Compatibility alias
+typedef AuraBlocklistScreen = BlocklistPage;
+
+/// Dedicated Blocklist screen providing two primary tabs:
+/// - Default Domains (bundled categories: Ads, Trackers, Analytics with modal domain inspector)
+/// - Custom Domains (custom user rules with Allow/Block support, PSL validation, deletion confirmation)
+class BlocklistPage extends StatefulWidget {
+  final BlocklistBloc? bloc;
+
+  const BlocklistPage({super.key, this.bloc});
+
+  @override
+  State<BlocklistPage> createState() => _BlocklistPageState();
+}
+
+class _BlocklistPageState extends State<BlocklistPage>
+    with SingleTickerProviderStateMixin {
+  late final BlocklistBloc _bloc;
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _bloc = widget.bloc ?? getIt<BlocklistBloc>();
+
+    _tabController = TabController(length: 2, vsync: this);
+    _bloc.add(const BlocklistEvent.started());
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _bloc.close();
+    super.dispose();
+  }
+
+  void _openCategoryDomainBottomSheet(
+    AuraDefaultCategory category,
+    Set<String> disabledDomains,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return _CategoryDomainBottomSheet(
+          category: category,
+          disabledDomains: disabledDomains,
+          bloc: _bloc,
+        );
+      },
+    );
+  }
+
+  Future<void> _handleAddRule({required bool isBlockedDefault}) async {
+    final domainController = TextEditingController();
+    bool isBlocked = isBlockedDefault;
+    String? validationError;
+    bool isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(isBlocked ? 'Add Block Rule' : 'Add Allow Rule'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: domainController,
+                      autofocus: true,
+                      autocorrect: false,
+                      keyboardType: TextInputType.url,
+                      decoration: InputDecoration(
+                        labelText: 'Domain Name',
+                        hintText: 'e.g. tracker.example.com',
+                        border: const OutlineInputBorder(),
+                        errorText: validationError,
+                      ),
+                      onChanged: (val) {
+                        if (validationError != null) {
+                          setDialogState(() {
+                            validationError = null;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Text(
+                          'Action: ',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const Spacer(),
+                        ChoiceChip(
+                          label: const Text('Block'),
+                          selected: isBlocked,
+                          selectedColor: Colors.red.shade900,
+                          onSelected: (sel) {
+                            if (sel) {
+                              setDialogState(() => isBlocked = true);
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Allow'),
+                          selected: !isBlocked,
+                          selectedColor: Colors.green.shade900,
+                          onSelected: (sel) {
+                            if (sel) {
+                              setDialogState(() => isBlocked = false);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isBlocked
+                          ? 'Queries matching this domain and subdomains will be blocked.'
+                          : 'Queries matching this domain will bypass category blocking.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final rawDomain = domainController.text.trim();
+                          if (rawDomain.isEmpty) {
+                            setDialogState(() {
+                              validationError = 'Domain name cannot be empty.';
+                            });
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSubmitting = true;
+                            validationError = null;
+                          });
+
+                          try {
+                            final isValid = await _bloc.validateDomain(
+                              rawDomain,
+                            );
+                            if (!isValid) {
+                              setDialogState(() {
+                                isSubmitting = false;
+                                validationError =
+                                    'Invalid domain or public suffix rejected.';
+                              });
+                              return;
+                            }
+
+                            final success = await _bloc.addRule(
+                              domain: rawDomain,
+                              isBlocked: isBlocked,
+                            );
+
+                            if (!dialogContext.mounted || !mounted) return;
+                            Navigator.of(dialogContext).pop();
+
+                            if (success) {
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added rule for $rawDomain'),
+                                  backgroundColor: isBlocked
+                                      ? Colors.red.shade900
+                                      : Colors.green.shade900,
+                                ),
+                              );
+                            }
+                          } on AuraRuleException catch (e) {
+                            setDialogState(() {
+                              isSubmitting = false;
+                              validationError = e.message;
+                            });
+                          } catch (e) {
+                            setDialogState(() {
+                              isSubmitting = false;
+                              validationError = 'Error: $e';
+                            });
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Add Rule'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _handleDeleteRule(AuraRuleItem rule) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Rule'),
+        content: Text(
+          'Are you sure you want to delete the rule for "${rule.domain}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade900,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    final success = await _bloc.deleteRule(rule.id);
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Deleted rule for ${rule.domain}')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider.value(
+      value: _bloc,
+      child: BlocConsumer<BlocklistBloc, BlocklistState>(
+        listener: (context, state) {
+          if (state.actionError != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.actionError!),
+                backgroundColor: Colors.red.shade900,
+              ),
+            );
+            _bloc.add(const BlocklistEvent.actionErrorDismissed());
+          }
+        },
+        builder: (context, state) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Blocklist'),
+              bottom: TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.category, size: 20),
+                    text: 'Default Domains',
+                  ),
+                  Tab(icon: Icon(Icons.rule, size: 20), text: 'Custom Domains'),
+                ],
+              ),
+            ),
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildDefaultDomainsTab(state),
+                _buildCustomDomainsTab(state),
+              ],
+            ),
+            floatingActionButton: AnimatedBuilder(
+              animation: _tabController,
+              builder: (context, _) {
+                if (_tabController.index != 1) return const SizedBox.shrink();
+                return FloatingActionButton.extended(
+                  onPressed: () => _handleAddRule(isBlockedDefault: true),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Domain'),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDefaultDomainsTab(BlocklistState state) {
+    if (state.isLoadingOverrides) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state.overridesError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: Colors.redAccent,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                state.overridesError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _bloc.add(
+                  const BlocklistEvent.defaultDomainOverridesRefreshRequested(),
+                ),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final categories = AuraDefaultCategoryData.categories;
+
+    return RefreshIndicator(
+      onRefresh: () async => _bloc.add(
+        const BlocklistEvent.defaultDomainOverridesRefreshRequested(),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            'Default Protection Categories',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Curated domain blocklists enforced directly on-device by the firewall engine. Tap any category to inspect its domains.',
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          ...categories.map((category) {
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Colors.tealAccent.withValues(alpha: 0.2),
+                ),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _openCategoryDomainBottomSheet(
+                  category,
+                  state.disabledDefaultDomains,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.tealAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          category.icon,
+                          color: Colors.tealAccent,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  category.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade800,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '${category.domainCount} domains',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              category.description,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomDomainsTab(BlocklistState state) {
+    if (state.isLoadingRules) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (state.rulesError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: Colors.redAccent,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                state.rulesError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _bloc.add(
+                  const BlocklistEvent.customRulesRefreshRequested(),
+                ),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (state.customRules.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.rule, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text(
+                'No Custom Domains',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Add custom allow or block rules to fine-tune your firewall decisions.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () => _handleAddRule(isBlockedDefault: true),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Rule'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async =>
+          _bloc.add(const BlocklistEvent.customRulesRefreshRequested()),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+        itemCount: state.customRules.length,
+        separatorBuilder: (context, index) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final rule = state.customRules[index];
+          final isBlocked = rule.isBlocked;
+          final isEnabled = rule.isEnabled;
+
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 4,
+              vertical: 4,
+            ),
+            leading: Icon(
+              isBlocked ? Icons.block : Icons.check_circle_outline,
+              color: isEnabled
+                  ? (isBlocked ? Colors.redAccent : Colors.greenAccent)
+                  : Colors.grey,
+              size: 22,
+            ),
+            title: Text(
+              rule.domain,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                decoration: isEnabled ? null : TextDecoration.lineThrough,
+                color: isEnabled ? null : Colors.grey,
+              ),
+            ),
+            subtitle: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isBlocked
+                        ? Colors.red.shade900.withValues(alpha: 0.5)
+                        : Colors.green.shade900.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    isBlocked ? 'BLOCK' : 'ALLOW',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isBlocked ? Colors.redAccent : Colors.greenAccent,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isEnabled ? 'Active' : 'Disabled',
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Switch(
+                  value: isEnabled,
+                  onChanged: (_) =>
+                      _bloc.add(BlocklistEvent.customRuleToggled(rule)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  tooltip: 'Delete Rule',
+                  onPressed: () => _handleDeleteRule(rule),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CategoryDomainBottomSheet extends StatefulWidget {
+  final AuraDefaultCategory category;
+  final Set<String> disabledDomains;
+  final BlocklistBloc bloc;
+
+  const _CategoryDomainBottomSheet({
+    required this.category,
+    required this.disabledDomains,
+    required this.bloc,
+  });
+
+  @override
+  State<_CategoryDomainBottomSheet> createState() =>
+      _CategoryDomainBottomSheetState();
+}
+
+class _CategoryDomainBottomSheetState
+    extends State<_CategoryDomainBottomSheet> {
+  final TextEditingController _searchController = TextEditingController();
+  final Set<String> _pendingToggles = {};
+  String _filter = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _handleToggleDomain(String domain, bool isEnabled) {
+    widget.bloc.add(
+      BlocklistEvent.defaultDomainToggled(domain: domain, isEnabled: isEnabled),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allDomains = widget.category.domains;
+    final filteredDomains = _filter.isEmpty
+        ? allDomains
+        : allDomains.where((d) => d.contains(_filter.toLowerCase())).toList();
+
+    return BlocBuilder<BlocklistBloc, BlocklistState>(
+      bloc: widget.bloc,
+      builder: (context, state) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (context, scrollController) {
+            return Column(
+              children: [
+                // Drag handle
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade600,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(widget.category.icon, color: Colors.tealAccent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.category.name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${widget.category.domainCount} bundled domains',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                // Search filter
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search domains in ${widget.category.name}...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _filter.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _filter = '');
+                              },
+                            )
+                          : null,
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setState(() => _filter = val.trim());
+                    },
+                  ),
+                ),
+                const Divider(height: 12),
+                // Virtualized Domain List
+                Expanded(
+                  child: filteredDomains.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              _filter.isEmpty
+                                  ? 'No domains available.'
+                                  : 'No domains match "$_filter".',
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          controller: scrollController,
+                          itemCount: filteredDomains.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final domain = filteredDomains[index];
+                            final isDomainEnabled = !state
+                                .disabledDefaultDomains
+                                .contains(domain);
+                            final isPending = _pendingToggles.contains(domain);
+
+                            return ListTile(
+                              dense: true,
+                              leading: Icon(
+                                isDomainEnabled
+                                    ? Icons.shield
+                                    : Icons.shield_outlined,
+                                size: 18,
+                                color: isDomainEnabled
+                                    ? Colors.tealAccent
+                                    : Colors.grey,
+                              ),
+                              title: Text(
+                                domain,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  decoration: isDomainEnabled
+                                      ? null
+                                      : TextDecoration.lineThrough,
+                                  color: isDomainEnabled ? null : Colors.grey,
+                                ),
+                              ),
+                              subtitle: Text(
+                                isDomainEnabled
+                                    ? 'Blocking active'
+                                    : 'Excluded from blocking',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDomainEnabled
+                                      ? Colors.tealAccent.withValues(alpha: 0.8)
+                                      : Colors.grey.shade500,
+                                ),
+                              ),
+                              trailing: Switch(
+                                value: isDomainEnabled,
+                                onChanged: isPending
+                                    ? null
+                                    : (val) => _handleToggleDomain(domain, val),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
