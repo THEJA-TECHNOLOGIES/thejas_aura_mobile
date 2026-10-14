@@ -352,6 +352,40 @@ import os.log
                     result(FlutterError(code: "SAVE_CATEGORIES_FAILED", message: error.localizedDescription, details: nil))
                 }
 
+            case "getDefaultDomainOverrides":
+                switch RunnerRuleStore.loadDisabledDefaultDomains() {
+                case .success(let disabled):
+                    result(Array(disabled).sorted())
+                case .failure(let error):
+                    result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
+            case "toggleDefaultDomain":
+                guard let args = call.arguments as? [String: Any],
+                      let rawDomain = args["domain"] as? String,
+                      let isEnabled = args["isEnabled"] as? Bool else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'domain' and 'isEnabled'", details: nil))
+                    return
+                }
+
+                switch RunnerRuleStore.toggleDefaultDomain(domain: rawDomain, isEnabled: isEnabled) {
+                case .success(let updatedDisabled):
+                    AuraTunnelManager.shared.notifyDefaultOverridesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success:
+                            result(Array(updatedDisabled).sorted())
+                        case .failure(let tunnelError):
+                            result(FlutterError(
+                                code: "EXTENSION_RELOAD_FAILED",
+                                message: "Override saved, but active firewall failed to reload: \(tunnelError.errorDescription ?? tunnelError.underlyingDescription)",
+                                details: tunnelError.detailsDictionary
+                            ))
+                        }
+                    }
+                case .failure(let error):
+                    result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
             default:
                 os_log(.default, log: Self.log, "[MethodChannel] Unhandled method: %{public}@", call.method)
                 result(FlutterMethodNotImplemented)

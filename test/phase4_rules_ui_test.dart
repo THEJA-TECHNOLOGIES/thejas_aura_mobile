@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theja_aura/main.dart';
+import 'package:theja_aura/screens/aura_blocklist_screen.dart';
 import 'package:theja_aura/screens/aura_rules_screen.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 
@@ -184,6 +185,37 @@ void main() {
       expect(calls[0].method, 'getCategories');
       expect(calls[1].method, 'setCategoryPreference');
       expect(calls[1].arguments, {'category': 'Trackers', 'isEnabled': false});
+    });
+
+    test('getDefaultDomainOverrides and toggleDefaultDomain interact correctly with bridge',
+        () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(controlChannel, (MethodCall call) async {
+        calls.add(call);
+        if (call.method == 'getDefaultDomainOverrides') {
+          return ['doubleclick.net', 'adnxs.com'];
+        }
+        if (call.method == 'toggleDefaultDomain') {
+          return ['doubleclick.net'];
+        }
+        return null;
+      });
+
+      final overrides = await service.getDefaultDomainOverrides();
+      expect(overrides, contains('doubleclick.net'));
+      expect(overrides, contains('adnxs.com'));
+
+      final updated = await service.toggleDefaultDomain(
+        domain: 'adnxs.com',
+        isEnabled: true,
+      );
+      expect(updated, contains('doubleclick.net'));
+      expect(updated.contains('adnxs.com'), isFalse);
+
+      expect(calls.length, 2);
+      expect(calls[0].method, 'getDefaultDomainOverrides');
+      expect(calls[1].method, 'toggleDefaultDomain');
+      expect(calls[1].arguments, {'domain': 'adnxs.com', 'isEnabled': true});
     });
   });
 
@@ -377,8 +409,10 @@ void main() {
       'Trackers': true,
       'Analytics': true,
     };
+    List<String> disabledOverrides = [];
 
     setUp(() {
+      disabledOverrides = [];
       categoryState = {
         'Ads': true,
         'Trackers': true,
@@ -405,6 +439,20 @@ void main() {
           final enabled = args['isEnabled'] as bool;
           categoryState[cat] = enabled;
           return categoryState;
+        }
+        if (call.method == 'getDefaultDomainOverrides') return disabledOverrides;
+        if (call.method == 'toggleDefaultDomain') {
+          final args = call.arguments as Map;
+          final domain = args['domain'] as String;
+          final isEnabled = args['isEnabled'] as bool;
+          if (isEnabled) {
+            disabledOverrides.remove(domain);
+          } else {
+            if (!disabledOverrides.contains(domain)) {
+              disabledOverrides.add(domain);
+            }
+          }
+          return disabledOverrides;
         }
         if (call.method == 'syncRules') return true;
         return null;
@@ -440,47 +488,105 @@ void main() {
           .setMockMethodCallHandler(activityChannel, null);
     });
 
-    testWidgets('Dashboard renders categories and toggles preference',
+    testWidgets('Dashboard Blocklist CTA navigates to AuraBlocklistScreen',
         (WidgetTester tester) async {
       await tester.pumpWidget(const AuraApp());
       await tester.pumpAndSettle();
 
-      // Find Protection Categories Card
-      expect(find.text('Default Protection Categories'), findsOneWidget);
-      expect(find.text('Ads'), findsOneWidget);
-      expect(find.text('Trackers'), findsOneWidget);
-      expect(find.text('Analytics'), findsOneWidget);
-
-      // Verify category switches exist
-      expect(find.byType(Switch), findsWidgets);
-
-      // Toggle Ads category switch
-      final adsText = find.text('Ads');
-      await tester.ensureVisible(adsText);
-      final adsSwitch = find.byType(Switch).first;
-      await tester.ensureVisible(adsSwitch);
-
-      await tester.tap(adsSwitch);
+      // Find "Blocklist" CTA button on redesigned Home screen
+      final blocklistCta = find.text('Blocklist');
+      await tester.ensureVisible(blocklistCta);
+      await tester.tap(blocklistCta);
       await tester.pumpAndSettle();
 
-      // State should have updated
-      expect(categoryState['Ads'], isFalse);
+      // Verifies navigation to AuraBlocklistScreen
+      expect(find.text('Blocklist'), findsOneWidget);
+      expect(find.text('Default Domains'), findsOneWidget);
+      expect(find.text('Custom Domains'), findsOneWidget);
     });
 
-    testWidgets('Dashboard custom rules card navigates to AuraRulesScreen',
+    testWidgets('Blocklist screen Default Domains tab category cards have no switch',
         (WidgetTester tester) async {
-      await tester.pumpWidget(const AuraApp());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuraBlocklistScreen(tunnelService: AuraTunnelService()),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      // Find "Manage Rules" button in Custom Rules Card
-      final manageRulesButton = find.text('Manage Rules');
-      await tester.ensureVisible(manageRulesButton);
-      await tester.tap(manageRulesButton);
+      // Verify categories render with bundled domain counts
+      expect(find.text('Default Protection Categories'), findsOneWidget);
+      expect(find.text('Ads'), findsOneWidget);
+      expect(find.text('49 domains'), findsOneWidget);
+      expect(find.text('Trackers'), findsOneWidget);
+      expect(find.text('60 domains'), findsOneWidget);
+      expect(find.text('Analytics'), findsOneWidget);
+      expect(find.text('55 domains'), findsOneWidget);
+
+      // Verify category cards have NO switches on Default Domains tab
+      expect(find.byType(Switch), findsNothing);
+      expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
+    });
+
+    testWidgets('Blocklist screen opens modal bottom sheet and toggles individual domain switch',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuraBlocklistScreen(tunnelService: AuraTunnelService()),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      // Should have pushed AuraRulesScreen
-      expect(find.text('Firewall Rules'), findsOneWidget);
-      expect(find.text('Allowlist (0)'), findsOneWidget);
+      // Tap on Ads card to open bottom sheet
+      final adsCard = find.text('Ads');
+      await tester.tap(adsCard);
+      await tester.pumpAndSettle();
+
+      // Bottom sheet should be open
+      expect(find.text('49 bundled domains'), findsOneWidget);
+      expect(find.text('doubleclick.net'), findsOneWidget);
+
+      // Verify individual domain switches exist in bottom sheet
+      expect(find.byType(Switch), findsWidgets);
+
+      // Toggle first domain switch (doubleclick.net)
+      final firstSwitch = find.byType(Switch).first;
+      await tester.tap(firstSwitch);
+      await tester.pumpAndSettle();
+
+      // Verify disabledOverrides contains doubleclick.net
+      expect(disabledOverrides, contains('doubleclick.net'));
+
+      // Search in bottom sheet
+      await tester.enterText(find.byType(TextField), 'google');
+      await tester.pumpAndSettle();
+      expect(find.text('googleads.g.doubleclick.net'), findsOneWidget);
+
+      // Close bottom sheet
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(find.text('49 bundled domains'), findsNothing);
+    });
+
+    testWidgets('Blocklist screen Custom Domains tab renders rules and Add FAB',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuraBlocklistScreen(tunnelService: AuraTunnelService()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to Custom Domains tab
+      await tester.tap(find.text('Custom Domains'));
+      await tester.pumpAndSettle();
+
+      // Verifies custom rule rendered
+      expect(find.text('googleads.g.doubleclick.net'), findsOneWidget);
+      expect(find.text('BLOCK'), findsOneWidget);
+
+      // Verifies Floating Action Button is visible on Custom Domains tab
+      expect(find.text('Add Domain'), findsOneWidget);
     });
   });
 }

@@ -85,6 +85,7 @@ public enum AuraRuleManagementError: Error, Equatable, LocalizedError {
     case ruleNotFound(String)
     case persistenceFailed(String)
     case malformedData(String)
+    case notInBundledCategories(String)
 
     public var errorDescription: String? {
         switch self {
@@ -98,6 +99,8 @@ public enum AuraRuleManagementError: Error, Equatable, LocalizedError {
             return "Failed to persist rules: \(msg)"
         case .malformedData(let msg):
             return "Malformed rule storage: \(msg)"
+        case .notInBundledCategories(let domain):
+            return "Domain '\(domain)' does not belong to any bundled default category."
         }
     }
 
@@ -113,6 +116,8 @@ public enum AuraRuleManagementError: Error, Equatable, LocalizedError {
             return "PERSISTENCE_FAILED"
         case .malformedData:
             return "MALFORMED_DATA"
+        case .notInBundledCategories:
+            return "NOT_IN_BUNDLED_CATEGORIES"
         }
     }
 }
@@ -354,6 +359,46 @@ public final class RunnerRuleStore {
             return .success(prefs)
         } catch {
             return .failure(error)
+        }
+    }
+
+    // MARK: - Default Domain Overrides Bridge
+
+    public static func loadDisabledDefaultDomains() -> Result<Set<String>, AuraRuleManagementError> {
+        switch AuraCategoryStore.loadDisabledDefaultDomainsResult() {
+        case .success(let disabled):
+            return .success(disabled)
+        case .failure(let error):
+            return .failure(.malformedData(error.localizedDescription))
+        }
+    }
+
+    public static func toggleDefaultDomain(domain rawDomain: String, isEnabled: Bool) -> Result<Set<String>, AuraRuleManagementError> {
+        let normalized = AuraDNSEngine.normalizeDomain(rawDomain)
+        let bundled = AuraCategoryStore.allBundledDomains()
+        guard bundled.contains(normalized) else {
+            return .failure(.notInBundledCategories(normalized))
+        }
+
+        var currentDisabled: Set<String>
+        switch loadDisabledDefaultDomains() {
+        case .success(let disabled):
+            currentDisabled = disabled
+        case .failure(let err):
+            return .failure(err)
+        }
+
+        if isEnabled {
+            currentDisabled.remove(normalized)
+        } else {
+            currentDisabled.insert(normalized)
+        }
+
+        do {
+            try AuraCategoryStore.saveDisabledDefaultDomains(currentDisabled)
+            return .success(currentDisabled)
+        } catch {
+            return .failure(.persistenceFailed(error.localizedDescription))
         }
     }
 }

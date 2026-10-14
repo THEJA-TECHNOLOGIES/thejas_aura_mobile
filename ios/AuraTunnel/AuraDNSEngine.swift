@@ -111,6 +111,7 @@ public final class AuraDNSEngine {
     private var rules: [String: Rule] = [:]
     private var categories: [String: Set<String>] = [:]
     private var categoryPreferences: [String: Bool] = [:]
+    private var disabledDefaultDomains: Set<String> = []
     private let lock = NSLock()
 
     public init() {}
@@ -171,6 +172,13 @@ public final class AuraDNSEngine {
         categoryPreferences = prefs
     }
 
+    /// Sets or replaces disabled default domains. Thread-safe.
+    public func setDisabledDefaultDomains(_ domains: Set<String>) {
+        lock.lock()
+        defer { lock.unlock() }
+        disabledDefaultDomains = domains
+    }
+
     // MARK: - Candidate Suffix Generation with PSL Guard
 
     /// Generates candidate domain suffixes for matching against rules (e.g. "ads.google.com" -> ["ads.google.com", "google.com"]).
@@ -219,6 +227,7 @@ public final class AuraDNSEngine {
         let currentRules = self.rules
         let currentCategories = self.categories
         let currentPrefs = self.categoryPreferences
+        let currentDisabledDefaultDomains = self.disabledDefaultDomains
         lock.unlock()
 
         let candidates = AuraDNSEngine.generateCandidateSuffixes(for: target)
@@ -250,7 +259,7 @@ public final class AuraDNSEngine {
             let isEnabled = currentPrefs[catName] ?? true // Defaults to true if preference missing
             if isEnabled {
                 for candidate in candidates {
-                    if domainSet.contains(candidate) {
+                    if domainSet.contains(candidate) && !currentDisabledDefaultDomains.contains(candidate) {
                         matchingEnabledCategories.insert(catName)
                         if firstCategoryMatchedDomain == nil {
                             firstCategoryMatchedDomain = candidate

@@ -338,4 +338,51 @@ class AuraTunnelService {
       );
     }
   }
+
+  // MARK: - Default Domain Overrides Operations
+
+  /// Fetches the set of disabled default domains from native persistence.
+  Future<Set<String>> getDefaultDomainOverrides() async {
+    try {
+      final dynamic raw =
+          await _controlChannel.invokeMethod<dynamic>('getDefaultDomainOverrides');
+      if (raw is List) {
+        return raw.map((e) => e.toString().toLowerCase().trim()).toSet();
+      }
+      return <String>{};
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to load default domain overrides.',
+      );
+    }
+  }
+
+  /// Toggles an individual default domain enable/disable state.
+  /// When [isEnabled] is true, the domain participates in default blocking (removed from disabled set).
+  /// When [isEnabled] is false, the domain is excluded from default blocking (added to disabled set).
+  /// Returns the updated set of disabled default domains.
+  Future<Set<String>> toggleDefaultDomain({
+    required String domain,
+    required bool isEnabled,
+  }) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'toggleDefaultDomain',
+        {
+          'domain': domain,
+          'isEnabled': isEnabled,
+        },
+      );
+      if (raw is List) {
+        return raw.map((e) => e.toString().toLowerCase().trim()).toSet();
+      }
+      return <String>{};
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to toggle default domain $domain.',
+      );
+    }
+  }
 }

@@ -275,9 +275,9 @@ void main() {
           .setMockMethodCallHandler(activityChannel, null);
     });
 
-    testWidgets('Dashboard renders activity aggregates, switches window, and navigates to log screen',
+    testWidgets('Dashboard renders three statistics chips and navigates via CTA buttons',
         (WidgetTester tester) async {
-      int? requestedWindow;
+      String? lastActivityOutcome;
 
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(controlChannel, (MethodCall call) async {
@@ -290,13 +290,10 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(activityChannel, (MethodCall call) async {
         if (call.method == 'getDashboardStats') {
-          final args = call.arguments as Map<dynamic, dynamic>? ?? {};
-          requestedWindow = args['timeWindowMillis'] as int?;
-
           return <String, dynamic>{
-            'timeWindowMillis': requestedWindow ?? 86400000,
+            'timeWindowMillis': 86400000,
             'startTime': 0,
-            'endTime': requestedWindow ?? 86400000,
+            'endTime': 86400000,
             'totalQueries': 1250,
             'totalBlocked': 342,
             'totalAllowed': 908,
@@ -305,15 +302,20 @@ void main() {
             'uniqueDomainsTotal': 140,
           };
         }
-        if (call.method == 'getTopBlockedDomains') {
-          return <dynamic>[
-            {'domain': 'tracker.analytics.net', 'count': 120},
-            {'domain': 'adservice.google.com', 'count': 85},
-          ];
-        }
         if (call.method == 'getActivity') {
+          final args = call.arguments as Map<dynamic, dynamic>? ?? {};
+          lastActivityOutcome = args['outcome'] as String?;
           return <String, dynamic>{
-            'records': <dynamic>[],
+            'records': <dynamic>[
+              {
+                'id': 101,
+                'domain': 'blocked-tracker.com',
+                'timestamp': 1700000000000,
+                'queryType': 'A',
+                'outcome': 'blocked',
+                'matchedSource': 'default',
+              }
+            ],
             'hasMore': false,
           };
         }
@@ -323,27 +325,45 @@ void main() {
       await tester.pumpWidget(const AuraApp());
       await tester.pumpAndSettle();
 
-      // Check stats cards render
-      expect(find.text('Firewall Activity'), findsOneWidget);
-      expect(find.text('342'), findsOneWidget);
-      expect(find.text('28 unique domains'), findsOneWidget);
-      expect(find.text('908'), findsOneWidget);
-      expect(find.text('1250 total requests'), findsOneWidget);
-      expect(find.text('tracker.analytics.net'), findsOneWidget);
-      expect(find.text('120'), findsOneWidget);
+      // Verify the three statistics chips render together
+      expect(find.text('Firewall Statistics'), findsOneWidget);
+      expect(find.text('Blocked Today'), findsOneWidget);
+      expect(find.text('Blocked This Week'), findsOneWidget);
+      expect(find.text('Total Blocked Domains'), findsOneWidget);
+      expect(find.text('342'), findsNWidgets(2)); // Blocked Today & Blocked This Week from mock
+      expect(find.text('28'), findsOneWidget); // Total Blocked Domains (unique)
 
-      // Switch time window to 7d
-      await tester.ensureVisible(find.text('7d'));
-      await tester.tap(find.text('7d'));
+      // Verify obsolete metrics are NOT present on home screen
+      expect(find.text('Allowed Queries'), findsNothing);
+      expect(find.text('908'), findsNothing);
+      expect(find.text('24h'), findsNothing);
+      expect(find.text('7d'), findsNothing);
+
+      // Verify the three CTA buttons exist
+      expect(find.text('Logs'), findsOneWidget);
+      expect(find.text('Live Activity'), findsOneWidget);
+      expect(find.text('Blocklist'), findsOneWidget);
+
+      // Tap "Logs" CTA button
+      await tester.ensureVisible(find.text('Logs'));
+      await tester.tap(find.text('Logs'));
       await tester.pumpAndSettle();
-      expect(requestedWindow, 7 * 86400000);
 
-      // Tap "View Logs" button
-      await tester.ensureVisible(find.text('View Logs'));
-      await tester.tap(find.text('View Logs'));
+      // Verifies navigation to Blocked DNS Logs screen
+      expect(find.text('Blocked DNS Logs'), findsOneWidget);
+      expect(lastActivityOutcome, 'blocked');
+      expect(find.text('blocked-tracker.com'), findsOneWidget);
+
+      // Return to Dashboard
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
 
-      // Should have navigated to AuraActivityScreen
+      // Tap "Live Activity" CTA button
+      await tester.ensureVisible(find.text('Live Activity'));
+      await tester.tap(find.text('Live Activity'));
+      await tester.pumpAndSettle();
+
+      // Verifies navigation to Live Activity screen
       expect(find.text('DNS Activity Log'), findsOneWidget);
     });
   });

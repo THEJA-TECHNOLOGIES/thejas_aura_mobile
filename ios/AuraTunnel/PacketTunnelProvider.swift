@@ -111,6 +111,12 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
             let categoriesApplied = loadCategoriesAndPreferences()
             completionHandler?(categoriesApplied ? Data([1]) : Data([0]))
 
+        case "reload_default_overrides":
+            os_log(.info, log: Self.log, "handleAppMessage: reloading default domain overrides from App Group")
+            let overrides = AuraCategoryStore.loadDisabledDefaultDomains()
+            dnsEngine.setDisabledDefaultDomains(overrides)
+            completionHandler?(Data([1]))
+
         default:
             completionHandler?(nil)
         }
@@ -135,11 +141,14 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
         let bundled = AuraCategoryStore.loadAllBundledCategories()
         dnsEngine.setCategories(bundled)
 
+        let overrides = AuraCategoryStore.loadDisabledDefaultDomains()
+        dnsEngine.setDisabledDefaultDomains(overrides)
+
         let result = AuraCategoryStore.loadPreferencesResult()
         switch result {
         case .success(let prefs):
             dnsEngine.setCategoryPreferences(prefs)
-            os_log(.info, log: Self.log, "Loaded %{public}ld bundled categories and %{public}ld category preferences", bundled.count, prefs.count)
+            os_log(.info, log: Self.log, "Loaded %{public}ld bundled categories, %{public}ld preferences, and %{public}ld disabled overrides", bundled.count, prefs.count, overrides.count)
             return true
         case .failure(let error):
             os_log(.error, log: Self.log, "Failed to load category preferences from App Group: %{public}@ — using fallback/existing preferences", error.localizedDescription)
