@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/services.dart';
 
 /// Data model representing a recorded DNS activity event.
@@ -79,7 +80,9 @@ class PaginatedActivityResult {
   factory PaginatedActivityResult.fromMap(Map<String, dynamic> map) {
     final rawList = map['records'] as List<dynamic>? ?? const [];
     final records = rawList
-        .map((e) => DnsActivityRecord.fromMap(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) => DnsActivityRecord.fromMap(Map<String, dynamic>.from(e as Map)),
+        )
         .toList();
 
     return PaginatedActivityResult(
@@ -138,10 +141,7 @@ class TopBlockedDomainItem {
   final String domain;
   final int count;
 
-  const TopBlockedDomainItem({
-    required this.domain,
-    required this.count,
-  });
+  const TopBlockedDomainItem({required this.domain, required this.count});
 
   factory TopBlockedDomainItem.fromMap(Map<String, dynamic> map) {
     return TopBlockedDomainItem(
@@ -153,8 +153,9 @@ class TopBlockedDomainItem {
 
 /// Service wrapping the read-only native SQLite platform channel bridge.
 class AuraActivityService {
-  static const MethodChannel _activityChannel =
-      MethodChannel('com.thejatech.aura/activity');
+  static const MethodChannel _activityChannel = MethodChannel(
+    'com.thejatech.aura/activity',
+  );
 
   /// Fetches a cursor-paginated page of activity records with optional filtering.
   Future<PaginatedActivityResult> getActivity({
@@ -166,9 +167,7 @@ class AuraActivityService {
     int? startTime,
     int? endTime,
   }) async {
-    final Map<String, dynamic> args = {
-      'limit': limit,
-    };
+    final Map<String, dynamic> args = {'limit': limit};
     if (cursorTimestamp != null) args['cursorTimestamp'] = cursorTimestamp;
     if (cursorId != null) args['cursorId'] = cursorId;
     if (outcome != null && outcome.isNotEmpty) args['outcome'] = outcome;
@@ -178,8 +177,10 @@ class AuraActivityService {
     if (startTime != null) args['startTime'] = startTime;
     if (endTime != null) args['endTime'] = endTime;
 
-    final dynamic res =
-        await _activityChannel.invokeMethod<dynamic>('getActivity', args);
+    final dynamic res = await _activityChannel.invokeMethod<dynamic>(
+      'getActivity',
+      args,
+    );
     if (res is Map) {
       return PaginatedActivityResult.fromMap(Map<String, dynamic>.from(res));
     }
@@ -214,7 +215,11 @@ class AuraActivityService {
     );
     if (res is List) {
       return res
-          .map((e) => TopBlockedDomainItem.fromMap(Map<String, dynamic>.from(e as Map)))
+          .map(
+            (e) => TopBlockedDomainItem.fromMap(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
           .toList();
     }
     return const [];

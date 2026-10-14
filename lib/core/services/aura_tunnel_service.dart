@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/services.dart';
 
 enum TunnelStatus {
@@ -38,11 +39,11 @@ class AuraRuleItem {
   }) : id = id ?? domain;
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'domain': domain,
-        'isEnabled': isEnabled,
-        'isBlocked': isBlocked,
-      };
+    'id': id,
+    'domain': domain,
+    'isEnabled': isEnabled,
+    'isBlocked': isBlocked,
+  };
 
   factory AuraRuleItem.fromMap(Map<String, dynamic> map) {
     final domain = map['domain'] as String;
@@ -97,10 +98,12 @@ class AuraRuleException implements Exception {
 
 /// Service wrapping native platform channels for Theja's Aura Local Tunnel.
 class AuraTunnelService {
-  static const MethodChannel _controlChannel =
-      MethodChannel('com.thejatech.aura/tunnel_control');
-  static const EventChannel _statusChannel =
-      EventChannel('com.thejatech.aura/tunnel_status');
+  static const MethodChannel _controlChannel = MethodChannel(
+    'com.thejatech.aura/tunnel_control',
+  );
+  static const EventChannel _statusChannel = EventChannel(
+    'com.thejatech.aura/tunnel_status',
+  );
 
   /// Stream of live tunnel status changes emitted by iOS.
   Stream<TunnelStatus> get statusStream => _statusChannel
@@ -110,8 +113,9 @@ class AuraTunnelService {
   /// Queries current status of the tunnel.
   Future<TunnelStatus> getStatus() async {
     try {
-      final String? status =
-          await _controlChannel.invokeMethod<String>('getStatus');
+      final String? status = await _controlChannel.invokeMethod<String>(
+        'getStatus',
+      );
       return TunnelStatus.fromString(status ?? 'invalid');
     } catch (_) {
       return TunnelStatus.invalid;
@@ -135,12 +139,14 @@ class AuraTunnelService {
   /// or an empty list if no rules are stored.
   Future<List<AuraRuleItem>?> getRules() async {
     try {
-      final List<dynamic>? raw =
-          await _controlChannel.invokeMethod<List<dynamic>>('getRules');
+      final List<dynamic>? raw = await _controlChannel
+          .invokeMethod<List<dynamic>>('getRules');
       if (raw == null) return null;
       return raw
-          .map((item) =>
-              AuraRuleItem.fromMap(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                AuraRuleItem.fromMap(Map<String, dynamic>.from(item as Map)),
+          )
           .toList();
     } catch (_) {
       return null;
@@ -170,16 +176,15 @@ class AuraTunnelService {
     try {
       final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
         'addRule',
-        {
-          'domain': domain,
-          'isBlocked': isBlocked,
-          'isEnabled': isEnabled,
-        },
+        {'domain': domain, 'isBlocked': isBlocked, 'isEnabled': isEnabled},
       );
       if (raw is Map) {
         return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
       }
-      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native addRule.');
+      throw const AuraRuleException(
+        'INVALID_RESPONSE',
+        'Invalid response from native addRule.',
+      );
     } on PlatformException catch (e) {
       throw AuraRuleException(e.code, e.message ?? 'Failed to add rule.');
     }
@@ -205,7 +210,10 @@ class AuraTunnelService {
       if (raw is Map) {
         return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
       }
-      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native updateRule.');
+      throw const AuraRuleException(
+        'INVALID_RESPONSE',
+        'Invalid response from native updateRule.',
+      );
     } on PlatformException catch (e) {
       throw AuraRuleException(e.code, e.message ?? 'Failed to update rule.');
     }
@@ -221,7 +229,10 @@ class AuraTunnelService {
       if (raw is Map) {
         return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
       }
-      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native deleteRule.');
+      throw const AuraRuleException(
+        'INVALID_RESPONSE',
+        'Invalid response from native deleteRule.',
+      );
     } on PlatformException catch (e) {
       throw AuraRuleException(e.code, e.message ?? 'Failed to delete rule.');
     }
@@ -232,15 +243,15 @@ class AuraTunnelService {
     try {
       final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
         'toggleRule',
-        {
-          'id': id,
-          'isEnabled': isEnabled,
-        },
+        {'id': id, 'isEnabled': isEnabled},
       );
       if (raw is Map) {
         return AuraRuleItem.fromMap(Map<String, dynamic>.from(raw));
       }
-      throw const AuraRuleException('INVALID_RESPONSE', 'Invalid response from native toggleRule.');
+      throw const AuraRuleException(
+        'INVALID_RESPONSE',
+        'Invalid response from native toggleRule.',
+      );
     } on PlatformException catch (e) {
       throw AuraRuleException(e.code, e.message ?? 'Failed to toggle rule.');
     }
@@ -249,10 +260,13 @@ class AuraTunnelService {
   /// Atomically synchronizes domain rules to App Group storage and signals running tunnel if active.
   Future<bool> syncRules(List<AuraRuleItem> rules) async {
     try {
-      final List<Map<String, dynamic>> ruleMaps =
-          rules.map((r) => r.toMap()).toList();
-      final bool? success =
-          await _controlChannel.invokeMethod<bool>('syncRules', ruleMaps);
+      final List<Map<String, dynamic>> ruleMaps = rules
+          .map((r) => r.toMap())
+          .toList();
+      final bool? success = await _controlChannel.invokeMethod<bool>(
+        'syncRules',
+        ruleMaps,
+      );
       return success ?? false;
     } catch (_) {
       return false;
@@ -270,8 +284,9 @@ class AuraTunnelService {
   /// Fetches the persisted enable/disable state of default categories (Ads, Trackers, Analytics).
   Future<Map<String, bool>> getCategories() async {
     try {
-      final dynamic raw =
-          await _controlChannel.invokeMethod<dynamic>('getCategories');
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'getCategories',
+      );
       if (raw is Map) {
         final Map<String, bool> result = {};
         for (final entry in raw.entries) {
@@ -281,7 +296,10 @@ class AuraTunnelService {
       }
       return {'Ads': true, 'Trackers': true, 'Analytics': true};
     } on PlatformException catch (e) {
-      throw AuraRuleException(e.code, e.message ?? 'Failed to load categories.');
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to load categories.',
+      );
     }
   }
 
@@ -293,10 +311,7 @@ class AuraTunnelService {
     try {
       final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
         'setCategoryPreference',
-        {
-          'category': category,
-          'isEnabled': isEnabled,
-        },
+        {'category': category, 'isEnabled': isEnabled},
       );
       if (raw is Map) {
         final Map<String, bool> result = {};
@@ -344,8 +359,9 @@ class AuraTunnelService {
   /// Fetches the set of disabled default domains from native persistence.
   Future<Set<String>> getDefaultDomainOverrides() async {
     try {
-      final dynamic raw =
-          await _controlChannel.invokeMethod<dynamic>('getDefaultDomainOverrides');
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'getDefaultDomainOverrides',
+      );
       if (raw is List) {
         return raw.map((e) => e.toString().toLowerCase().trim()).toSet();
       }
@@ -369,10 +385,7 @@ class AuraTunnelService {
     try {
       final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
         'toggleDefaultDomain',
-        {
-          'domain': domain,
-          'isEnabled': isEnabled,
-        },
+        {'domain': domain, 'isEnabled': isEnabled},
       );
       if (raw is List) {
         return raw.map((e) => e.toString().toLowerCase().trim()).toSet();

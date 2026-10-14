@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../core/services/aura_tunnel_service.dart';
 
 /// Screen for managing custom DNS allowlist and blocklist rules.
@@ -104,8 +105,10 @@ class _AuraRulesScreenState extends State<AuraRulesScreen>
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        const Text('Rule Action: ',
-                            style: TextStyle(fontWeight: FontWeight.w600)),
+                        const Text(
+                          'Rule Action: ',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
                         const Spacer(),
                         ChoiceChip(
                           label: const Text('Block'),
@@ -135,7 +138,10 @@ class _AuraRulesScreenState extends State<AuraRulesScreen>
                       isBlocked
                           ? 'Queries to this domain and subdomains will be blocked (0.0.0.0).'
                           : 'Queries to this domain and subdomains will bypass category blocking.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
+                      ),
                     ),
                   ],
                 ),
@@ -166,8 +172,8 @@ class _AuraRulesScreenState extends State<AuraRulesScreen>
 
                           try {
                             // Validate with native PSL validator
-                            final validatedDomain =
-                                await _service.validateDomain(rawDomain);
+                            final validatedDomain = await _service
+                                .validateDomain(rawDomain);
 
                             // Attempt native add
                             final newRule = await _service.addRule(
@@ -281,9 +287,7 @@ class _AuraRulesScreenState extends State<AuraRulesScreen>
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Deleted rule for ${rule.domain}'),
-        ),
+        SnackBar(content: Text('Deleted rule for ${rule.domain}')),
       );
     } on AuraRuleException catch (e) {
       if (!mounted) return;
@@ -328,43 +332,40 @@ class _AuraRulesScreenState extends State<AuraRulesScreen>
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline,
-                            size: 48, color: Colors.redAccent),
-                        const SizedBox(height: 12),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _loadRules,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : TabBarView(
-                  controller: _tabController,
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildRuleList(
-                      rules: blockRules,
-                      isBlocked: true,
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.redAccent,
                     ),
-                    _buildRuleList(
-                      rules: allowRules,
-                      isBlocked: false,
+                    const SizedBox(height: 12),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _loadRules,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
                     ),
                   ],
                 ),
+              ),
+            )
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildRuleList(rules: blockRules, isBlocked: true),
+                _buildRuleList(rules: allowRules, isBlocked: false),
+              ],
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           final isBlockedDefault = _tabController.index == 0;
@@ -394,9 +395,7 @@ class _AuraRulesScreenState extends State<AuraRulesScreen>
               ),
               const SizedBox(height: 16),
               Text(
-                isBlocked
-                    ? 'No custom block rules'
-                    : 'No custom allow rules',
+                isBlocked ? 'No custom block rules' : 'No custom allow rules',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -447,7 +446,9 @@ class _AuraRulesScreenState extends State<AuraRulesScreen>
                   : 'Rule disabled',
               style: TextStyle(
                 fontSize: 12,
-                color: rule.isEnabled ? Colors.grey.shade400 : Colors.grey.shade600,
+                color: rule.isEnabled
+                    ? Colors.grey.shade400
+                    : Colors.grey.shade600,
               ),
             ),
             trailing: Row(
