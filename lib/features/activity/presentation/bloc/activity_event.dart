@@ -17,4 +17,10 @@ abstract class ActivityEvent with _$ActivityEvent {
   const factory ActivityEvent.searchQueryChanged(String query) =
       _ActivitySearchQueryChanged;
   const factory ActivityEvent.appResumed() = _ActivityAppResumed;
+  const factory ActivityEvent.domainBlockToggled({
+    required String domain,
+    required bool isBlocked,
+  }) = _ActivityDomainBlockToggled;
+  const factory ActivityEvent.actionErrorDismissed() =
+      _ActivityActionErrorDismissed;
 }

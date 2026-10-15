@@ -7,6 +7,8 @@ import 'package:theja_aura/core/utils/app_button.dart';
 import 'package:theja_aura/core/utils/app_utils.dart';
 import 'package:theja_aura/features/timeago/timeago.dart';
 
+import 'package:theja_aura/core/services/aura_domain_evaluator.dart';
+
 import '../bloc/activity_bloc.dart';
 
 class ActivityPage extends StatefulWidget {
@@ -130,7 +132,20 @@ class _ActivityPageState extends State<ActivityPage>
     final colors = context.appColors;
     final typo = context.appTypography;
 
-    return BlocBuilder<ActivityBloc, ActivityState>(
+    return BlocConsumer<ActivityBloc, ActivityState>(
+      listener: (context, state) {
+        if (state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.actionError!),
+              backgroundColor: colors.error,
+            ),
+          );
+          context.read<ActivityBloc>().add(
+            const ActivityEvent.actionErrorDismissed(),
+          );
+        }
+      },
       builder: (context, state) {
         return Scaffold(
           appBar: AppBar(
@@ -400,8 +415,20 @@ class _ActivityPageState extends State<ActivityPage>
                 ),
                 Switch(
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  value: record.isBlocked,
-                  onChanged: (value) {},
+                  value: state.isDomainBlocked(record.domain, record),
+                  onChanged:
+                      state.pendingDomainToggles.contains(
+                        AuraDomainEvaluator.normalizeDomain(record.domain),
+                      )
+                      ? null
+                      : (value) {
+                          context.read<ActivityBloc>().add(
+                            ActivityEvent.domainBlockToggled(
+                              domain: record.domain,
+                              isBlocked: value,
+                            ),
+                          );
+                        },
                   inactiveThumbColor: colors.textTertiary,
                   inactiveTrackColor: colors.trackOff,
                 ),

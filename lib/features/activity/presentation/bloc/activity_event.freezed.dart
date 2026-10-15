@@ -56,7 +56,7 @@ extension ActivityEventPatterns on ActivityEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _ActivityStarted value)?  started,TResult Function( _ActivityInitialPageRequested value)?  initialPageRequested,TResult Function( _ActivityLoadMoreRequested value)?  loadMoreRequested,TResult Function( _ActivityRefreshRequested value)?  refreshRequested,TResult Function( _ActivityOutcomeFilterChanged value)?  outcomeFilterChanged,TResult Function( _ActivityTimeWindowFilterChanged value)?  timeWindowFilterChanged,TResult Function( _ActivitySearchQueryChanged value)?  searchQueryChanged,TResult Function( _ActivityAppResumed value)?  appResumed,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _ActivityStarted value)?  started,TResult Function( _ActivityInitialPageRequested value)?  initialPageRequested,TResult Function( _ActivityLoadMoreRequested value)?  loadMoreRequested,TResult Function( _ActivityRefreshRequested value)?  refreshRequested,TResult Function( _ActivityOutcomeFilterChanged value)?  outcomeFilterChanged,TResult Function( _ActivityTimeWindowFilterChanged value)?  timeWindowFilterChanged,TResult Function( _ActivitySearchQueryChanged value)?  searchQueryChanged,TResult Function( _ActivityAppResumed value)?  appResumed,TResult Function( _ActivityDomainBlockToggled value)?  domainBlockToggled,TResult Function( _ActivityActionErrorDismissed value)?  actionErrorDismissed,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case _ActivityStarted() when started != null:
@@ -67,7 +67,9 @@ return refreshRequested(_that);case _ActivityOutcomeFilterChanged() when outcome
 return outcomeFilterChanged(_that);case _ActivityTimeWindowFilterChanged() when timeWindowFilterChanged != null:
 return timeWindowFilterChanged(_that);case _ActivitySearchQueryChanged() when searchQueryChanged != null:
 return searchQueryChanged(_that);case _ActivityAppResumed() when appResumed != null:
-return appResumed(_that);case _:
+return appResumed(_that);case _ActivityDomainBlockToggled() when domainBlockToggled != null:
+return domainBlockToggled(_that);case _ActivityActionErrorDismissed() when actionErrorDismissed != null:
+return actionErrorDismissed(_that);case _:
   return orElse();
 
 }
@@ -85,7 +87,7 @@ return appResumed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _ActivityStarted value)  started,required TResult Function( _ActivityInitialPageRequested value)  initialPageRequested,required TResult Function( _ActivityLoadMoreRequested value)  loadMoreRequested,required TResult Function( _ActivityRefreshRequested value)  refreshRequested,required TResult Function( _ActivityOutcomeFilterChanged value)  outcomeFilterChanged,required TResult Function( _ActivityTimeWindowFilterChanged value)  timeWindowFilterChanged,required TResult Function( _ActivitySearchQueryChanged value)  searchQueryChanged,required TResult Function( _ActivityAppResumed value)  appResumed,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _ActivityStarted value)  started,required TResult Function( _ActivityInitialPageRequested value)  initialPageRequested,required TResult Function( _ActivityLoadMoreRequested value)  loadMoreRequested,required TResult Function( _ActivityRefreshRequested value)  refreshRequested,required TResult Function( _ActivityOutcomeFilterChanged value)  outcomeFilterChanged,required TResult Function( _ActivityTimeWindowFilterChanged value)  timeWindowFilterChanged,required TResult Function( _ActivitySearchQueryChanged value)  searchQueryChanged,required TResult Function( _ActivityAppResumed value)  appResumed,required TResult Function( _ActivityDomainBlockToggled value)  domainBlockToggled,required TResult Function( _ActivityActionErrorDismissed value)  actionErrorDismissed,}){
 final _that = this;
 switch (_that) {
 case _ActivityStarted():
@@ -96,7 +98,9 @@ return refreshRequested(_that);case _ActivityOutcomeFilterChanged():
 return outcomeFilterChanged(_that);case _ActivityTimeWindowFilterChanged():
 return timeWindowFilterChanged(_that);case _ActivitySearchQueryChanged():
 return searchQueryChanged(_that);case _ActivityAppResumed():
-return appResumed(_that);case _:
+return appResumed(_that);case _ActivityDomainBlockToggled():
+return domainBlockToggled(_that);case _ActivityActionErrorDismissed():
+return actionErrorDismissed(_that);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -113,7 +117,7 @@ return appResumed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _ActivityStarted value)?  started,TResult? Function( _ActivityInitialPageRequested value)?  initialPageRequested,TResult? Function( _ActivityLoadMoreRequested value)?  loadMoreRequested,TResult? Function( _ActivityRefreshRequested value)?  refreshRequested,TResult? Function( _ActivityOutcomeFilterChanged value)?  outcomeFilterChanged,TResult? Function( _ActivityTimeWindowFilterChanged value)?  timeWindowFilterChanged,TResult? Function( _ActivitySearchQueryChanged value)?  searchQueryChanged,TResult? Function( _ActivityAppResumed value)?  appResumed,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _ActivityStarted value)?  started,TResult? Function( _ActivityInitialPageRequested value)?  initialPageRequested,TResult? Function( _ActivityLoadMoreRequested value)?  loadMoreRequested,TResult? Function( _ActivityRefreshRequested value)?  refreshRequested,TResult? Function( _ActivityOutcomeFilterChanged value)?  outcomeFilterChanged,TResult? Function( _ActivityTimeWindowFilterChanged value)?  timeWindowFilterChanged,TResult? Function( _ActivitySearchQueryChanged value)?  searchQueryChanged,TResult? Function( _ActivityAppResumed value)?  appResumed,TResult? Function( _ActivityDomainBlockToggled value)?  domainBlockToggled,TResult? Function( _ActivityActionErrorDismissed value)?  actionErrorDismissed,}){
 final _that = this;
 switch (_that) {
 case _ActivityStarted() when started != null:
@@ -124,7 +128,9 @@ return refreshRequested(_that);case _ActivityOutcomeFilterChanged() when outcome
 return outcomeFilterChanged(_that);case _ActivityTimeWindowFilterChanged() when timeWindowFilterChanged != null:
 return timeWindowFilterChanged(_that);case _ActivitySearchQueryChanged() when searchQueryChanged != null:
 return searchQueryChanged(_that);case _ActivityAppResumed() when appResumed != null:
-return appResumed(_that);case _:
+return appResumed(_that);case _ActivityDomainBlockToggled() when domainBlockToggled != null:
+return domainBlockToggled(_that);case _ActivityActionErrorDismissed() when actionErrorDismissed != null:
+return actionErrorDismissed(_that);case _:
   return null;
 
 }
@@ -141,7 +147,7 @@ return appResumed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( bool isLogsMode)?  started,TResult Function()?  initialPageRequested,TResult Function()?  loadMoreRequested,TResult Function()?  refreshRequested,TResult Function( String outcome)?  outcomeFilterChanged,TResult Function( int? timeWindowMillis)?  timeWindowFilterChanged,TResult Function( String query)?  searchQueryChanged,TResult Function()?  appResumed,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( bool isLogsMode)?  started,TResult Function()?  initialPageRequested,TResult Function()?  loadMoreRequested,TResult Function()?  refreshRequested,TResult Function( String outcome)?  outcomeFilterChanged,TResult Function( int? timeWindowMillis)?  timeWindowFilterChanged,TResult Function( String query)?  searchQueryChanged,TResult Function()?  appResumed,TResult Function( String domain,  bool isBlocked)?  domainBlockToggled,TResult Function()?  actionErrorDismissed,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ActivityStarted() when started != null:
 return started(_that.isLogsMode);case _ActivityInitialPageRequested() when initialPageRequested != null:
@@ -151,7 +157,9 @@ return refreshRequested();case _ActivityOutcomeFilterChanged() when outcomeFilte
 return outcomeFilterChanged(_that.outcome);case _ActivityTimeWindowFilterChanged() when timeWindowFilterChanged != null:
 return timeWindowFilterChanged(_that.timeWindowMillis);case _ActivitySearchQueryChanged() when searchQueryChanged != null:
 return searchQueryChanged(_that.query);case _ActivityAppResumed() when appResumed != null:
-return appResumed();case _:
+return appResumed();case _ActivityDomainBlockToggled() when domainBlockToggled != null:
+return domainBlockToggled(_that.domain,_that.isBlocked);case _ActivityActionErrorDismissed() when actionErrorDismissed != null:
+return actionErrorDismissed();case _:
   return orElse();
 
 }
@@ -169,7 +177,7 @@ return appResumed();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( bool isLogsMode)  started,required TResult Function()  initialPageRequested,required TResult Function()  loadMoreRequested,required TResult Function()  refreshRequested,required TResult Function( String outcome)  outcomeFilterChanged,required TResult Function( int? timeWindowMillis)  timeWindowFilterChanged,required TResult Function( String query)  searchQueryChanged,required TResult Function()  appResumed,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( bool isLogsMode)  started,required TResult Function()  initialPageRequested,required TResult Function()  loadMoreRequested,required TResult Function()  refreshRequested,required TResult Function( String outcome)  outcomeFilterChanged,required TResult Function( int? timeWindowMillis)  timeWindowFilterChanged,required TResult Function( String query)  searchQueryChanged,required TResult Function()  appResumed,required TResult Function( String domain,  bool isBlocked)  domainBlockToggled,required TResult Function()  actionErrorDismissed,}) {final _that = this;
 switch (_that) {
 case _ActivityStarted():
 return started(_that.isLogsMode);case _ActivityInitialPageRequested():
@@ -179,7 +187,9 @@ return refreshRequested();case _ActivityOutcomeFilterChanged():
 return outcomeFilterChanged(_that.outcome);case _ActivityTimeWindowFilterChanged():
 return timeWindowFilterChanged(_that.timeWindowMillis);case _ActivitySearchQueryChanged():
 return searchQueryChanged(_that.query);case _ActivityAppResumed():
-return appResumed();case _:
+return appResumed();case _ActivityDomainBlockToggled():
+return domainBlockToggled(_that.domain,_that.isBlocked);case _ActivityActionErrorDismissed():
+return actionErrorDismissed();case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,7 +206,7 @@ return appResumed();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( bool isLogsMode)?  started,TResult? Function()?  initialPageRequested,TResult? Function()?  loadMoreRequested,TResult? Function()?  refreshRequested,TResult? Function( String outcome)?  outcomeFilterChanged,TResult? Function( int? timeWindowMillis)?  timeWindowFilterChanged,TResult? Function( String query)?  searchQueryChanged,TResult? Function()?  appResumed,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( bool isLogsMode)?  started,TResult? Function()?  initialPageRequested,TResult? Function()?  loadMoreRequested,TResult? Function()?  refreshRequested,TResult? Function( String outcome)?  outcomeFilterChanged,TResult? Function( int? timeWindowMillis)?  timeWindowFilterChanged,TResult? Function( String query)?  searchQueryChanged,TResult? Function()?  appResumed,TResult? Function( String domain,  bool isBlocked)?  domainBlockToggled,TResult? Function()?  actionErrorDismissed,}) {final _that = this;
 switch (_that) {
 case _ActivityStarted() when started != null:
 return started(_that.isLogsMode);case _ActivityInitialPageRequested() when initialPageRequested != null:
@@ -206,7 +216,9 @@ return refreshRequested();case _ActivityOutcomeFilterChanged() when outcomeFilte
 return outcomeFilterChanged(_that.outcome);case _ActivityTimeWindowFilterChanged() when timeWindowFilterChanged != null:
 return timeWindowFilterChanged(_that.timeWindowMillis);case _ActivitySearchQueryChanged() when searchQueryChanged != null:
 return searchQueryChanged(_that.query);case _ActivityAppResumed() when appResumed != null:
-return appResumed();case _:
+return appResumed();case _ActivityDomainBlockToggled() when domainBlockToggled != null:
+return domainBlockToggled(_that.domain,_that.isBlocked);case _ActivityActionErrorDismissed() when actionErrorDismissed != null:
+return actionErrorDismissed();case _:
   return null;
 
 }
@@ -606,6 +618,108 @@ int get hashCode => runtimeType.hashCode;
 @override
 String toString() {
     return 'ActivityEvent.appResumed()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class _ActivityDomainBlockToggled implements ActivityEvent {
+  const _ActivityDomainBlockToggled({required this.domain, required this.isBlocked});
+  
+
+ final  String domain;
+ final  bool isBlocked;
+
+/// Create a copy of ActivityEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ActivityDomainBlockToggledCopyWith<_ActivityDomainBlockToggled> get copyWith => __$ActivityDomainBlockToggledCopyWithImpl<_ActivityDomainBlockToggled>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityDomainBlockToggled&&(identical(other.domain, domain) || other.domain == domain)&&(identical(other.isBlocked, isBlocked) || other.isBlocked == isBlocked));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,domain,isBlocked);
+}
+
+@override
+String toString() {
+    return 'ActivityEvent.domainBlockToggled(domain: $domain, isBlocked: $isBlocked)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ActivityDomainBlockToggledCopyWith<$Res> implements $ActivityEventCopyWith<$Res> {
+  factory _$ActivityDomainBlockToggledCopyWith(_ActivityDomainBlockToggled value, $Res Function(_ActivityDomainBlockToggled) _then) = __$ActivityDomainBlockToggledCopyWithImpl;
+@useResult
+$Res call({
+ String domain, bool isBlocked
+});
+
+
+
+
+}
+/// @nodoc
+class __$ActivityDomainBlockToggledCopyWithImpl<$Res>
+    implements _$ActivityDomainBlockToggledCopyWith<$Res> {
+  __$ActivityDomainBlockToggledCopyWithImpl(this._self, this._then);
+
+  final _ActivityDomainBlockToggled _self;
+  final $Res Function(_ActivityDomainBlockToggled) _then;
+
+/// Create a copy of ActivityEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? domain = null,Object? isBlocked = null,}) {
+  return _then(_ActivityDomainBlockToggled(
+domain: null == domain ? _self.domain : domain // ignore: cast_nullable_to_non_nullable
+as String,isBlocked: null == isBlocked ? _self.isBlocked : isBlocked // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class _ActivityActionErrorDismissed implements ActivityEvent {
+  const _ActivityActionErrorDismissed();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ActivityActionErrorDismissed);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'ActivityEvent.actionErrorDismissed()';
 }
 
 

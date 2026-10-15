@@ -3,13 +3,13 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		25727DDA3080FEAD00553CC4 /* aura_icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 25727DD93080FEAC00553CC4 /* aura_icon.icon */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
-		A1110093294A000100000001 /* AuraDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110091294A000100000001 /* AuraDatabaseTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
@@ -24,19 +24,20 @@
 		A1110009294A000100000001 /* AuraTunnel.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A1110010294A000100000001 /* AuraTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A1110018294A000100000001 /* AuraTunnelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110016294A000100000001 /* AuraTunnelManager.swift */; };
 		A1110019294A000100000001 /* RunnerRuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110017294A000100000001 /* RunnerRuleStore.swift */; };
-		A1110071294A000100000001 /* AuraActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110070294A000100000001 /* AuraActivityRepository.swift */; };
 		A1110051294A000100000001 /* AuraPSLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110050294A000100000001 /* AuraPSLValidator.swift */; };
 		A1110053294A000100000001 /* AuraCategoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110052294A000100000001 /* AuraCategoryStore.swift */; };
-		A1110055294A000100000001 /* public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* public_suffix_list.dat */; };
-		A1110057294A000100000001 /* ads.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110056294A000100000001 /* ads.txt */; };
-		A1110059294A000100000001 /* trackers.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110058294A000100000001 /* trackers.txt */; };
-		A1110061294A000100000001 /* analytics.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110060294A000100000001 /* analytics.txt */; };
+		A1110055294A000100000001 /* Resources/public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* Resources/public_suffix_list.dat */; };
+		A1110057294A000100000001 /* Resources/categories/ads.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110056294A000100000001 /* Resources/categories/ads.txt */; };
+		A1110059294A000100000001 /* Resources/categories/trackers.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110058294A000100000001 /* Resources/categories/trackers.txt */; };
+		A1110061294A000100000001 /* Resources/categories/analytics.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110060294A000100000001 /* Resources/categories/analytics.txt */; };
 		A1110065294A000100000001 /* AuraActivityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110064294A000100000001 /* AuraActivityDatabase.swift */; };
+		A1110071294A000100000001 /* AuraActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110070294A000100000001 /* AuraActivityRepository.swift */; };
 		A1110081294A000100000001 /* AuraPSLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110050294A000100000001 /* AuraPSLValidator.swift */; };
 		A1110082294A000100000001 /* AuraCategoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110052294A000100000001 /* AuraCategoryStore.swift */; };
 		A1110083294A000100000001 /* AuraDNSEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110006294A000100000001 /* AuraDNSEngine.swift */; };
+		A1110084294A000100000001 /* Resources/public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* Resources/public_suffix_list.dat */; };
 		A1110085294A000100000001 /* AuraActivityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110064294A000100000001 /* AuraActivityDatabase.swift */; };
-		A1110084294A000100000001 /* public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* public_suffix_list.dat */; };
+		A1110093294A000100000001 /* AuraDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110091294A000100000001 /* AuraDatabaseTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,7 +52,7 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = A1110020294A000100000001 /* AuraTunnel */;
+			remoteGlobalIDString = A1110020294A000100000001;
 			remoteInfo = AuraTunnel;
 		};
 /* End PBXContainerItemProxy section */
@@ -83,8 +84,8 @@
 /* Begin PBXFileReference section */
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		25727DD93080FEAC00553CC4 /* aura_icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = aura_icon.icon; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
-		A1110091294A000100000001 /* AuraDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraDatabaseTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -109,14 +110,15 @@
 		A1110015294A000100000001 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		A1110016294A000100000001 /* AuraTunnelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraTunnelManager.swift; sourceTree = "<group>"; };
 		A1110017294A000100000001 /* RunnerRuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerRuleStore.swift; sourceTree = "<group>"; };
-		A1110070294A000100000001 /* AuraActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityRepository.swift; sourceTree = "<group>"; };
 		A1110050294A000100000001 /* AuraPSLValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraPSLValidator.swift; sourceTree = "<group>"; };
 		A1110052294A000100000001 /* AuraCategoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraCategoryStore.swift; sourceTree = "<group>"; };
-		A1110054294A000100000001 /* public_suffix_list.dat */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/public_suffix_list.dat"; sourceTree = "<group>"; };
-		A1110056294A000100000001 /* ads.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/categories/ads.txt"; sourceTree = "<group>"; };
-		A1110058294A000100000001 /* trackers.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/categories/trackers.txt"; sourceTree = "<group>"; };
-		A1110060294A000100000001 /* analytics.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/categories/analytics.txt"; sourceTree = "<group>"; };
+		A1110054294A000100000001 /* Resources/public_suffix_list.dat */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/public_suffix_list.dat; sourceTree = "<group>"; };
+		A1110056294A000100000001 /* Resources/categories/ads.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/categories/ads.txt; sourceTree = "<group>"; };
+		A1110058294A000100000001 /* Resources/categories/trackers.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/categories/trackers.txt; sourceTree = "<group>"; };
+		A1110060294A000100000001 /* Resources/categories/analytics.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/categories/analytics.txt; sourceTree = "<group>"; };
 		A1110064294A000100000001 /* AuraActivityDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityDatabase.swift; sourceTree = "<group>"; };
+		A1110070294A000100000001 /* AuraActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityRepository.swift; sourceTree = "<group>"; };
+		A1110091294A000100000001 /* AuraDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraDatabaseTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +127,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1110022294A000100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -179,6 +188,7 @@
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
+				25727DD93080FEAC00553CC4 /* aura_icon.icon */,
 				97C147021CF9000F007C117D /* Info.plist */,
 				A1110015294A000100000001 /* Runner.entitlements */,
 				1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */,
@@ -202,10 +212,10 @@
 				A1110008294A000100000001 /* AuraRuleStore.swift */,
 				A1110050294A000100000001 /* AuraPSLValidator.swift */,
 				A1110052294A000100000001 /* AuraCategoryStore.swift */,
-				A1110054294A000100000001 /* public_suffix_list.dat */,
-				A1110056294A000100000001 /* ads.txt */,
-				A1110058294A000100000001 /* trackers.txt */,
-				A1110060294A000100000001 /* analytics.txt */,
+				A1110054294A000100000001 /* Resources/public_suffix_list.dat */,
+				A1110056294A000100000001 /* Resources/categories/ads.txt */,
+				A1110058294A000100000001 /* Resources/categories/trackers.txt */,
+				A1110060294A000100000001 /* Resources/categories/analytics.txt */,
 				A1110064294A000100000001 /* AuraActivityDatabase.swift */,
 				A1110013294A000100000001 /* Info.plist */,
 				A1110014294A000100000001 /* AuraTunnel.entitlements */,
@@ -335,9 +345,21 @@
 			files = (
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
+				25727DDA3080FEAD00553CC4 /* aura_icon.icon in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
-				A1110084294A000100000001 /* public_suffix_list.dat in Resources */,
+				A1110084294A000100000001 /* Resources/public_suffix_list.dat in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1110023294A000100000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1110055294A000100000001 /* Resources/public_suffix_list.dat in Resources */,
+				A1110057294A000100000001 /* Resources/categories/ads.txt in Resources */,
+				A1110059294A000100000001 /* Resources/categories/trackers.txt in Resources */,
+				A1110061294A000100000001 /* Resources/categories/analytics.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,30 +441,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXFrameworksBuildPhase section */
-		A1110022294A000100000001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section */
-
-/* Begin PBXResourcesBuildPhase section */
-		A1110023294A000100000001 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A1110055294A000100000001 /* public_suffix_list.dat in Resources */,
-				A1110057294A000100000001 /* ads.txt in Resources */,
-				A1110059294A000100000001 /* trackers.txt in Resources */,
-				A1110061294A000100000001 /* analytics.txt in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
 		331C8086294A63A400263BE5 /* PBXTargetDependency */ = {
@@ -534,12 +532,13 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = aura_icon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = RCZ44PDP2N;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -716,13 +715,14 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 9740EEB21CF90195004384FC /* Debug.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = aura_icon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = RCZ44PDP2N;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -740,13 +740,14 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = aura_icon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
 				DEVELOPMENT_TEAM = RCZ44PDP2N;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -844,16 +845,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1110040294A000100000001 /* Build configuration list for PBXNativeTarget "AuraTunnel" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1110041294A000100000001 /* Debug */,
-				A1110042294A000100000001 /* Release */,
-				A1110043294A000100000001 /* Profile */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -880,6 +871,16 @@
 				97C147061CF9000F007C117D /* Debug */,
 				97C147071CF9000F007C117D /* Release */,
 				249021D4217E4FDB00AE95B9 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1110040294A000100000001 /* Build configuration list for PBXNativeTarget "AuraTunnel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1110041294A000100000001 /* Debug */,
+				A1110042294A000100000001 /* Release */,
+				A1110043294A000100000001 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -68,7 +68,10 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i453.BlocklistBloc(gh<_i119.IBlocklistRepository>()),
     );
     gh.factory<_i191.ActivityBloc>(
-      () => _i191.ActivityBloc(gh<_i24.IActivityRepository>()),
+      () => _i191.ActivityBloc(
+        gh<_i24.IActivityRepository>(),
+        gh<_i119.IBlocklistRepository>(),
+      ),
     );
     gh.factory<_i442.DashboardBloc>(
       () => _i442.DashboardBloc(gh<_i56.IDashboardRepository>()),

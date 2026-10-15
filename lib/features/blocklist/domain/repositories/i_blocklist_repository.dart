@@ -21,4 +21,5 @@ abstract class IBlocklistRepository {
   Future<AuraRuleItem> deleteRule(String id);
   Future<AuraRuleItem> toggleRule(String id, bool isEnabled);
   Future<String> validateDomain(String domain);
+  Future<Map<String, bool>> getCategories();
 }

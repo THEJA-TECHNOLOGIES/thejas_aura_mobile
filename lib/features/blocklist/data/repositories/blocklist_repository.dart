@@ -72,4 +72,9 @@ class BlocklistRepository implements IBlocklistRepository {
   Future<String> validateDomain(String domain) {
     return _tunnelService.validateDomain(domain);
   }
+
+  @override
+  Future<Map<String, bool>> getCategories() {
+    return _tunnelService.getCategories();
+  }
 }

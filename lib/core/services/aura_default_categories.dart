@@ -234,4 +234,16 @@ class AuraDefaultCategoryData {
   static int getDomainCountForCategory(String category) {
     return forName(category)?.domainCount ?? 0;
   }
+
+  static final Map<String, Set<String>> allCategoriesMap = {
+    'Ads': adsDomains.toSet(),
+    'Trackers': trackersDomains.toSet(),
+    'Analytics': analyticsDomains.toSet(),
+  };
+
+  static final Set<String> allBundledDomains = {
+    ...adsDomains,
+    ...trackersDomains,
+    ...analyticsDomains,
+  };
 }
