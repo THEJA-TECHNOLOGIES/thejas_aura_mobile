@@ -150,6 +150,29 @@ public final class AuraActivityRepository {
 
     // MARK: - Lifecycle & Connection
 
+    /// Explicitly initializes the shared activity database without needing VPN connection.
+    public func initialize() throws {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let targetURL = fileURL else {
+            throw AuraRepositoryError.databaseNotFound
+        }
+
+        do {
+            try AuraActivityDatabase.bootstrapSharedDatabase(fileURL: targetURL)
+        } catch let err as AuraDatabaseError {
+            switch err {
+            case .containerUnavailable:
+                throw AuraRepositoryError.databaseNotFound
+            case .schemaIncompatible(let v):
+                throw AuraRepositoryError.schemaIncompatible(v)
+            case .initializationFailed(let msg):
+                throw AuraRepositoryError.queryFailed(msg)
+            }
+        }
+    }
+
     public func open() throws {
         lock.lock()
         defer { lock.unlock() }
@@ -159,9 +182,18 @@ public final class AuraActivityRepository {
             throw AuraRepositoryError.databaseNotFound
         }
 
-        // Check if database file exists on disk
-        guard FileManager.default.fileExists(atPath: targetURL.path) else {
-            throw AuraRepositoryError.databaseNotFound
+        // Bootstrap if not yet created or initialized
+        do {
+            try AuraActivityDatabase.bootstrapSharedDatabase(fileURL: targetURL)
+        } catch let err as AuraDatabaseError {
+            switch err {
+            case .containerUnavailable:
+                throw AuraRepositoryError.databaseNotFound
+            case .schemaIncompatible(let v):
+                throw AuraRepositoryError.schemaIncompatible(v)
+            case .initializationFailed(let msg):
+                throw AuraRepositoryError.queryFailed(msg)
+            }
         }
 
         let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX

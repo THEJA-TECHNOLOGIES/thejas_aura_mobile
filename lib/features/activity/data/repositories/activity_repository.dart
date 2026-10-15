@@ -29,6 +29,11 @@ class ActivityRepository implements IActivityRepository {
   }
 
   @override
+  Future<bool> initializeDatabase({bool force = false}) {
+    return _activityService.initializeDatabase(force: force);
+  }
+
+  @override
   Future<bool> checkpoint() {
     return _activityService.checkpoint();
   }

@@ -402,6 +402,27 @@ import os.log
             let args = call.arguments as? [String: Any]
 
             switch call.method {
+            case "initializeDatabase":
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        try activityRepository.initialize()
+                        DispatchQueue.main.async {
+                            result([
+                                "ready": true,
+                                "databaseFileName": AuraActivityRepository.databaseFileName
+                            ])
+                        }
+                    } catch let err as AuraRepositoryError {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: err.errorCode, message: err.localizedDescription, details: nil))
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: "INIT_FAILED", message: error.localizedDescription, details: nil))
+                        }
+                    }
+                }
+
             case "getActivity":
                 let limit = (args?["limit"] as? Int) ?? 25
                 let cursorTimestamp = (args?["cursorTimestamp"] as? NSNumber)?.int64Value

@@ -10,6 +10,8 @@ abstract class IActivityRepository {
     int? startTime,
   });
 
+  Future<bool> initializeDatabase({bool force = false});
+
   Future<bool> checkpoint();
 
   Future<DashboardStatsData> getDashboardStats({required int timeWindowMillis});

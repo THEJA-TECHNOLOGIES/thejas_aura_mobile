@@ -46,6 +46,31 @@ public struct ActivityRecord: Equatable {
     }
 }
 
+public enum AuraDatabaseError: LocalizedError {
+    case containerUnavailable
+    case initializationFailed(String)
+    case schemaIncompatible(Int32)
+
+    public var errorDescription: String? {
+        switch self {
+        case .containerUnavailable:
+            return "Activity database file not found in App Group container."
+        case .initializationFailed(let msg):
+            return "Failed to initialize activity database: \(msg)"
+        case .schemaIncompatible(let v):
+            return "Incompatible database schema version (\(v))."
+        }
+    }
+
+    public var errorCode: String {
+        switch self {
+        case .containerUnavailable: return "DATABASE_NOT_FOUND"
+        case .initializationFailed: return "INIT_FAILED"
+        case .schemaIncompatible: return "SCHEMA_INCOMPATIBLE"
+        }
+    }
+}
+
 /// Native SQLite database repository for Theja's Aura DNS activity history.
 /// Manages schema versioning, WAL mode, bounded busy timeout, and thread-safe batch transactions.
 public final class AuraActivityDatabase {
@@ -54,6 +79,8 @@ public final class AuraActivityDatabase {
     public static let sharedAppGroupIdentifier = "group.com.thejatech.aura"
     public static let databaseFileName = "dns_activity.sqlite"
     public static let currentSchemaVersion: Int32 = 1
+
+    private static let bootstrapLock = NSLock()
 
     private var db: OpaquePointer?
     private let dbLock = NSLock()
@@ -78,6 +105,118 @@ public final class AuraActivityDatabase {
 
     // MARK: - Lifecycle & Initialization
 
+    /// Ensures the shared App Group SQLite database and its schema are initialized idempotently.
+    /// Creates parent directories, sets file protection, enables WAL mode, and initializes tables/indexes.
+    @discardableResult
+    public static func bootstrapSharedDatabase(fileURL: URL? = nil) throws -> URL {
+        bootstrapLock.lock()
+        defer { bootstrapLock.unlock() }
+
+        guard let targetURL = fileURL ?? defaultDatabaseURL else {
+            os_log(.error, log: Self.log, "Failed to resolve database file URL in App Group container")
+            throw AuraDatabaseError.containerUnavailable
+        }
+
+        // 1. Ensure parent directory exists
+        let directoryURL = targetURL.deletingLastPathComponent()
+        do {
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            os_log(.error, log: Self.log, "Failed to create directory at %{public}@: %{public}@", directoryURL.path, error.localizedDescription)
+            throw AuraDatabaseError.initializationFailed("Failed to create directory: \(error.localizedDescription)")
+        }
+
+        // 2. Open SQLite handle with CREATE flag
+        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        var dbHandle: OpaquePointer?
+        let status = sqlite3_open_v2(targetURL.path, &dbHandle, flags, nil)
+        guard status == SQLITE_OK, let db = dbHandle else {
+            let errMsg = dbHandle != nil ? String(cString: sqlite3_errmsg(dbHandle)) : "Failed to open sqlite database"
+            if dbHandle != nil { sqlite3_close(dbHandle) }
+            os_log(.error, log: Self.log, "sqlite3_open_v2 bootstrap failed at %{public}@: %{public}@", targetURL.path, errMsg)
+            throw AuraDatabaseError.initializationFailed(errMsg)
+        }
+        defer { sqlite3_close(db) }
+
+        // 3. Set file protection for shared App Group background access
+        try? FileManager.default.setAttributes([
+            .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+        ], ofItemAtPath: targetURL.path)
+
+        // 4. Bounded busy timeout: 250 ms
+        sqlite3_busy_timeout(db, 250)
+
+        // 5. Pragmas for WAL mode and synchronous = NORMAL
+        _ = sqlite3_exec(db, "PRAGMA journal_mode = WAL;", nil, nil, nil)
+        _ = sqlite3_exec(db, "PRAGMA synchronous = NORMAL;", nil, nil, nil)
+
+        // 6. Inspect schema version
+        var versionStmt: OpaquePointer?
+        var userVersion: Int32 = 0
+        if sqlite3_prepare_v2(db, "PRAGMA user_version;", -1, &versionStmt, nil) == SQLITE_OK {
+            if sqlite3_step(versionStmt) == SQLITE_ROW {
+                userVersion = sqlite3_column_int(versionStmt, 0)
+            }
+        }
+        sqlite3_finalize(versionStmt)
+
+        if userVersion > currentSchemaVersion {
+            os_log(
+                .error,
+                log: Self.log,
+                "Incompatible database schema: user_version %{public}d > supported version %{public}d",
+                userVersion,
+                currentSchemaVersion
+            )
+            throw AuraDatabaseError.schemaIncompatible(userVersion)
+        }
+
+        if userVersion == 0 {
+            let ddl = """
+            CREATE TABLE IF NOT EXISTS dns_activity (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                query_type TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                matched_source TEXT NOT NULL,
+                matched_rule_id TEXT,
+                matched_categories TEXT,
+                reason TEXT,
+                app_identifier TEXT,
+                app_name TEXT,
+                app_icon_key TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_dns_activity_timestamp 
+                ON dns_activity(timestamp DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_dns_activity_outcome_timestamp 
+                ON dns_activity(outcome, timestamp DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_dns_activity_domain_timestamp 
+                ON dns_activity(domain, timestamp DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_dns_activity_app_timestamp 
+                ON dns_activity(app_identifier, timestamp DESC);
+            """
+
+            var errMsg: UnsafeMutablePointer<CChar>?
+            let res = sqlite3_exec(db, ddl, nil, nil, &errMsg)
+            if res != SQLITE_OK {
+                let errString = errMsg != nil ? String(cString: errMsg!) : "Unknown DDL error"
+                sqlite3_free(errMsg)
+                os_log(.error, log: Self.log, "Schema creation failed: %{public}s", errString)
+                throw AuraDatabaseError.initializationFailed("Schema creation failed: \(errString)")
+            }
+
+            _ = sqlite3_exec(db, "PRAGMA user_version = \(currentSchemaVersion);", nil, nil, nil)
+            os_log(.info, log: Self.log, "Initialized new activity database schema version %{public}d", currentSchemaVersion)
+        }
+
+        return targetURL
+    }
+
     public func open() -> Bool {
         dbLock.lock()
         defer { dbLock.unlock() }
@@ -88,7 +227,14 @@ public final class AuraActivityDatabase {
             return false
         }
 
-        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX
+        do {
+            try Self.bootstrapSharedDatabase(fileURL: targetURL)
+        } catch {
+            os_log(.error, log: Self.log, "Database bootstrap failed at %{public}@: %{public}@", targetURL.path, error.localizedDescription)
+            return false
+        }
+
+        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
         let status = sqlite3_open_v2(targetURL.path, &db, flags, nil)
         guard status == SQLITE_OK, let db = db else {
             let errMsg = String(cString: sqlite3_errmsg(self.db))

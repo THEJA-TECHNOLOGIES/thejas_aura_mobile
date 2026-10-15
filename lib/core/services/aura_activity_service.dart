@@ -157,6 +157,43 @@ class AuraActivityService {
     'com.thejatech.aura/activity',
   );
 
+  Future<bool>? _initializationFuture;
+  bool _isDatabaseReady = false;
+
+  bool get isDatabaseReady => _isDatabaseReady;
+
+  /// Ensures the native SQLite database is initialized in the shared App Group.
+  /// Prevents concurrent callers from racing by caching and sharing the in-flight Future.
+  Future<bool> initializeDatabase({bool force = false}) async {
+    if (_isDatabaseReady && !force) return true;
+    if (_initializationFuture != null && !force) {
+      return _initializationFuture!;
+    }
+
+    _initializationFuture = () async {
+      try {
+        final dynamic res = await _activityChannel.invokeMethod<dynamic>(
+          'initializeDatabase',
+        );
+        if (res is Map && res['ready'] == true) {
+          _isDatabaseReady = true;
+          return true;
+        } else if (res == true) {
+          _isDatabaseReady = true;
+          return true;
+        }
+        _isDatabaseReady = false;
+        return false;
+      } catch (e) {
+        _isDatabaseReady = false;
+        _initializationFuture = null; // Allow retry on failure
+        rethrow;
+      }
+    }();
+
+    return _initializationFuture!;
+  }
+
   /// Fetches a cursor-paginated page of activity records with optional filtering.
   Future<PaginatedActivityResult> getActivity({
     int limit = 25,
@@ -167,6 +204,8 @@ class AuraActivityService {
     int? startTime,
     int? endTime,
   }) async {
+    await initializeDatabase();
+
     final Map<String, dynamic> args = {'limit': limit};
     if (cursorTimestamp != null) args['cursorTimestamp'] = cursorTimestamp;
     if (cursorId != null) args['cursorId'] = cursorId;
@@ -191,6 +230,8 @@ class AuraActivityService {
   Future<DashboardStatsData> getDashboardStats({
     int timeWindowMillis = 86400000,
   }) async {
+    await initializeDatabase();
+
     final dynamic res = await _activityChannel.invokeMethod<dynamic>(
       'getDashboardStats',
       {'timeWindowMillis': timeWindowMillis},
@@ -206,6 +247,7 @@ class AuraActivityService {
     int limit = 5,
     int? timeWindowMillis,
   }) async {
+    await initializeDatabase();
     final Map<String, dynamic> args = {'limit': limit};
     if (timeWindowMillis != null) args['timeWindowMillis'] = timeWindowMillis;
 
