@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:theja_aura/core/DI/injection.dart';
 
 import '../bloc/activity_bloc.dart';
 
-/// Compatibility alias
-typedef AuraActivityScreen = ActivityPage;
-
-/// Screen for displaying DNS activity records.
-/// Supports two modes:
-/// - Logs Mode (`isLogsMode: true`): Shows blocked domains only (Domain + Timestamp of blocked event)
-/// - Live Activity Mode (`isLogsMode: false`): Shows all DNS outcomes (blocked, allowed, failed) with filters
 class ActivityPage extends StatefulWidget {
   final bool isLogsMode;
-  final ActivityBloc? bloc;
 
-  const ActivityPage({super.key, this.isLogsMode = false, this.bloc});
+  const ActivityPage({super.key, this.isLogsMode = false});
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
@@ -23,7 +14,6 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage>
     with WidgetsBindingObserver {
-  late final ActivityBloc _bloc;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -31,11 +21,10 @@ class _ActivityPageState extends State<ActivityPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
-    _bloc = widget.bloc ?? getIt<ActivityBloc>();
-
     _scrollController.addListener(_onScroll);
-    _bloc.add(ActivityEvent.started(isLogsMode: widget.isLogsMode));
+    context.read<ActivityBloc>().add(
+      ActivityEvent.started(isLogsMode: widget.isLogsMode),
+    );
   }
 
   @override
@@ -43,45 +32,53 @@ class _ActivityPageState extends State<ActivityPage>
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     _searchController.dispose();
-    _bloc.close();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _bloc.add(const ActivityEvent.appResumed());
+      context.read<ActivityBloc>().add(const ActivityEvent.appResumed());
     }
   }
 
   void _onScroll() {
+    final bloc = context.read<ActivityBloc>();
     if (!_scrollController.hasClients) return;
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.position.pixels;
     if (currentScroll >= maxScroll - 200 &&
-        _bloc.state.hasMore &&
-        !_bloc.state.isLoading &&
-        !_bloc.state.isLoadingMore) {
-      _bloc.add(const ActivityEvent.loadMoreRequested());
+        bloc.state.hasMore &&
+        !bloc.state.isLoading &&
+        !bloc.state.isLoadingMore) {
+      bloc.add(const ActivityEvent.loadMoreRequested());
     }
   }
 
   void _onOutcomeChanged(String outcome) {
     if (widget.isLogsMode) return;
-    _bloc.add(ActivityEvent.outcomeFilterChanged(outcome));
+    context.read<ActivityBloc>().add(
+      ActivityEvent.outcomeFilterChanged(outcome),
+    );
   }
 
   void _onTimeWindowChanged(int? windowMillis) {
-    _bloc.add(ActivityEvent.timeWindowFilterChanged(windowMillis));
+    context.read<ActivityBloc>().add(
+      ActivityEvent.timeWindowFilterChanged(windowMillis),
+    );
   }
 
   void _clearFilters() {
     _searchController.clear();
-    _bloc.add(const ActivityEvent.searchQueryChanged(''));
-    _bloc.add(
+    context.read<ActivityBloc>().add(
+      const ActivityEvent.searchQueryChanged(''),
+    );
+    context.read<ActivityBloc>().add(
       ActivityEvent.outcomeFilterChanged(widget.isLogsMode ? 'blocked' : 'all'),
     );
-    _bloc.add(const ActivityEvent.timeWindowFilterChanged(null));
+    context.read<ActivityBloc>().add(
+      const ActivityEvent.timeWindowFilterChanged(null),
+    );
   }
 
   Color _getOutcomeColor(String outcome) {
@@ -125,129 +122,127 @@ class _ActivityPageState extends State<ActivityPage>
     final isLogs = widget.isLogsMode;
     final screenTitle = isLogs ? 'Blocked DNS Logs' : 'DNS Activity Log';
 
-    return BlocProvider.value(
-      value: _bloc,
-      child: BlocBuilder<ActivityBloc, ActivityState>(
-        builder: (context, state) {
-          return Scaffold(
-            appBar: AppBar(
-              title: Text(screenTitle),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Refresh',
-                  onPressed: () =>
-                      _bloc.add(const ActivityEvent.refreshRequested()),
+    return BlocBuilder<ActivityBloc, ActivityState>(
+      builder: (context, state) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(screenTitle),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh',
+                onPressed: () => context.read<ActivityBloc>().add(
+                  const ActivityEvent.refreshRequested(),
                 ),
-              ],
-            ),
-            body: Column(
-              children: [
-                // Search Bar
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: isLogs
-                          ? 'Search blocked domains...'
-                          : 'Search captured domains...',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: state.searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () {
-                                _searchController.clear();
-                                _bloc.add(
-                                  const ActivityEvent.searchQueryChanged(''),
-                                );
-                              },
-                            )
-                          : null,
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: isLogs
+                        ? 'Search blocked domains...'
+                        : 'Search captured domains...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: state.searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              context.read<ActivityBloc>().add(
+                                const ActivityEvent.searchQueryChanged(''),
+                              );
+                            },
+                          )
+                        : null,
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onChanged: (val) => context.read<ActivityBloc>().add(
+                    ActivityEvent.searchQueryChanged(val),
+                  ),
+                ),
+              ),
+
+              // Filters row (Only in Live Activity mode)
+              if (!isLogs) ...[
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      ChoiceChip(
+                        label: const Text('All Outcomes'),
+                        selected: state.selectedOutcome == 'all',
+                        onSelected: (sel) => _onOutcomeChanged('all'),
                       ),
-                    ),
-                    onChanged: (val) =>
-                        _bloc.add(ActivityEvent.searchQueryChanged(val)),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: const Text('Blocked'),
+                        selected: state.selectedOutcome == 'blocked',
+                        selectedColor: Colors.red.shade900,
+                        onSelected: (sel) => _onOutcomeChanged('blocked'),
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: const Text('Allowed'),
+                        selected: state.selectedOutcome == 'allowed',
+                        selectedColor: Colors.green.shade900,
+                        onSelected: (sel) => _onOutcomeChanged('allowed'),
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: const Text('Failed'),
+                        selected: state.selectedOutcome == 'failed',
+                        selectedColor: Colors.amber.shade900,
+                        onSelected: (sel) => _onOutcomeChanged('failed'),
+                      ),
+                      const SizedBox(width: 16),
+                      const VerticalDivider(width: 1),
+                      const SizedBox(width: 16),
+                      FilterChip(
+                        label: const Text('Last 24h'),
+                        selected: state.selectedTimeWindowMillis == 86400000,
+                        onSelected: (sel) =>
+                            _onTimeWindowChanged(sel ? 86400000 : null),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Last 7d'),
+                        selected: state.selectedTimeWindowMillis == 604800000,
+                        onSelected: (sel) =>
+                            _onTimeWindowChanged(sel ? 604800000 : null),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Last 30d'),
+                        selected: state.selectedTimeWindowMillis == 2592000000,
+                        onSelected: (sel) =>
+                            _onTimeWindowChanged(sel ? 2592000000 : null),
+                      ),
+                    ],
                   ),
                 ),
-
-                // Filters row (Only in Live Activity mode)
-                if (!isLogs) ...[
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      children: [
-                        ChoiceChip(
-                          label: const Text('All Outcomes'),
-                          selected: state.selectedOutcome == 'all',
-                          onSelected: (sel) => _onOutcomeChanged('all'),
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Blocked'),
-                          selected: state.selectedOutcome == 'blocked',
-                          selectedColor: Colors.red.shade900,
-                          onSelected: (sel) => _onOutcomeChanged('blocked'),
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Allowed'),
-                          selected: state.selectedOutcome == 'allowed',
-                          selectedColor: Colors.green.shade900,
-                          onSelected: (sel) => _onOutcomeChanged('allowed'),
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Failed'),
-                          selected: state.selectedOutcome == 'failed',
-                          selectedColor: Colors.amber.shade900,
-                          onSelected: (sel) => _onOutcomeChanged('failed'),
-                        ),
-                        const SizedBox(width: 16),
-                        const VerticalDivider(width: 1),
-                        const SizedBox(width: 16),
-                        FilterChip(
-                          label: const Text('Last 24h'),
-                          selected: state.selectedTimeWindowMillis == 86400000,
-                          onSelected: (sel) =>
-                              _onTimeWindowChanged(sel ? 86400000 : null),
-                        ),
-                        const SizedBox(width: 8),
-                        FilterChip(
-                          label: const Text('Last 7d'),
-                          selected: state.selectedTimeWindowMillis == 604800000,
-                          onSelected: (sel) =>
-                              _onTimeWindowChanged(sel ? 604800000 : null),
-                        ),
-                        const SizedBox(width: 8),
-                        FilterChip(
-                          label: const Text('Last 30d'),
-                          selected:
-                              state.selectedTimeWindowMillis == 2592000000,
-                          onSelected: (sel) =>
-                              _onTimeWindowChanged(sel ? 2592000000 : null),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                const Divider(height: 8),
-
-                // Content Area
-                Expanded(child: _buildContent(context, state)),
               ],
-            ),
-          );
-        },
-      ),
+
+              const Divider(height: 8),
+
+              // Content Area
+              Expanded(child: _buildContent(context, state)),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -276,8 +271,9 @@ class _ActivityPageState extends State<ActivityPage>
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () =>
-                    _bloc.add(const ActivityEvent.refreshRequested()),
+                onPressed: () => context.read<ActivityBloc>().add(
+                  const ActivityEvent.refreshRequested(),
+                ),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Retry'),
               ),
@@ -342,7 +338,9 @@ class _ActivityPageState extends State<ActivityPage>
     }
 
     return RefreshIndicator(
-      onRefresh: () async => _bloc.add(const ActivityEvent.refreshRequested()),
+      onRefresh: () async => context.read<ActivityBloc>().add(
+        const ActivityEvent.refreshRequested(),
+      ),
       child: ListView.separated(
         controller: _scrollController,
         itemCount: state.records.length + (state.hasMore ? 1 : 0),

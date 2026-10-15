@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:theja_aura/core/DI/injection.dart';
 import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 
 import '../bloc/blocklist_bloc.dart';
 
-/// Compatibility alias
-typedef AuraBlocklistScreen = BlocklistPage;
-
-/// Dedicated Blocklist screen providing two primary tabs:
-/// - Default Domains (bundled categories: Ads, Trackers, Analytics with modal domain inspector)
-/// - Custom Domains (custom user rules with Allow/Block support, PSL validation, deletion confirmation)
 class BlocklistPage extends StatefulWidget {
-  final BlocklistBloc? bloc;
-
-  const BlocklistPage({super.key, this.bloc});
+  const BlocklistPage({super.key});
 
   @override
   State<BlocklistPage> createState() => _BlocklistPageState();
@@ -23,22 +14,19 @@ class BlocklistPage extends StatefulWidget {
 
 class _BlocklistPageState extends State<BlocklistPage>
     with SingleTickerProviderStateMixin {
-  late final BlocklistBloc _bloc;
   late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _bloc = widget.bloc ?? getIt<BlocklistBloc>();
 
     _tabController = TabController(length: 2, vsync: this);
-    _bloc.add(const BlocklistEvent.started());
+    context.read<BlocklistBloc>().add(const BlocklistEvent.started());
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _bloc.close();
     super.dispose();
   }
 
@@ -57,7 +45,7 @@ class _BlocklistPageState extends State<BlocklistPage>
         return _CategoryDomainBottomSheet(
           category: category,
           disabledDomains: disabledDomains,
-          bloc: _bloc,
+          bloc: context.read<BlocklistBloc>(),
         );
       },
     );
@@ -169,9 +157,9 @@ class _BlocklistPageState extends State<BlocklistPage>
                           });
 
                           try {
-                            final isValid = await _bloc.validateDomain(
-                              rawDomain,
-                            );
+                            final isValid = await context
+                                .read<BlocklistBloc>()
+                                .validateDomain(rawDomain);
                             if (!isValid) {
                               setDialogState(() {
                                 isSubmitting = false;
@@ -180,11 +168,12 @@ class _BlocklistPageState extends State<BlocklistPage>
                               });
                               return;
                             }
-
-                            final success = await _bloc.addRule(
-                              domain: rawDomain,
-                              isBlocked: isBlocked,
-                            );
+                            final success = await context
+                                .read<BlocklistBloc>()
+                                .addRule(
+                                  domain: rawDomain,
+                                  isBlocked: isBlocked,
+                                );
 
                             if (!dialogContext.mounted || !mounted) return;
                             Navigator.of(dialogContext).pop();
@@ -253,7 +242,7 @@ class _BlocklistPageState extends State<BlocklistPage>
     );
 
     if (confirmed != true) return;
-    final success = await _bloc.deleteRule(rule.id);
+    final success = await context.read<BlocklistBloc>().deleteRule(rule.id);
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Deleted rule for ${rule.domain}')),
@@ -263,56 +252,55 @@ class _BlocklistPageState extends State<BlocklistPage>
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: _bloc,
-      child: BlocConsumer<BlocklistBloc, BlocklistState>(
-        listener: (context, state) {
-          if (state.actionError != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.actionError!),
-                backgroundColor: Colors.red.shade900,
-              ),
-            );
-            _bloc.add(const BlocklistEvent.actionErrorDismissed());
-          }
-        },
-        builder: (context, state) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Blocklist'),
-              bottom: TabBar(
-                controller: _tabController,
-                tabs: const [
-                  Tab(
-                    icon: Icon(Icons.category, size: 20),
-                    text: 'Default Domains',
-                  ),
-                  Tab(icon: Icon(Icons.rule, size: 20), text: 'Custom Domains'),
-                ],
-              ),
-            ),
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildDefaultDomainsTab(state),
-                _buildCustomDomainsTab(state),
-              ],
-            ),
-            floatingActionButton: AnimatedBuilder(
-              animation: _tabController,
-              builder: (context, _) {
-                if (_tabController.index != 1) return const SizedBox.shrink();
-                return FloatingActionButton.extended(
-                  onPressed: () => _handleAddRule(isBlockedDefault: true),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Domain'),
-                );
-              },
+    return BlocConsumer<BlocklistBloc, BlocklistState>(
+      listener: (context, state) {
+        if (state.actionError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.actionError!),
+              backgroundColor: Colors.red.shade900,
             ),
           );
-        },
-      ),
+          context.read<BlocklistBloc>().add(
+            const BlocklistEvent.actionErrorDismissed(),
+          );
+        }
+      },
+      builder: (context, state) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Blocklist'),
+            bottom: TabBar(
+              controller: _tabController,
+              tabs: const [
+                Tab(
+                  icon: Icon(Icons.category, size: 20),
+                  text: 'Default Domains',
+                ),
+                Tab(icon: Icon(Icons.rule, size: 20), text: 'Custom Domains'),
+              ],
+            ),
+          ),
+          body: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildDefaultDomainsTab(state),
+              _buildCustomDomainsTab(state),
+            ],
+          ),
+          floatingActionButton: AnimatedBuilder(
+            animation: _tabController,
+            builder: (context, _) {
+              if (_tabController.index != 1) return const SizedBox.shrink();
+              return FloatingActionButton.extended(
+                onPressed: () => _handleAddRule(isBlockedDefault: true),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Domain'),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -341,7 +329,7 @@ class _BlocklistPageState extends State<BlocklistPage>
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () => _bloc.add(
+                onPressed: () => context.read<BlocklistBloc>().add(
                   const BlocklistEvent.defaultDomainOverridesRefreshRequested(),
                 ),
                 icon: const Icon(Icons.refresh),
@@ -356,7 +344,7 @@ class _BlocklistPageState extends State<BlocklistPage>
     final categories = AuraDefaultCategoryData.categories;
 
     return RefreshIndicator(
-      onRefresh: () async => _bloc.add(
+      onRefresh: () async => context.read<BlocklistBloc>().add(
         const BlocklistEvent.defaultDomainOverridesRefreshRequested(),
       ),
       child: ListView(
@@ -489,7 +477,7 @@ class _BlocklistPageState extends State<BlocklistPage>
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: () => _bloc.add(
+                onPressed: () => context.read<BlocklistBloc>().add(
                   const BlocklistEvent.customRulesRefreshRequested(),
                 ),
                 icon: const Icon(Icons.refresh),
@@ -533,8 +521,9 @@ class _BlocklistPageState extends State<BlocklistPage>
     }
 
     return RefreshIndicator(
-      onRefresh: () async =>
-          _bloc.add(const BlocklistEvent.customRulesRefreshRequested()),
+      onRefresh: () async => context.read<BlocklistBloc>().add(
+        const BlocklistEvent.customRulesRefreshRequested(),
+      ),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         itemCount: state.customRules.length,
@@ -599,8 +588,9 @@ class _BlocklistPageState extends State<BlocklistPage>
               children: [
                 Switch(
                   value: isEnabled,
-                  onChanged: (_) =>
-                      _bloc.add(BlocklistEvent.customRuleToggled(rule)),
+                  onChanged: (_) => context.read<BlocklistBloc>().add(
+                    BlocklistEvent.customRuleToggled(rule),
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),

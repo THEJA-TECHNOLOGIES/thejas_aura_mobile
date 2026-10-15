@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/features/activity/presentation/bloc/activity_bloc.dart';
+import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
 import 'core/DI/injection.dart';
@@ -24,6 +26,9 @@ void main() async {
         BlocProvider(
           create: (_) => getIt<DashboardBloc>()..add(DashboardEvent.started()),
         ),
+        BlocProvider(create: (_) => getIt<ActivityBloc>()),
+        BlocProvider(create: (_) => getIt<BlocklistBloc>()),
+
       ],
       child: const AuraApp(),
     ),
