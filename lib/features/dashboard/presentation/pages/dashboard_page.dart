@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:theja_aura/core/DI/injection.dart';
-import 'package:theja_aura/features/activity/presentation/pages/activity_page.dart';
-import 'package:theja_aura/features/blocklist/presentation/pages/blocklist_page.dart';
-
 import '../bloc/dashboard_bloc.dart';
 
 class DashboardPage extends StatefulWidget {
-  final DashboardBloc? bloc;
-
-  const DashboardPage({super.key, this.bloc});
+  const DashboardPage({super.key});
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -18,123 +12,104 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage>
     with WidgetsBindingObserver {
-  late final DashboardBloc _bloc;
-
   @override
   void initState() {
     super.initState();
-    _bloc = widget.bloc ?? getIt<DashboardBloc>();
 
     WidgetsBinding.instance.addObserver(this);
-    _bloc.add(const DashboardEvent.started());
+    context.read<DashboardBloc>().add(const DashboardEvent.started());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _bloc.close();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _bloc.add(const DashboardEvent.appResumed());
+      context.read<DashboardBloc>().add(const DashboardEvent.appResumed());
     }
   }
 
   void _openLogs() async {
-    if (GoRouter.maybeOf(context) != null) {
-      await context.push('/logs');
-    } else {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ActivityPage(isLogsMode: true)),
-      );
-    }
+    await context.push('/logs');
+
     if (!mounted) return;
-    _bloc.add(const DashboardEvent.statsRefreshRequested());
+    context.read<DashboardBloc>().add(
+      const DashboardEvent.statsRefreshRequested(),
+    );
   }
 
   void _openLiveActivity() async {
-    if (GoRouter.maybeOf(context) != null) {
-      await context.push('/activity');
-    } else {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const ActivityPage(isLogsMode: false),
-        ),
-      );
-    }
+    await context.push('/activity');
     if (!mounted) return;
-    _bloc.add(const DashboardEvent.statsRefreshRequested());
+    context.read<DashboardBloc>().add(
+      const DashboardEvent.statsRefreshRequested(),
+    );
   }
 
   void _openBlocklist() async {
-    if (GoRouter.maybeOf(context) != null) {
-      await context.push('/blocklist');
-    } else {
-      await Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const BlocklistPage()));
-    }
+    await context.push('/blocklist');
     if (!mounted) return;
-    _bloc.add(const DashboardEvent.statsRefreshRequested());
+    context.read<DashboardBloc>().add(
+      const DashboardEvent.statsRefreshRequested(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: _bloc,
-      child: BlocConsumer<DashboardBloc, DashboardState>(
-        listener: (context, state) {
-          if (state.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage!),
-                backgroundColor: Colors.red.shade900,
-              ),
-            );
-            debugPrint('Tunnel toggle error: ${state.errorMessage}');
-            _bloc.add(const DashboardEvent.errorMessageDismissed());
-          }
-        },
-        builder: (context, state) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text("Theja's Aura"),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Refresh',
-                  onPressed: () {
-                    _bloc.add(const DashboardEvent.started());
-                  },
-                ),
-              ],
-            ),
-            body: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // A. Firewall Enable / Disable Control
-                  _buildFirewallControlSection(context, state),
-
-                  const SizedBox(height: 8),
-
-                  // B. Three CTA Buttons
-                  _buildCtaButtonsSection(),
-
-                  const SizedBox(height: 8),
-
-                  // C. Three Statistics Chips
-                  _buildStatisticsSection(context, state),
-
-                  const SizedBox(height: 24),
-                ],
-              ),
+    return BlocConsumer<DashboardBloc, DashboardState>(
+      listener: (context, state) {
+        if (state.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.errorMessage!),
+              backgroundColor: Colors.red.shade900,
             ),
           );
-        },
-      ),
+          debugPrint('Tunnel toggle error: ${state.errorMessage}');
+          context.read<DashboardBloc>().add(const DashboardEvent.errorMessageDismissed());
+        }
+      },
+      builder: (context, state) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text("Theja's Aura"),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh',
+                onPressed: () {
+                  context.read<DashboardBloc>().add(const DashboardEvent.started());
+                },
+              ),
+            ],
+          ),
+          body: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // A. Firewall Enable / Disable Control
+                _buildFirewallControlSection(context, state),
+
+                const SizedBox(height: 8),
+
+                // B. Three CTA Buttons
+                _buildCtaButtonsSection(),
+
+                const SizedBox(height: 8),
+
+                // C. Three Statistics Chips
+                _buildStatisticsSection(context, state),
+
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -238,7 +213,7 @@ class _DashboardPageState extends State<DashboardPage>
             ElevatedButton(
               onPressed: isBusy
                   ? null
-                  : () => _bloc.add(const DashboardEvent.tunnelToggled()),
+                  : () => context.read<DashboardBloc>().add(const DashboardEvent.tunnelToggled()),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isConnected
                     ? Colors.red.shade900
@@ -399,7 +374,7 @@ class _DashboardPageState extends State<DashboardPage>
                     icon: const Icon(Icons.refresh, size: 18),
                     tooltip: 'Refresh Stats',
                     onPressed: () =>
-                        _bloc.add(const DashboardEvent.statsRefreshRequested()),
+                        context.read<DashboardBloc>().add(const DashboardEvent.statsRefreshRequested()),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -421,7 +396,7 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                       const SizedBox(height: 8),
                       OutlinedButton(
-                        onPressed: () => _bloc.add(
+                        onPressed: () => context.read<DashboardBloc>().add(
                           const DashboardEvent.statsRefreshRequested(),
                         ),
                         child: const Text('Retry'),
