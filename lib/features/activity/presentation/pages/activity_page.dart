@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:theja_aura/core/theme/app_colors.dart';
+import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/theme/app_typography.dart';
+import 'package:theja_aura/core/utils/app_button.dart';
+import 'package:theja_aura/core/utils/app_utils.dart';
+import 'package:theja_aura/features/timeago/timeago.dart';
 
 import '../bloc/activity_bloc.dart';
 
@@ -120,7 +126,9 @@ class _ActivityPageState extends State<ActivityPage>
   @override
   Widget build(BuildContext context) {
     final isLogs = widget.isLogsMode;
-    final screenTitle = isLogs ? 'Blocked DNS Logs' : 'DNS Activity Log';
+    final screenTitle = isLogs ? 'Logs' : 'Live Activity';
+    final colors = context.appColors;
+    final typo = context.appTypography;
 
     return BlocBuilder<ActivityBloc, ActivityState>(
       builder: (context, state) {
@@ -139,105 +147,74 @@ class _ActivityPageState extends State<ActivityPage>
           ),
           body: Column(
             children: [
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: isLogs
-                        ? 'Search blocked domains...'
-                        : 'Search captured domains...',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: state.searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              context.read<ActivityBloc>().add(
-                                const ActivityEvent.searchQueryChanged(''),
-                              );
-                            },
-                          )
-                        : null,
-                    isDense: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+              if (isLogs)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: isLogs
+                          ? 'Search blocked domains...'
+                          : 'Search captured domains...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: state.searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                context.read<ActivityBloc>().add(
+                                  const ActivityEvent.searchQueryChanged(''),
+                                );
+                              },
+                            )
+                          : null,
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onChanged: (val) => context.read<ActivityBloc>().add(
+                      ActivityEvent.searchQueryChanged(val),
                     ),
                   ),
-                  onChanged: (val) => context.read<ActivityBloc>().add(
-                    ActivityEvent.searchQueryChanged(val),
-                  ),
                 ),
-              ),
 
-              // Filters row (Only in Live Activity mode)
-              if (!isLogs) ...[
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
+              if (!isLogs)
+                Container(
+                  padding: .all(4),
+                  margin: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 4,
                   ),
+                  decoration: BoxDecoration(
+                    color: colors.segmentBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colors.border, width: 1),
+                  ),
                   child: Row(
+                    spacing: 6,
                     children: [
-                      ChoiceChip(
-                        label: const Text('All Outcomes'),
-                        selected: state.selectedOutcome == 'all',
-                        onSelected: (sel) => _onOutcomeChanged('all'),
+                      FilterWidget(
+                        onTap: () => _onOutcomeChanged('all'),
+                        isSelected: state.selectedOutcome == 'all',
+                        label: 'All',
                       ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: const Text('Blocked'),
-                        selected: state.selectedOutcome == 'blocked',
-                        selectedColor: Colors.red.shade900,
-                        onSelected: (sel) => _onOutcomeChanged('blocked'),
+
+                      FilterWidget(
+                        onTap: () => _onOutcomeChanged('allowed'),
+                        isSelected: state.selectedOutcome == 'allowed',
+                        label: 'Allowed',
                       ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: const Text('Allowed'),
-                        selected: state.selectedOutcome == 'allowed',
-                        selectedColor: Colors.green.shade900,
-                        onSelected: (sel) => _onOutcomeChanged('allowed'),
-                      ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: const Text('Failed'),
-                        selected: state.selectedOutcome == 'failed',
-                        selectedColor: Colors.amber.shade900,
-                        onSelected: (sel) => _onOutcomeChanged('failed'),
-                      ),
-                      const SizedBox(width: 16),
-                      const VerticalDivider(width: 1),
-                      const SizedBox(width: 16),
-                      FilterChip(
-                        label: const Text('Last 24h'),
-                        selected: state.selectedTimeWindowMillis == 86400000,
-                        onSelected: (sel) =>
-                            _onTimeWindowChanged(sel ? 86400000 : null),
-                      ),
-                      const SizedBox(width: 8),
-                      FilterChip(
-                        label: const Text('Last 7d'),
-                        selected: state.selectedTimeWindowMillis == 604800000,
-                        onSelected: (sel) =>
-                            _onTimeWindowChanged(sel ? 604800000 : null),
-                      ),
-                      const SizedBox(width: 8),
-                      FilterChip(
-                        label: const Text('Last 30d'),
-                        selected: state.selectedTimeWindowMillis == 2592000000,
-                        onSelected: (sel) =>
-                            _onTimeWindowChanged(sel ? 2592000000 : null),
+
+                      FilterWidget(
+                        onTap: () => _onOutcomeChanged('blocked'),
+                        isSelected: state.selectedOutcome == 'blocked',
+                        label: 'Blocked',
                       ),
                     ],
                   ),
                 ),
-              ],
 
-              const Divider(height: 8),
-
-              // Content Area
               Expanded(child: _buildContent(context, state)),
             ],
           ),
@@ -247,6 +224,8 @@ class _ActivityPageState extends State<ActivityPage>
   }
 
   Widget _buildContent(BuildContext context, ActivityState state) {
+    final colors = context.appColors;
+    final typo = context.appTypography;
     if (state.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -258,24 +237,41 @@ class _ActivityPageState extends State<ActivityPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Colors.redAccent,
+              Container(
+                decoration: BoxDecoration(
+                  color: colors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: colors.error, width: 1),
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Icon(Icons.cloud_off, size: 30, color: colors.error),
               ),
               const SizedBox(height: 12),
               Text(
-                state.errorMessage!,
+                "Couldn't load log records",
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14),
+                style: typo.titleLarge.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                state.errorMessage ?? "fg",
+                textAlign: TextAlign.center,
+                style: typo.caption.copyWith(fontSize: 14),
               ),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () => context.read<ActivityBloc>().add(
-                  const ActivityEvent.refreshRequested(),
-                ),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+              AppButton(
+                text: "Retry",
+                color: colors.primary,
+                onPressed: () {
+                  context.read<ActivityBloc>().add(
+                    const ActivityEvent.refreshRequested(),
+                  );
+                },
+                width: double.infinity - 46,
+                icon: const Icon(Icons.refresh, size: 18, color: Colors.white),
               ),
             ],
           ),
@@ -307,11 +303,11 @@ class _ActivityPageState extends State<ActivityPage>
                 isFiltered
                     ? 'No records matching filters'
                     : (isLogs
-                          ? 'No blocked events recorded yet'
-                          : 'No DNS activity recorded yet'),
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                          ? 'Nothing blocked yet'
+                          : 'Live activity is paused'),
+                style: typo.titleLarge.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 6),
@@ -319,10 +315,10 @@ class _ActivityPageState extends State<ActivityPage>
                 isFiltered
                     ? 'Try adjusting your search keywords.'
                     : (isLogs
-                          ? 'Blocked DNS events will appear here when firewall blocks queries.'
+                          ? "When apps try to reach trackers or ads,\nthey'll show up here."
                           : 'Enable the firewall tunnel to record DNS requests.'),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                style: typo.caption.copyWith(fontSize: 14),
               ),
               if (isFiltered) ...[
                 const SizedBox(height: 16),
@@ -344,7 +340,7 @@ class _ActivityPageState extends State<ActivityPage>
       child: ListView.separated(
         controller: _scrollController,
         itemCount: state.records.length + (state.hasMore ? 1 : 0),
-        separatorBuilder: (context, index) => const Divider(height: 1),
+        separatorBuilder: (context, index) => SizedBox(height: 6),
         itemBuilder: (context, index) {
           if (index == state.records.length) {
             return const Padding(
@@ -355,158 +351,261 @@ class _ActivityPageState extends State<ActivityPage>
 
           final record = state.records[index];
 
-          // Logs mode: show blocked domains only (Domain + Timestamp of the blocked event)
-          if (widget.isLogsMode) {
-            return ListTile(
-              leading: const Icon(
-                Icons.block,
-                color: Colors.redAccent,
-                size: 22,
-              ),
-              title: Text(
-                record.domain,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                _formatTimestamp(record.dateTime),
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
-              ),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade900.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'BLOCKED',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            );
-          }
-
-          // Live Activity mode: Domain, Timestamp, Outcome, QueryType, Categories
-          final outcomeColor = _getOutcomeColor(record.outcome);
-          final outcomeIcon = _getOutcomeIcon(record.outcome);
-
-          return ListTile(
-            leading: Icon(outcomeIcon, color: outcomeColor),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    record.domain,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade800,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    record.queryType,
-                    style: TextStyle(
-                      color: Colors.grey.shade300,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            margin: .symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: colors.segmentBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border, width: 1),
             ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              spacing: 8,
               children: [
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      record.outcome.toUpperCase(),
-                      style: TextStyle(
-                        color: outcomeColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatTimestamp(record.dateTime),
-                      style: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 11,
-                      ),
-                    ),
-                    if (record.matchedSource != 'none') ...[
-                      const SizedBox(width: 8),
+                NameAvatar(name: record.domain, radius: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: .start,
+                    children: [
                       Text(
-                        '• ${record.matchedSource}',
-                        style: TextStyle(
-                          color: Colors.grey.shade400,
-                          fontSize: 11,
+                        '${record.domain} • ${record.queryType}',
+                        style: typo.titleMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Row(
+                        children: [
+                          if (record.matchedSource != 'none') ...[
+                            Text(
+                              '${record.matchedSource} • ',
+                              style: typo.bodySmall.copyWith(
+                                color: colors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                          Text(
+                            formatTimestamp(record.dateTime, locale: "en"),
+                            style: typo.bodySmall.copyWith(
+                              color: colors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ],
+                  ),
                 ),
-                if (record.matchedCategories.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 2,
-                    children: record.matchedCategories.map((cat) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.deepPurple.shade900,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          cat,
-                          style: const TextStyle(
-                            fontSize: 9,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-                if (record.reason != null && record.reason!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    record.reason!,
-                    style: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 10,
-                      fontStyle: FontStyle.italic,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                Switch(
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  value: record.isBlocked,
+                  onChanged: (value) {},
+                  inactiveThumbColor: colors.textTertiary,
+                  inactiveTrackColor: colors.trackOff,
+                ),
               ],
             ),
           );
+          // return ListTile(
+          //   leading: const Icon(
+          //     Icons.block,
+          //     color: Colors.redAccent,
+          //     size: 22,
+          //   ),
+          //   title: Text(
+          //     record.domain,
+          //     style: const TextStyle(
+          //       fontWeight: FontWeight.w600,
+          //       fontSize: 14,
+          //     ),
+          //     overflow: TextOverflow.ellipsis,
+          //   ),
+          //   subtitle: Text(
+          //     _formatTimestamp(record.dateTime),
+          //     style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+          //   ),
+          //   trailing: Container(
+          //     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          //     decoration: BoxDecoration(
+          //       color: Colors.red.shade900.withValues(alpha: 0.3),
+          //       borderRadius: BorderRadius.circular(4),
+          //     ),
+          //     child: const Text(
+          //       'BLOCKED',
+          //       style: TextStyle(
+          //         color: Colors.redAccent,
+          //         fontSize: 10,
+          //         fontWeight: FontWeight.bold,
+          //       ),
+          //     ),
+          //   ),
+          // );
+
+          // // Live Activity mode: Domain, Timestamp, Outcome, QueryType, Categories
+          // final outcomeColor = _getOutcomeColor(record.outcome);
+          // final outcomeIcon = _getOutcomeIcon(record.outcome);
+
+          // return ListTile(
+          //   leading: Icon(outcomeIcon, color: outcomeColor),
+          //   title: Row(
+          //     children: [
+          //       Expanded(
+          //         child: Text(
+          //           record.domain,
+          //           style: const TextStyle(
+          //             fontWeight: FontWeight.w600,
+          //             fontSize: 14,
+          //           ),
+          //           overflow: TextOverflow.ellipsis,
+          //         ),
+          //       ),
+          //       Container(
+          //         padding: const EdgeInsets.symmetric(
+          //           horizontal: 6,
+          //           vertical: 2,
+          //         ),
+          //         decoration: BoxDecoration(
+          //           color: Colors.grey.shade800,
+          //           borderRadius: BorderRadius.circular(4),
+          //         ),
+          //         child: Text(
+          //           record.queryType,
+          //           style: TextStyle(
+          //             color: Colors.grey.shade300,
+          //             fontSize: 10,
+          //             fontWeight: FontWeight.bold,
+          //           ),
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          //   subtitle: Column(
+          //     crossAxisAlignment: CrossAxisAlignment.start,
+          //     children: [
+          //       const SizedBox(height: 4),
+          //       Row(
+          //         children: [
+          //           Text(
+          //             record.outcome.toUpperCase(),
+          //             style: TextStyle(
+          //               color: outcomeColor,
+          //               fontWeight: FontWeight.bold,
+          //               fontSize: 11,
+          //             ),
+          //           ),
+          //           const SizedBox(width: 8),
+          //           Text(
+          //             _formatTimestamp(record.dateTime),
+          //             style: TextStyle(
+          //               color: Colors.grey.shade400,
+          //               fontSize: 11,
+          //             ),
+          //           ),
+          //           if (record.matchedSource != 'none') ...[
+          //             const SizedBox(width: 8),
+          //             Text(
+          //               '• ${record.matchedSource}',
+          //               style: TextStyle(
+          //                 color: Colors.grey.shade400,
+          //                 fontSize: 11,
+          //               ),
+          //             ),
+          //           ],
+          //         ],
+          //       ),
+          //       if (record.matchedCategories.isNotEmpty) ...[
+          //         const SizedBox(height: 4),
+          //         Wrap(
+          //           spacing: 4,
+          //           runSpacing: 2,
+          //           children: record.matchedCategories.map((cat) {
+          //             return Container(
+          //               padding: const EdgeInsets.symmetric(
+          //                 horizontal: 6,
+          //                 vertical: 1,
+          //               ),
+          //               decoration: BoxDecoration(
+          //                 color: Colors.deepPurple.shade900,
+          //                 borderRadius: BorderRadius.circular(10),
+          //               ),
+          //               child: Text(
+          //                 cat,
+          //                 style: const TextStyle(
+          //                   fontSize: 9,
+          //                   color: Colors.white70,
+          //                 ),
+          //               ),
+          //             );
+          //           }).toList(),
+          //         ),
+          //       ],
+          //       if (record.reason != null && record.reason!.isNotEmpty) ...[
+          //         const SizedBox(height: 2),
+          //         Text(
+          //           record.reason!,
+          //           style: TextStyle(
+          //             color: Colors.grey.shade400,
+          //             fontSize: 10,
+          //             fontStyle: FontStyle.italic,
+          //           ),
+          //           overflow: TextOverflow.ellipsis,
+          //         ),
+          //       ],
+          //     ],
+          //   ),
+          // );
         },
+      ),
+    );
+  }
+}
+
+class FilterWidget extends StatelessWidget {
+  const new({
+    super.key,
+    required this.onTap,
+    required this.isSelected,
+    required this.label,
+  });
+
+  final bool isSelected;
+  final void Function()? onTap;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final typo = context.appTypography;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? colors.surfaceRaised : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: !isSelected
+                ? []
+                : [
+                    BoxShadow(
+                      color: colors.shadowSegment,
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: typo.titleMedium.copyWith(
+              color: isSelected ? colors.textPrimary : colors.textSecondary,
+              fontWeight: .w700,
+            ),
+          ),
+        ),
       ),
     );
   }

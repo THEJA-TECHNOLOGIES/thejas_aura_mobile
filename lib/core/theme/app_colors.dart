@@ -77,6 +77,67 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color warningLight;
   final Color warningDark;
 
+  // ── Primary extras (power button, chips, selection) ──
+  final Color onPrimary;
+  final Color primaryPressed;
+  final Color primarySoft;
+  final Color primaryLine;
+  final Color primaryRing1;
+  final Color primaryRing2;
+  final Color primarySelected;
+
+  // ── Power button ──
+  final Color powerEdge;
+  final Color powerGlow;
+  final Color powerHalo;
+  final Color offBg;
+  final Color offIcon;
+
+  // ── Secondary extras ──
+  final Color secondarySoft;
+  final Color focus;
+
+  // ── Warning / error extras ──
+  final Color warningSoft;
+  final Color warningLine;
+  final Color errorSoft;
+  final Color errorLine;
+  final Color onError;
+
+  // ── Violet (logs / reports) ──
+  final Color violet;
+  final Color violetSoft;
+
+  // ── Surfaces & controls ──
+  final Color surfaceRaised;
+  final Color segmentBg;
+  final Color shimmer;
+  final Color trackOff;
+  final Color trackOn;
+  final Color scrim;
+
+  // ── Toast ──
+  final Color toast;
+  final Color toastText;
+  final Color toastAccent;
+  final Color toastError;
+  final Color toastWarning;
+
+  // ── Shadow colors ──
+  final Color shadowCard;
+  final Color shadowSheet;
+  final Color shadowOff;
+  final Color shadowSegment;
+
+  // ── Block-list categories ──
+  final Color catTrackers;
+  final Color catAds;
+  final Color catMarketing;
+  final Color catReports;
+  final Color catMalware;
+  final Color catSocial;
+  final Color catIot;
+
   const AppColors({
     required this.primary,
     required this.primary50,
@@ -135,6 +196,49 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.warning,
     required this.warningLight,
     required this.warningDark,
+    required this.onPrimary,
+    required this.primaryPressed,
+    required this.primarySoft,
+    required this.primaryLine,
+    required this.primaryRing1,
+    required this.primaryRing2,
+    required this.primarySelected,
+    required this.powerEdge,
+    required this.powerGlow,
+    required this.powerHalo,
+    required this.offBg,
+    required this.offIcon,
+    required this.secondarySoft,
+    required this.focus,
+    required this.warningSoft,
+    required this.warningLine,
+    required this.errorSoft,
+    required this.errorLine,
+    required this.onError,
+    required this.violet,
+    required this.violetSoft,
+    required this.surfaceRaised,
+    required this.segmentBg,
+    required this.shimmer,
+    required this.trackOff,
+    required this.trackOn,
+    required this.scrim,
+    required this.toast,
+    required this.toastText,
+    required this.toastAccent,
+    required this.toastError,
+    required this.toastWarning,
+    required this.shadowCard,
+    required this.shadowSheet,
+    required this.shadowOff,
+    required this.shadowSegment,
+    required this.catTrackers,
+    required this.catAds,
+    required this.catMarketing,
+    required this.catReports,
+    required this.catMalware,
+    required this.catSocial,
+    required this.catIot,
   });
 
   // ── Dark Preset ──────────────────────────────────────────────
@@ -190,7 +294,6 @@ class AppColors extends ThemeExtension<AppColors> {
     card: Color(0xFF101A2E),
     accent2: Color(0xFF5BE3BE), // primary-600 (lighter in dark)
     accent3: Color(0xFF9DB5FF), // secondary-600
-
     // Grays
     gray: Color(0xFF6F7F9E),
     gray2: Color(0xFF93A2BF),
@@ -220,6 +323,61 @@ class AppColors extends ThemeExtension<AppColors> {
     warning: Color(0xFFF6B352),
     warningLight: Color(0xFF3D2C0E),
     warningDark: Color(0xFFE09A2E),
+
+    // Primary extras (power button, chips, selection)
+    onPrimary: Color(
+      0xFF062A21,
+    ), // text/icon on primary fill (dark mode needs dark ink for contrast)
+    primaryPressed: Color(0xFF1DB48C), // pressed state of primary button
+    primarySoft: Color(0x242DD4A7), // tinted chip / connecting button fill
+    primaryLine: Color(0x732DD4A7), // outline on tinted primary surfaces
+    primaryRing1: Color(0x382DD4A7), // power button outer ring (active)
+    primaryRing2: Color(0x6B2DD4A7), // power button middle ring (active)
+    primarySelected: Color(0x142DD4A7), // selected row background
+    // Power button
+    powerEdge: Color(0x24FFFFFF), // 1px light edge on gradient button
+    powerGlow: Color(0x612DD4A7), // drop glow under connected button
+    powerHalo: Color(0x1F2DD4A7), // 10px halo ring (desktop card)
+    offBg: Color(0xFF16223A), // power button face when off
+    offIcon: Color(0xFF7F8FAE), // power icon when off
+    // Secondary extras
+    secondarySoft: Color(0x297C9CFF), // default-list tint
+    focus: Color(0xFF7C9CFF), // keyboard focus ring
+    // Warning / error extras
+    warningSoft: Color(0x24F6B352), // amber tint
+    warningLine: Color(0x80F6B352), // amber outline
+    errorSoft: Color(0x1FFF7C8F), // rose tint
+    errorLine: Color(0x80FF7C8F), // rose outline
+    onError: Color(0xFF2A1119), // text/icon on error fill
+    // Violet (logs / reports)
+    violet: Color(0xFFB697FF), // logs / reports accent
+    violetSoft: Color(0x29B697FF), // violet tint
+    // Surfaces & controls
+    surfaceRaised: Color(0xFF1F2F50), // active segment / raised chip
+    segmentBg: Color(0xFF101A2E), // segmented-control track
+    shimmer: Color(0xFF1F2F50), // skeleton highlight sweep
+    trackOff: Color(0xFF2B3A5C), // switch / bar track when off
+    trackOn: Color(0x732DD4A7), // switch / bar track when on
+    scrim: Color(0x73000000), // dialog barrier
+    // Toast
+    toast: Color(0xFF1B2A47), // toast background
+    toastText: Color(0xFFE9EFFB), // toast text
+    toastAccent: Color(0xFF2DD4A7), // toast success icon / action
+    toastError: Color(0xFFFF7C8F), // toast error icon
+    toastWarning: Color(0xFFF6B352), // toast warning icon
+    // Shadow colors
+    shadowCard: Color(0x59000000), // card shadow
+    shadowSheet: Color(0x80000000), // bottom sheet shadow
+    shadowOff: Color(0x73000000), // off-state power button shadow
+    shadowSegment: Color(0x00000000), // active segment shadow (none in dark)
+    // Block-list categories
+    catTrackers: Color(0xFF7C9CFF), // Trackers
+    catAds: Color(0xFFFF8A6B), // Ads
+    catMarketing: Color(0xFFF6B352), // Marketing
+    catReports: Color(0xFFB697FF), // Reports
+    catMalware: Color(0xFFFF7C8F), // Malware
+    catSocial: Color(0xFF58C8F2), // Social
+    catIot: Color(0xFF8BD17C), // IoT
   );
 
   // ── Light Preset ─────────────────────────────────────────────
@@ -304,6 +462,61 @@ class AppColors extends ThemeExtension<AppColors> {
     warning: Color(0xFF9A5A00),
     warningLight: Color(0xFFFDF1DC),
     warningDark: Color(0xFF7F4A00),
+
+    // Primary extras (power button, chips, selection)
+    onPrimary: Color(
+      0xFFFFFFFF,
+    ), // text/icon on primary fill (dark mode needs dark ink for contrast)
+    primaryPressed: Color(0xFF096B55), // pressed state of primary button
+    primarySoft: Color(0x1A0B7F65), // tinted chip / connecting button fill
+    primaryLine: Color(0x730B7F65), // outline on tinted primary surfaces
+    primaryRing1: Color(0x2E0B7F65), // power button outer ring (active)
+    primaryRing2: Color(0x610B7F65), // power button middle ring (active)
+    primarySelected: Color(0x140B7F65), // selected row background
+    // Power button
+    powerEdge: Color(0x47FFFFFF), // 1px light edge on gradient button
+    powerGlow: Color(0x520B7F65), // drop glow under connected button
+    powerHalo: Color(0x1A0B7F65), // 10px halo ring (desktop card)
+    offBg: Color(0xFFE6EDF7), // power button face when off
+    offIcon: Color(0xFF7A8AA5), // power icon when off
+    // Secondary extras
+    secondarySoft: Color(0x1F4864D9), // default-list tint
+    focus: Color(0xFF4864D9), // keyboard focus ring
+    // Warning / error extras
+    warningSoft: Color(0x1A9A5A00), // amber tint
+    warningLine: Color(0x739A5A00), // amber outline
+    errorSoft: Color(0x17D1364F), // rose tint
+    errorLine: Color(0x66D1364F), // rose outline
+    onError: Color(0xFFFFFFFF), // text/icon on error fill
+    // Violet (logs / reports)
+    violet: Color(0xFF7B4FD1), // logs / reports accent
+    violetSoft: Color(0x1F7B4FD1), // violet tint
+    // Surfaces & controls
+    surfaceRaised: Color(0xFFFFFFFF), // active segment / raised chip
+    segmentBg: Color(0xFFE6EDF7), // segmented-control track
+    shimmer: Color(0xFFF7FAFD), // skeleton highlight sweep
+    trackOff: Color(0xFFC5D0E2), // switch / bar track when off
+    trackOn: Color(0x730B7F65), // switch / bar track when on
+    scrim: Color(0x610F1B33), // dialog barrier
+    // Toast
+    toast: Color(0xFF10203F), // toast background
+    toastText: Color(0xFFFFFFFF), // toast text
+    toastAccent: Color(0xFF5BE3BE), // toast success icon / action
+    toastError: Color(0xFFFF8DA0), // toast error icon
+    toastWarning: Color(0xFFF6B352), // toast warning icon
+    // Shadow colors
+    shadowCard: Color(0x120F1B33), // card shadow
+    shadowSheet: Color(0x240F1B33), // bottom sheet shadow
+    shadowOff: Color(0x1A0F1B33), // off-state power button shadow
+    shadowSegment: Color(0x240F1B33), // active segment shadow (none in dark)
+    // Block-list categories
+    catTrackers: Color(0xFF4864D9), // Trackers
+    catAds: Color(0xFFC4512F), // Ads
+    catMarketing: Color(0xFF9A5A00), // Marketing
+    catReports: Color(0xFF7B4FD1), // Reports
+    catMalware: Color(0xFFD1364F), // Malware
+    catSocial: Color(0xFF0F7FA6), // Social
+    catIot: Color(0xFF3F8A2C), // IoT
   );
 
   @override
@@ -365,6 +578,49 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? warning,
     Color? warningLight,
     Color? warningDark,
+    Color? onPrimary,
+    Color? primaryPressed,
+    Color? primarySoft,
+    Color? primaryLine,
+    Color? primaryRing1,
+    Color? primaryRing2,
+    Color? primarySelected,
+    Color? powerEdge,
+    Color? powerGlow,
+    Color? powerHalo,
+    Color? offBg,
+    Color? offIcon,
+    Color? secondarySoft,
+    Color? focus,
+    Color? warningSoft,
+    Color? warningLine,
+    Color? errorSoft,
+    Color? errorLine,
+    Color? onError,
+    Color? violet,
+    Color? violetSoft,
+    Color? surfaceRaised,
+    Color? segmentBg,
+    Color? shimmer,
+    Color? trackOff,
+    Color? trackOn,
+    Color? scrim,
+    Color? toast,
+    Color? toastText,
+    Color? toastAccent,
+    Color? toastError,
+    Color? toastWarning,
+    Color? shadowCard,
+    Color? shadowSheet,
+    Color? shadowOff,
+    Color? shadowSegment,
+    Color? catTrackers,
+    Color? catAds,
+    Color? catMarketing,
+    Color? catReports,
+    Color? catMalware,
+    Color? catSocial,
+    Color? catIot,
   }) {
     return AppColors(
       primary: primary ?? this.primary,
@@ -424,6 +680,49 @@ class AppColors extends ThemeExtension<AppColors> {
       warning: warning ?? this.warning,
       warningLight: warningLight ?? this.warningLight,
       warningDark: warningDark ?? this.warningDark,
+      onPrimary: onPrimary ?? this.onPrimary,
+      primaryPressed: primaryPressed ?? this.primaryPressed,
+      primarySoft: primarySoft ?? this.primarySoft,
+      primaryLine: primaryLine ?? this.primaryLine,
+      primaryRing1: primaryRing1 ?? this.primaryRing1,
+      primaryRing2: primaryRing2 ?? this.primaryRing2,
+      primarySelected: primarySelected ?? this.primarySelected,
+      powerEdge: powerEdge ?? this.powerEdge,
+      powerGlow: powerGlow ?? this.powerGlow,
+      powerHalo: powerHalo ?? this.powerHalo,
+      offBg: offBg ?? this.offBg,
+      offIcon: offIcon ?? this.offIcon,
+      secondarySoft: secondarySoft ?? this.secondarySoft,
+      focus: focus ?? this.focus,
+      warningSoft: warningSoft ?? this.warningSoft,
+      warningLine: warningLine ?? this.warningLine,
+      errorSoft: errorSoft ?? this.errorSoft,
+      errorLine: errorLine ?? this.errorLine,
+      onError: onError ?? this.onError,
+      violet: violet ?? this.violet,
+      violetSoft: violetSoft ?? this.violetSoft,
+      surfaceRaised: surfaceRaised ?? this.surfaceRaised,
+      segmentBg: segmentBg ?? this.segmentBg,
+      shimmer: shimmer ?? this.shimmer,
+      trackOff: trackOff ?? this.trackOff,
+      trackOn: trackOn ?? this.trackOn,
+      scrim: scrim ?? this.scrim,
+      toast: toast ?? this.toast,
+      toastText: toastText ?? this.toastText,
+      toastAccent: toastAccent ?? this.toastAccent,
+      toastError: toastError ?? this.toastError,
+      toastWarning: toastWarning ?? this.toastWarning,
+      shadowCard: shadowCard ?? this.shadowCard,
+      shadowSheet: shadowSheet ?? this.shadowSheet,
+      shadowOff: shadowOff ?? this.shadowOff,
+      shadowSegment: shadowSegment ?? this.shadowSegment,
+      catTrackers: catTrackers ?? this.catTrackers,
+      catAds: catAds ?? this.catAds,
+      catMarketing: catMarketing ?? this.catMarketing,
+      catReports: catReports ?? this.catReports,
+      catMalware: catMalware ?? this.catMalware,
+      catSocial: catSocial ?? this.catSocial,
+      catIot: catIot ?? this.catIot,
     );
   }
 
@@ -489,6 +788,49 @@ class AppColors extends ThemeExtension<AppColors> {
       warning: Color.lerp(warning, other.warning, t)!,
       warningLight: Color.lerp(warningLight, other.warningLight, t)!,
       warningDark: Color.lerp(warningDark, other.warningDark, t)!,
+      onPrimary: Color.lerp(onPrimary, other.onPrimary, t)!,
+      primaryPressed: Color.lerp(primaryPressed, other.primaryPressed, t)!,
+      primarySoft: Color.lerp(primarySoft, other.primarySoft, t)!,
+      primaryLine: Color.lerp(primaryLine, other.primaryLine, t)!,
+      primaryRing1: Color.lerp(primaryRing1, other.primaryRing1, t)!,
+      primaryRing2: Color.lerp(primaryRing2, other.primaryRing2, t)!,
+      primarySelected: Color.lerp(primarySelected, other.primarySelected, t)!,
+      powerEdge: Color.lerp(powerEdge, other.powerEdge, t)!,
+      powerGlow: Color.lerp(powerGlow, other.powerGlow, t)!,
+      powerHalo: Color.lerp(powerHalo, other.powerHalo, t)!,
+      offBg: Color.lerp(offBg, other.offBg, t)!,
+      offIcon: Color.lerp(offIcon, other.offIcon, t)!,
+      secondarySoft: Color.lerp(secondarySoft, other.secondarySoft, t)!,
+      focus: Color.lerp(focus, other.focus, t)!,
+      warningSoft: Color.lerp(warningSoft, other.warningSoft, t)!,
+      warningLine: Color.lerp(warningLine, other.warningLine, t)!,
+      errorSoft: Color.lerp(errorSoft, other.errorSoft, t)!,
+      errorLine: Color.lerp(errorLine, other.errorLine, t)!,
+      onError: Color.lerp(onError, other.onError, t)!,
+      violet: Color.lerp(violet, other.violet, t)!,
+      violetSoft: Color.lerp(violetSoft, other.violetSoft, t)!,
+      surfaceRaised: Color.lerp(surfaceRaised, other.surfaceRaised, t)!,
+      segmentBg: Color.lerp(segmentBg, other.segmentBg, t)!,
+      shimmer: Color.lerp(shimmer, other.shimmer, t)!,
+      trackOff: Color.lerp(trackOff, other.trackOff, t)!,
+      trackOn: Color.lerp(trackOn, other.trackOn, t)!,
+      scrim: Color.lerp(scrim, other.scrim, t)!,
+      toast: Color.lerp(toast, other.toast, t)!,
+      toastText: Color.lerp(toastText, other.toastText, t)!,
+      toastAccent: Color.lerp(toastAccent, other.toastAccent, t)!,
+      toastError: Color.lerp(toastError, other.toastError, t)!,
+      toastWarning: Color.lerp(toastWarning, other.toastWarning, t)!,
+      shadowCard: Color.lerp(shadowCard, other.shadowCard, t)!,
+      shadowSheet: Color.lerp(shadowSheet, other.shadowSheet, t)!,
+      shadowOff: Color.lerp(shadowOff, other.shadowOff, t)!,
+      shadowSegment: Color.lerp(shadowSegment, other.shadowSegment, t)!,
+      catTrackers: Color.lerp(catTrackers, other.catTrackers, t)!,
+      catAds: Color.lerp(catAds, other.catAds, t)!,
+      catMarketing: Color.lerp(catMarketing, other.catMarketing, t)!,
+      catReports: Color.lerp(catReports, other.catReports, t)!,
+      catMalware: Color.lerp(catMalware, other.catMalware, t)!,
+      catSocial: Color.lerp(catSocial, other.catSocial, t)!,
+      catIot: Color.lerp(catIot, other.catIot, t)!,
     );
   }
 }

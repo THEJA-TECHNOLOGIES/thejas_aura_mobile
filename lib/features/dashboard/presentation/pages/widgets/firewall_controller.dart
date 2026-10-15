@@ -68,8 +68,8 @@ class FirewallController extends StatelessWidget {
 enum PowerFace { off, connecting, on }
 
 /// Design tokens used by the hero (copied from the Bulwark design).
-class _Tokens {
-  _Tokens(this.dark)
+class Tokens {
+  Tokens(this.dark)
     : teal = dark ? const Color(0xFF2DD4A7) : const Color(0xFF0B7F65),
       onTeal = dark ? const Color(0xFF062A21) : const Color(0xFFFFFFFF),
       tealSoft = dark
@@ -171,7 +171,7 @@ class _PowerHeroState extends State<PowerHero> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final t = _Tokens(context.isDark);
+    final t = Tokens(context.isDark);
     final face = widget.face;
     final connecting = face == PowerFace.connecting;
 
