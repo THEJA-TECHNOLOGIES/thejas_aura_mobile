@@ -4,6 +4,7 @@ import 'package:theja_aura/core/theme/app_colors.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/theme/app_typography.dart';
 import 'package:theja_aura/core/utils/app_button.dart';
+import 'package:theja_aura/core/utils/app_toast.dart';
 import 'package:theja_aura/core/utils/app_utils.dart';
 import 'package:theja_aura/features/timeago/timeago.dart';
 
@@ -135,12 +136,7 @@ class _ActivityPageState extends State<ActivityPage>
     return BlocConsumer<ActivityBloc, ActivityState>(
       listener: (context, state) {
         if (state.actionError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.actionError!),
-              backgroundColor: colors.error,
-            ),
-          );
+          showErrorToast(message: state.actionError!);
           context.read<ActivityBloc>().add(
             const ActivityEvent.actionErrorDismissed(),
           );

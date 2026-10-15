@@ -1,7 +1,10 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
+import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/app_toast.dart';
 
 import '../bloc/blocklist_bloc.dart';
 
@@ -252,15 +255,12 @@ class _BlocklistPageState extends State<BlocklistPage>
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final typo = context.appTypography;
     return BlocConsumer<BlocklistBloc, BlocklistState>(
       listener: (context, state) {
         if (state.actionError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.actionError!),
-              backgroundColor: Colors.red.shade900,
-            ),
-          );
+          showErrorToast(message: state.actionError!);
           context.read<BlocklistBloc>().add(
             const BlocklistEvent.actionErrorDismissed(),
           );
@@ -268,24 +268,47 @@ class _BlocklistPageState extends State<BlocklistPage>
       },
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Blocklist'),
-            bottom: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(
-                  icon: Icon(Icons.category, size: 20),
-                  text: 'Default Domains',
-                ),
-                Tab(icon: Icon(Icons.rule, size: 20), text: 'Custom Domains'),
-              ],
-            ),
-          ),
-          body: TabBarView(
-            controller: _tabController,
+          appBar: AppBar(title: const Text('Block lists')),
+          body: Column(
             children: [
-              _buildDefaultDomainsTab(state),
-              _buildCustomDomainsTab(state),
+              Container(
+                padding: .all(4),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colors.segmentBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colors.border, width: 1),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(text: 'Default'),
+                    Tab(text: 'Custom'),
+                  ],
+                  labelStyle: typo.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  unselectedLabelStyle: typo.titleMedium.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                  dividerColor: Colors.transparent,
+                  dividerHeight: 0.0,
+                  indicator: BoxDecoration(
+                    color: colors.card,
+                    borderRadius: .circular(12),
+                  ),
+                  indicatorSize: .tab,
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildDefaultDomainsTab(state),
+                    _buildCustomDomainsTab(state),
+                  ],
+                ),
+              ),
             ],
           ),
           floatingActionButton: AnimatedBuilder(
@@ -305,6 +328,8 @@ class _BlocklistPageState extends State<BlocklistPage>
   }
 
   Widget _buildDefaultDomainsTab(BlocklistState state) {
+    final colors = context.appColors;
+    final typo = context.appTypography;
     if (state.isLoadingOverrides) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -350,99 +375,66 @@ class _BlocklistPageState extends State<BlocklistPage>
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            'Default Protection Categories',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Curated domain blocklists enforced directly on-device by the firewall engine. Tap any category to inspect its domains.',
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
           ...categories.map((category) {
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: Colors.tealAccent.withValues(alpha: 0.2),
-                ),
+            return GestureDetector(
+              onTap: () => _openCategoryDomainBottomSheet(
+                category,
+                state.disabledDefaultDomains,
               ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => _openCategoryDomainBottomSheet(
-                  category,
-                  state.disabledDefaultDomains,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.tealAccent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          category.icon,
-                          color: Colors.tealAccent,
-                          size: 24,
-                        ),
+                decoration: BoxDecoration(
+                  color: colors.segmentBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colors.border, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  category.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade800,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    '${category.domainCount} domains',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      child: Icon(category.icon, color: Colors.blue, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            category.name,
+                            style: typo.titleMedium.copyWith(
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              category.description,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade400,
-                              ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            category.description,
+                            style: typo.bodySmall.copyWith(
+                              color: colors.textSecondary,
                             ),
-                          ],
-                        ),
+                            overflow: .ellipsis,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.chevron_right, color: Colors.grey),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      category.domainCount.toString(),
+                      style: typo.titleSmall.copyWith(
+                        fontWeight: .w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.chevron_right, color: colors.textPrimary),
+                  ],
                 ),
               ),
             );
@@ -453,6 +445,8 @@ class _BlocklistPageState extends State<BlocklistPage>
   }
 
   Widget _buildCustomDomainsTab(BlocklistState state) {
+    final colors = context.appColors;
+    final typo = context.appTypography;
     if (state.isLoadingRules) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -532,74 +526,128 @@ class _BlocklistPageState extends State<BlocklistPage>
           final rule = state.customRules[index];
           final isBlocked = rule.isBlocked;
           final isEnabled = rule.isEnabled;
-
-          return ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 4,
-              vertical: 4,
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: colors.segmentBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border, width: 1),
             ),
-            leading: Icon(
-              isBlocked ? Icons.block : Icons.check_circle_outline,
-              color: isEnabled
-                  ? (isBlocked ? Colors.redAccent : Colors.greenAccent)
-                  : Colors.grey,
-              size: 22,
-            ),
-            title: Text(
-              rule.domain,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                decoration: isEnabled ? null : TextDecoration.lineThrough,
-                color: isEnabled ? null : Colors.grey,
-              ),
-            ),
-            subtitle: Row(
+            child: Row(
+              spacing: 8,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isBlocked
-                        ? Colors.red.shade900.withValues(alpha: 0.5)
-                        : Colors.green.shade900.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    isBlocked ? 'BLOCK' : 'ALLOW',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: isBlocked ? Colors.redAccent : Colors.greenAccent,
-                    ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: .start,
+                    children: [
+                      Text(
+                        rule.domain,
+                        style: typo.titleMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '• ${isEnabled ? "Allowed" : "Blocked"}',
+                        style: typo.bodySmall.copyWith(
+                          color: isEnabled
+                              ? colors.primary
+                              : colors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  isEnabled ? 'Active' : 'Disabled',
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
-                ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
                 Switch(
+                  inactiveThumbColor: colors.textTertiary,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  inactiveTrackColor: colors.trackOff,
                   value: isEnabled,
-                  onChanged: (_) => context.read<BlocklistBloc>().add(
+                  onChanged: (val) => context.read<BlocklistBloc>().add(
                     BlocklistEvent.customRuleToggled(rule),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20),
-                  tooltip: 'Delete Rule',
-                  onPressed: () => _handleDeleteRule(rule),
+                GestureDetector(
+                  onTap: () => _handleDeleteRule(rule),
+                  child: Icon(
+                    CupertinoIcons.delete,
+                    color: colors.textSecondary,
+                    size: 24,
+                  ),
                 ),
               ],
             ),
           );
+
+          // return ListTile(
+          //   contentPadding: const EdgeInsets.symmetric(
+          //     horizontal: 4,
+          //     vertical: 4,
+          //   ),
+          //   leading: Icon(
+          //     isBlocked ? Icons.block : Icons.check_circle_outline,
+          //     color: isEnabled
+          //         ? (isBlocked ? Colors.redAccent : Colors.greenAccent)
+          //         : Colors.grey,
+          //     size: 22,
+          //   ),
+          //   title: Text(
+          //     rule.domain,
+          //     style: TextStyle(
+          //       fontWeight: FontWeight.w600,
+          //       fontSize: 14,
+          //       decoration: isEnabled ? null : TextDecoration.lineThrough,
+          //       color: isEnabled ? null : Colors.grey,
+          //     ),
+          //   ),
+          //   subtitle: Row(
+          //     children: [
+          //       Container(
+          //         padding: const EdgeInsets.symmetric(
+          //           horizontal: 6,
+          //           vertical: 1,
+          //         ),
+          //         decoration: BoxDecoration(
+          //           color: isBlocked
+          //               ? Colors.red.shade900.withValues(alpha: 0.5)
+          //               : Colors.green.shade900.withValues(alpha: 0.5),
+          //           borderRadius: BorderRadius.circular(4),
+          //         ),
+          //         child: Text(
+          //           isBlocked ? 'BLOCK' : 'ALLOW',
+          //           style: TextStyle(
+          //             fontSize: 10,
+          //             fontWeight: FontWeight.bold,
+          //             color: isBlocked ? Colors.redAccent : Colors.greenAccent,
+          //           ),
+          //         ),
+          //       ),
+          //       const SizedBox(width: 8),
+          //       Text(
+          //         isEnabled ? 'Active' : 'Disabled',
+          //         style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+          //       ),
+          //     ],
+          //   ),
+          //   trailing: Row(
+          //     mainAxisSize: MainAxisSize.min,
+          //     children: [
+          //       Switch(
+          //         value: isEnabled,
+          //         onChanged: (_) => context.read<BlocklistBloc>().add(
+          //           BlocklistEvent.customRuleToggled(rule),
+          //         ),
+          //       ),
+          //       IconButton(
+          //         icon: const Icon(Icons.delete_outline, size: 20),
+          //         tooltip: 'Delete Rule',
+          //         onPressed: () => _handleDeleteRule(rule),
+          //       ),
+          //     ],
+          //   ),
+          // );
         },
       ),
     );
@@ -642,6 +690,8 @@ class _CategoryDomainBottomSheetState
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final typo = context.appTypography;
     final allDomains = widget.category.domains;
     final filteredDomains = _filter.isEmpty
         ? allDomains
@@ -676,7 +726,7 @@ class _CategoryDomainBottomSheetState
                   ),
                   child: Row(
                     children: [
-                      Icon(widget.category.icon, color: Colors.tealAccent),
+                      Icon(widget.category.icon, color: Colors.blue),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -737,8 +787,6 @@ class _CategoryDomainBottomSheetState
                     },
                   ),
                 ),
-                const Divider(height: 12),
-                // Virtualized Domain List
                 Expanded(
                   child: filteredDomains.isEmpty
                       ? Center(
@@ -759,55 +807,98 @@ class _CategoryDomainBottomSheetState
                           controller: scrollController,
                           itemCount: filteredDomains.length,
                           separatorBuilder: (context, index) =>
-                              const Divider(height: 1),
+                              SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final domain = filteredDomains[index];
                             final isDomainEnabled = !state
                                 .disabledDefaultDomains
                                 .contains(domain);
                             final isPending = _pendingToggles.contains(domain);
-
-                            return ListTile(
-                              dense: true,
-                              leading: Icon(
-                                isDomainEnabled
-                                    ? Icons.shield
-                                    : Icons.shield_outlined,
-                                size: 18,
-                                color: isDomainEnabled
-                                    ? Colors.tealAccent
-                                    : Colors.grey,
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
                               ),
-                              title: Text(
-                                domain,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  decoration: isDomainEnabled
-                                      ? null
-                                      : TextDecoration.lineThrough,
-                                  color: isDomainEnabled ? null : Colors.grey,
+                              margin: .symmetric(horizontal: 16),
+                              decoration: BoxDecoration(
+                                color: colors.segmentBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: colors.border,
+                                  width: 1,
                                 ),
                               ),
-                              subtitle: Text(
-                                isDomainEnabled
-                                    ? 'Blocking active'
-                                    : 'Excluded from blocking',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isDomainEnabled
-                                      ? Colors.tealAccent.withValues(alpha: 0.8)
-                                      : Colors.grey.shade500,
-                                ),
-                              ),
-                              trailing: Switch(
-                                value: isDomainEnabled,
-                                onChanged: isPending
-                                    ? null
-                                    : (val) => _handleToggleDomain(domain, val),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: .start,
+                                      children: [
+                                        Text(
+                                          domain,
+                                          style: typo.titleMedium.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          '• ${isDomainEnabled ? "Allowed" : "Blocked"}',
+                                          style: typo.bodySmall.copyWith(
+                                            color: isDomainEnabled
+                                                ? colors.primary
+                                                : colors.textSecondary,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Switch(
+                                    inactiveThumbColor: colors.textTertiary,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    inactiveTrackColor: colors.trackOff,
+                                    value: isDomainEnabled,
+                                    onChanged: isPending
+                                        ? null
+                                        : (val) =>
+                                              _handleToggleDomain(domain, val),
+                                  ),
+                                ],
                               ),
                             );
+                            // return ListTile(
+                            //   title: Text(
+                            //     domain,
+                            //     style: TextStyle(
+                            //       fontFamily: 'monospace',
+                            //       fontSize: 13,
+                            //       fontWeight: FontWeight.w500,
+                            //       decoration: isDomainEnabled
+                            //           ? null
+                            //           : TextDecoration.lineThrough,
+                            //       color: isDomainEnabled ? null : Colors.grey,
+                            //     ),
+                            //   ),
+                            //   subtitle: Text(
+                            //     isDomainEnabled
+                            //         ? 'Blocking active'
+                            //         : 'Excluded from blocking',
+                            //     style: TextStyle(
+                            //       fontSize: 11,
+                            //       color: isDomainEnabled
+                            //           ? Colors.tealAccent.withValues(alpha: 0.8)
+                            //           : Colors.grey.shade500,
+                            //     ),
+                            //   ),
+                            //   trailing: Switch(
+                            //     value: isDomainEnabled,
+                            //     onChanged: isPending
+                            //         ? null
+                            //         : (val) => _handleToggleDomain(domain, val),
+                            //   ),
+                            // );
                           },
                         ),
                 ),
