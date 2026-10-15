@@ -7,9 +7,6 @@ import 'package:theja_aura/features/blocklist/presentation/pages/blocklist_page.
 
 import '../bloc/dashboard_bloc.dart';
 
-/// Compatibility alias
-typedef AuraDashboardScreen = DashboardPage;
-
 class DashboardPage extends StatefulWidget {
   final DashboardBloc? bloc;
 
