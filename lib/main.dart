@@ -21,7 +21,9 @@ void main() async {
   runApp(
     MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => getIt<DashboardBloc>()),
+        BlocProvider(
+          create: (_) => getIt<DashboardBloc>()..add(DashboardEvent.started()),
+        ),
       ],
       child: const AuraApp(),
     ),

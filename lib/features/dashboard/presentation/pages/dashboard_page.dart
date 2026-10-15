@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../core/utils/app_toast.dart';
 import '../bloc/dashboard_bloc.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -15,9 +17,7 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addObserver(this);
-    context.read<DashboardBloc>().add(const DashboardEvent.started());
   }
 
   @override
@@ -35,7 +35,6 @@ class _DashboardPageState extends State<DashboardPage>
 
   void _openLogs() async {
     await context.push('/logs');
-
     if (!mounted) return;
     context.read<DashboardBloc>().add(
       const DashboardEvent.statsRefreshRequested(),
@@ -63,14 +62,11 @@ class _DashboardPageState extends State<DashboardPage>
     return BlocConsumer<DashboardBloc, DashboardState>(
       listener: (context, state) {
         if (state.errorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.errorMessage!),
-              backgroundColor: Colors.red.shade900,
-            ),
-          );
+          showErrorToast(message: state.errorMessage!);
           debugPrint('Tunnel toggle error: ${state.errorMessage}');
-          context.read<DashboardBloc>().add(const DashboardEvent.errorMessageDismissed());
+          context.read<DashboardBloc>().add(
+            const DashboardEvent.errorMessageDismissed(),
+          );
         }
       },
       builder: (context, state) {
@@ -82,7 +78,9 @@ class _DashboardPageState extends State<DashboardPage>
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Refresh',
                 onPressed: () {
-                  context.read<DashboardBloc>().add(const DashboardEvent.started());
+                  context.read<DashboardBloc>().add(
+                    const DashboardEvent.started(),
+                  );
                 },
               ),
             ],
@@ -213,7 +211,9 @@ class _DashboardPageState extends State<DashboardPage>
             ElevatedButton(
               onPressed: isBusy
                   ? null
-                  : () => context.read<DashboardBloc>().add(const DashboardEvent.tunnelToggled()),
+                  : () => context.read<DashboardBloc>().add(
+                      const DashboardEvent.tunnelToggled(),
+                    ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isConnected
                     ? Colors.red.shade900
@@ -373,8 +373,9 @@ class _DashboardPageState extends State<DashboardPage>
                   IconButton(
                     icon: const Icon(Icons.refresh, size: 18),
                     tooltip: 'Refresh Stats',
-                    onPressed: () =>
-                        context.read<DashboardBloc>().add(const DashboardEvent.statsRefreshRequested()),
+                    onPressed: () => context.read<DashboardBloc>().add(
+                      const DashboardEvent.statsRefreshRequested(),
+                    ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
