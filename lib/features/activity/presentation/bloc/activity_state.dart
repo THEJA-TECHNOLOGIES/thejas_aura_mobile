@@ -37,12 +37,21 @@ abstract class ActivityState with _$ActivityState {
     if (effectiveBlockedState.containsKey(normalized)) {
       return effectiveBlockedState[normalized]!;
     }
+    DnsActivityRecord? matched = record;
+    if (matched == null) {
+      for (final r in records) {
+        if (AuraDomainEvaluator.normalizeDomain(r.domain) == normalized) {
+          matched = r;
+          break;
+        }
+      }
+    }
     return AuraDomainEvaluator.isEffectivelyBlocked(
       domain: normalized,
       customRules: customRules,
       disabledDefaultDomains: disabledDefaultDomains,
       categoryPreferences: categoryPreferences,
-      fallback: record?.isBlocked ?? false,
+      fallback: matched?.isBlocked ?? false,
     );
   }
 }

@@ -238,10 +238,10 @@ final class AuraReleaseStoreTests: XCTestCase {
         XCTAssertNil(AuraCategoryStore.loadInstalledRelease())
         XCTAssertNil(AuraCategoryStore.activeReleaseDirectoryURL)
 
-        // loadAllBundledCategories() falls back safely to bundled defaults without crashing
+        // loadAllBundledCategories() returns empty map safely without crashing and without static fallback
         let fallbackCats = AuraCategoryStore.loadAllBundledCategories()
-        XCTAssertFalse(fallbackCats.isEmpty)
-        XCTAssertNotNil(fallbackCats["Ads"])
+        XCTAssertTrue(fallbackCats.isEmpty, "No categories should be loaded when release directory is invalid/missing")
+        XCTAssertTrue(AuraCategoryStore.allBundledDomains().isEmpty, "allBundledDomains must be empty when no release is installed")
     }
 
     // MARK: - Scenario 6: Network Extension Consistency
@@ -356,5 +356,59 @@ final class AuraReleaseStoreTests: XCTestCase {
         XCTAssertEqual(activityAfter.records.first?.domain, "custom-malicious.com")
         XCTAssertEqual(activityAfter.records.first?.outcome, "blocked")
         repoAfter.close()
+    }
+
+    // MARK: - Scenario 8: First Launch Without Backend Sync Has Zero Categories or Fallback Domains
+
+    func testScenario8_FirstLaunchWithoutBackendSyncReturnsEmpty() {
+        // Fresh state: no release installed
+        XCTAssertNil(AuraCategoryStore.loadInstalledRelease())
+        XCTAssertNil(AuraCategoryStore.activeReleaseDirectoryURL)
+
+        // Must return empty categories and empty domains
+        let categories = AuraCategoryStore.loadAllBundledCategories()
+        XCTAssertTrue(categories.isEmpty, "First launch without sync must have 0 categories")
+
+        let allDomains = AuraCategoryStore.allBundledDomains()
+        XCTAssertTrue(allDomains.isEmpty, "First launch without sync must have 0 domains")
+
+        let releaseCats = RunnerRuleStore.loadReleaseCategories()
+        XCTAssertTrue(releaseCats.isEmpty, "Method channel release categories must be empty on first launch")
+
+        let adsDomains = RunnerRuleStore.loadCategoryDomains(category: "ads")
+        XCTAssertTrue(adsDomains.isEmpty, "Category domains must be empty when no release is installed")
+    }
+
+    // MARK: - Scenario 9: Empty Backend Category Preserved Without Synthetic Domains
+
+    func testScenario9_EmptyCategoryPreservedWithoutSyntheticDomains() throws {
+        // Backend published release where analytics has 0 domains (header comments only)
+        let files = [
+            "ads": "ad1.com\nad2.com",
+            "trackers": "tr1.com",
+            "analytics": "# PrivacyShield compiled blocklist\n# Domains: 0\n"
+        ]
+        let res = try AuraCategoryStore.installRelease(
+            version: "2026.10.16-backend",
+            files: files,
+            domainCount: 3
+        )
+        XCTAssertEqual(res["success"] as? Bool, true)
+
+        let categories = AuraCategoryStore.loadAllBundledCategories()
+        XCTAssertEqual(categories.count, 3)
+        XCTAssertEqual(categories["Ads"]?.count, 2)
+        XCTAssertEqual(categories["Trackers"]?.count, 1)
+        XCTAssertEqual(categories["Analytics"]?.count, 0, "Empty category must have 0 domains")
+
+        let releaseCats = RunnerRuleStore.loadReleaseCategories()
+        XCTAssertEqual(releaseCats.count, 3)
+
+        let analyticsMeta = releaseCats.first { ($0["name"] as? String)?.lowercased() == "analytics" }
+        XCTAssertNotNil(analyticsMeta)
+        XCTAssertEqual(analyticsMeta?["domainCount"] as? Int, 0)
+
+        let analyticsDomains = RunnerRuleStore.loadCategoryDomains(category: "analytics")
+        XCTAssertTrue(analyticsDomains.isEmpty, "Analytics domains array must be empty, no synthetic domains fabricated")
     }
 }

@@ -438,4 +438,12 @@ public final class RunnerRuleStore {
     public static func clearInstalledRelease() throws {
         try AuraCategoryStore.clearInstalledRelease()
     }
+
+    public static func loadReleaseCategories() -> [[String: Any]] {
+        return AuraCategoryStore.loadReleaseCategories()
+    }
+
+    public static func loadCategoryDomains(category: String) -> [String] {
+        return AuraCategoryStore.loadCategoryDomains(category: category)
+    }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:theja_aura/core/services/aura_activity_service.dart';
+import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 import 'package:theja_aura/features/activity/domain/repositories/i_activity_repository.dart';
 import 'package:theja_aura/features/activity/presentation/bloc/activity_bloc.dart';
@@ -139,6 +140,12 @@ class FakeBlocklistRepository implements IBlocklistRepository {
 
   @override
   Future<String> validateDomain(String domain) async => domain;
+
+  @override
+  Future<List<AuraDefaultCategory>> getDefaultCategories() async => const [];
+
+  @override
+  Future<List<String>> getCategoryDomains(String category) async => const [];
 }
 
 void main() {

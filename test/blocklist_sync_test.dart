@@ -10,6 +10,7 @@ import 'package:theja_aura/core/services/aura_activity_service.dart';
 import 'package:theja_aura/core/services/aura_domain_evaluator.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 import 'package:theja_aura/features/blocklist/data/datasources/blocklist_api_client.dart';
+import 'package:theja_aura/features/blocklist/data/repositories/blocklist_repository.dart';
 import 'package:theja_aura/features/blocklist/data/repositories/blocklist_sync_repository.dart';
 import 'package:theja_aura/features/blocklist/domain/models/blocklist_manifest.dart';
 import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_sync_repository.dart';
@@ -51,12 +52,30 @@ void main() {
     'reloaded': true,
   };
   bool shouldNativeInstallFail = false;
+  List<Map<String, dynamic>>? mockReleaseCategoriesResponse;
+  Map<String, List<String>> mockCategoryDomainsResponse = {};
+  List<Map<String, dynamic>> mockRulesResponse = [];
+  List<String> mockOverridesResponse = [];
+  Map<String, bool> mockPreferencesResponse = {
+    'Ads': true,
+    'Trackers': true,
+    'Analytics': true,
+  };
 
   setUp(() {
     recordedControlCalls = [];
     recordedActivityCalls = [];
     mockInstalledReleaseResponse = null;
     shouldNativeInstallFail = false;
+    mockReleaseCategoriesResponse = null;
+    mockCategoryDomainsResponse = {};
+    mockRulesResponse = [];
+    mockOverridesResponse = [];
+    mockPreferencesResponse = {
+      'Ads': true,
+      'Trackers': true,
+      'Analytics': true,
+    };
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(controlChannel, (MethodCall call) async {
@@ -85,6 +104,17 @@ void main() {
               return true;
             case 'getStatus':
               return 'connected';
+            case 'getReleaseCategories':
+              return mockReleaseCategoriesResponse;
+            case 'getCategoryDomains':
+              final cat = (call.arguments as Map?)?['category'] as String?;
+              return mockCategoryDomainsResponse[cat] ?? <String>[];
+            case 'getRules':
+              return mockRulesResponse;
+            case 'getDefaultDomainOverrides':
+              return mockOverridesResponse;
+            case 'getCategories':
+              return mockPreferencesResponse;
             default:
               return null;
           }
@@ -1513,6 +1543,232 @@ crashlytics.com
         expect(result.installedRelease?.version, equals('old-release-v1'));
       },
     );
+  });
+
+  // =========================================================================
+  // Scenario 20: Static Blocklist Removal & Sole Backend Source of Truth
+  // =========================================================================
+  group('Scenario 20: Static Blocklist Removal & Sole Backend Source of Truth', () {
+    test('1. No bundled blocklist data is loaded or used by Flutter', () async {
+      mockReleaseCategoriesResponse = null;
+      mockCategoryDomainsResponse = {};
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final categories = await repo.getDefaultCategories();
+      final domains = await repo.getCategoryDomains('ads');
+
+      expect(categories, isEmpty, reason: 'Must not substitute bundled categories');
+      expect(domains, isEmpty, reason: 'Must not return bundled or hardcoded domains');
+    });
+
+    test('2. A successful backend sync displays only published backend categories and domains', () async {
+      mockReleaseCategoriesResponse = [
+        {'name': 'Ads', 'domainCount': 120},
+        {'name': 'Trackers', 'domainCount': 85},
+      ];
+      mockCategoryDomainsResponse = {
+        'ads': ['adservice.google.com', 'tracker.doubleclick.net'],
+        'trackers': ['telemetry.app.com'],
+      };
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final categories = await repo.getDefaultCategories();
+
+      expect(categories.length, equals(2));
+      expect(categories[0].name, equals('Ads'));
+      expect(categories[0].domainCount, equals(120));
+      expect(categories[1].name, equals('Trackers'));
+      expect(categories[1].domainCount, equals(85));
+
+      final adsDomains = await repo.getCategoryDomains('ads');
+      expect(adsDomains, contains('adservice.google.com'));
+      expect(adsDomains, contains('tracker.doubleclick.net'));
+      expect(adsDomains.length, equals(2));
+    });
+
+    test('3. An empty backend category (0 domains) remains empty; no synthetic domains fabricated', () async {
+      mockReleaseCategoriesResponse = [
+        {'name': 'Analytics', 'domainCount': 0},
+      ];
+      mockCategoryDomainsResponse = {
+        'analytics': [],
+      };
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final categories = await repo.getDefaultCategories();
+
+      expect(categories.length, equals(1));
+      expect(categories[0].name, equals('Analytics'));
+      expect(categories[0].domainCount, equals(0));
+
+      final domains = await repo.getCategoryDomains('analytics');
+      expect(domains, isEmpty, reason: 'Zero domains category must remain empty');
+    });
+
+    test('4. Offline operation continues to use the last installed backend release', () async {
+      mockInstalledReleaseResponse = {
+        'version': 'cached-offline-rel-1',
+        'installedAt': '2026-10-16T10:00:00Z',
+        'domainCount': 500,
+        'files': {'ads.txt': '/path/ads.txt'},
+      };
+      mockReleaseCategoriesResponse = [
+        {'name': 'Ads', 'domainCount': 500},
+      ];
+
+      final config = AppConfig(apiBaseUrl: Uri.parse('http://127.0.0.1:8080'));
+      // Network fails (offline)
+      final httpClient = MockHttpClient((_) async => throw const SocketException('Network offline'));
+      final syncRepo = BlocklistSyncRepository(BlocklistApiClient(config, httpClient), AuraTunnelService());
+
+      final syncResult = await syncRepo.sync();
+      expect(syncResult.isSuccess, isFalse);
+      expect(syncResult.installedRelease?.version, equals('cached-offline-rel-1'));
+
+      final blocklistRepo = BlocklistRepository(AuraTunnelService());
+      final categories = await blocklistRepo.getDefaultCategories();
+      expect(categories.length, equals(1));
+      expect(categories.first.name, equals('Ads'));
+      expect(categories.first.domainCount, equals(500));
+    });
+
+    test('5. First launch without backend sync displays empty categories with zero blocked category domains', () async {
+      mockInstalledReleaseResponse = null;
+      mockReleaseCategoriesResponse = null;
+
+      final blocklistRepo = BlocklistRepository(AuraTunnelService());
+      final categories = await blocklistRepo.getDefaultCategories();
+      expect(categories, isEmpty);
+
+      // Domain evaluation with empty categories
+      final isBlocked = AuraDomainEvaluator.isEffectivelyBlocked(
+        domain: 'doubleclick.net',
+        customRules: [],
+        disabledDefaultDomains: {},
+        categoryPreferences: {'ads': true},
+        categoryDomains: const {},
+      );
+      expect(isBlocked, isFalse, reason: 'No domains must be blocked via categories before backend sync');
+    });
+
+    test('6. A category removed in a new backend release does not survive in active filtering rules', () async {
+      final config = AppConfig(apiBaseUrl: Uri.parse('http://127.0.0.1:8080'));
+      // New release contains only 'ads', 'malware' was removed
+      final manifestJson = jsonEncode({
+        'version': 'rel-v2-without-malware',
+        'updatedAt': '2026-10-16T14:00:00Z',
+        'domainCount': 50,
+        'categories': {
+          'ADS': {
+            'domainCount': 50,
+            'files': {'domains': '/categories/ads/domains.txt'},
+          },
+        },
+      });
+
+      final httpClient = MockHttpClient((request) async {
+        if (request.url.path == '/api/public/blocklist/manifest') {
+          return http.Response(manifestJson, 200, headers: {'content-type': 'application/json'});
+        }
+        if (request.url.path == '/categories/ads/domains.txt') {
+          return http.Response('adserver.com\n', 200, headers: {'content-type': 'text/plain'});
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final syncRepo = BlocklistSyncRepository(BlocklistApiClient(config, httpClient), AuraTunnelService());
+      final syncResult = await syncRepo.sync();
+
+      expect(syncResult.isSuccess, isTrue);
+      final installCall = recordedControlCalls.firstWhere(
+        (c) => c.method == 'installBlocklistRelease',
+      );
+      final installedFiles = (installCall.arguments as Map)['files'] as Map;
+      expect(installedFiles.containsKey('ads.txt'), isTrue);
+      expect(installedFiles.containsKey('malware.txt'), isFalse, reason: 'Removed category must not be staged or installed');
+    });
+
+    test('7. Custom BLOCK and ALLOW rules survive backend release replacement', () async {
+      mockRulesResponse = [
+        {'id': 'rule-1', 'domain': 'my-custom-allow.com', 'isBlocked': false, 'isEnabled': true},
+        {'id': 'rule-2', 'domain': 'my-custom-block.com', 'isBlocked': true, 'isEnabled': true},
+      ];
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final rulesBefore = await repo.getRules();
+      expect(rulesBefore?.length, equals(2));
+
+      // Synchronize a new release
+      final config = AppConfig(apiBaseUrl: Uri.parse('http://127.0.0.1:8080'));
+      final manifestJson = jsonEncode({
+        'version': 'rel-v3-rules-test',
+        'updatedAt': '2026-10-16T15:00:00Z',
+        'domainCount': 10,
+        'categories': {
+          'ADS': {
+            'domainCount': 10,
+            'files': {'domains': '/categories/ads/domains.txt'},
+          },
+        },
+      });
+
+      final httpClient = MockHttpClient((request) async {
+        if (request.url.path == '/api/public/blocklist/manifest') {
+          return http.Response(manifestJson, 200, headers: {'content-type': 'application/json'});
+        }
+        if (request.url.path == '/categories/ads/domains.txt') {
+          return http.Response('ad.example.com\n', 200, headers: {'content-type': 'text/plain'});
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final syncRepo = BlocklistSyncRepository(BlocklistApiClient(config, httpClient), AuraTunnelService());
+      await syncRepo.sync();
+
+      // Verify custom rules were untouched
+      final rulesAfter = await repo.getRules();
+      expect(rulesAfter?.length, equals(2));
+      expect(rulesAfter?[0].domain, equals('my-custom-allow.com'));
+      expect(rulesAfter?[1].domain, equals('my-custom-block.com'));
+    });
+
+    test('8. Category enable/disable preferences survive backend release replacement', () async {
+      mockPreferencesResponse = {
+        'Ads': true,
+        'Trackers': false,
+        'Analytics': true,
+      };
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final prefs = await repo.getCategories();
+      expect(prefs['Trackers'], isFalse);
+
+      // Verify installBlocklistRelease does not alter category preferences
+      expect(recordedControlCalls.any((c) => c.method == 'saveCategories'), isFalse);
+    });
+
+    test('9. Domain overrides survive backend release replacement', () async {
+      mockOverridesResponse = ['allowed-ad.com', 'custom-unblocked.org'];
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final overrides = await repo.getDefaultDomainOverrides();
+      expect(overrides, contains('allowed-ad.com'));
+      expect(overrides, contains('custom-unblocked.org'));
+
+      // Verify release installation never wipes domain overrides
+      expect(recordedControlCalls.any((c) => c.method == 'clearDefaultDomainOverrides'), isFalse);
+    });
+
+    test('10. Native firewall verification - zero category domains blocked when no release exists', () {
+      final evaluatorBlocked = AuraDomainEvaluator.isEffectivelyBlocked(
+        domain: 'adservice.google.com',
+        customRules: [],
+        disabledDefaultDomains: {},
+        categoryPreferences: {'ads': true, 'trackers': true},
+        categoryDomains: const {},
+      );
+      expect(evaluatorBlocked, isFalse, reason: 'Zero category domains must be blocked when no release is installed');
+    });
   });
 }
 

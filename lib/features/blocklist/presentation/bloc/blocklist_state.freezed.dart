@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$BlocklistState {
 
- Set<String> get disabledDefaultDomains; bool get isLoadingOverrides; String? get overridesError; List<AuraRuleItem> get customRules; bool get isLoadingRules; String? get rulesError; String? get actionError;
+ List<AuraDefaultCategory> get defaultCategories; bool get isLoadingCategories; String? get categoriesError; Set<String> get disabledDefaultDomains; bool get isLoadingOverrides; String? get overridesError; List<AuraRuleItem> get customRules; bool get isLoadingRules; String? get rulesError; String? get actionError;
 /// Create a copy of BlocklistState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +27,20 @@ $BlocklistStateCopyWith<BlocklistState> get copyWith => _$BlocklistStateCopyWith
 @override
 bool operator ==(Object other) {
   final _this = this as BlocklistState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlocklistState&&const DeepCollectionEquality().equals(other.disabledDefaultDomains, _this.disabledDefaultDomains)&&(identical(other.isLoadingOverrides, _this.isLoadingOverrides) || other.isLoadingOverrides == _this.isLoadingOverrides)&&(identical(other.overridesError, _this.overridesError) || other.overridesError == _this.overridesError)&&const DeepCollectionEquality().equals(other.customRules, _this.customRules)&&(identical(other.isLoadingRules, _this.isLoadingRules) || other.isLoadingRules == _this.isLoadingRules)&&(identical(other.rulesError, _this.rulesError) || other.rulesError == _this.rulesError)&&(identical(other.actionError, _this.actionError) || other.actionError == _this.actionError));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BlocklistState&&const DeepCollectionEquality().equals(other.defaultCategories, _this.defaultCategories)&&(identical(other.isLoadingCategories, _this.isLoadingCategories) || other.isLoadingCategories == _this.isLoadingCategories)&&(identical(other.categoriesError, _this.categoriesError) || other.categoriesError == _this.categoriesError)&&const DeepCollectionEquality().equals(other.disabledDefaultDomains, _this.disabledDefaultDomains)&&(identical(other.isLoadingOverrides, _this.isLoadingOverrides) || other.isLoadingOverrides == _this.isLoadingOverrides)&&(identical(other.overridesError, _this.overridesError) || other.overridesError == _this.overridesError)&&const DeepCollectionEquality().equals(other.customRules, _this.customRules)&&(identical(other.isLoadingRules, _this.isLoadingRules) || other.isLoadingRules == _this.isLoadingRules)&&(identical(other.rulesError, _this.rulesError) || other.rulesError == _this.rulesError)&&(identical(other.actionError, _this.actionError) || other.actionError == _this.actionError));
 }
 
 
 @override
 int get hashCode {
   final _this = this as BlocklistState;
-  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.disabledDefaultDomains),_this.isLoadingOverrides,_this.overridesError,const DeepCollectionEquality().hash(_this.customRules),_this.isLoadingRules,_this.rulesError,_this.actionError);
+  return Object.hash(runtimeType,const DeepCollectionEquality().hash(_this.defaultCategories),_this.isLoadingCategories,_this.categoriesError,const DeepCollectionEquality().hash(_this.disabledDefaultDomains),_this.isLoadingOverrides,_this.overridesError,const DeepCollectionEquality().hash(_this.customRules),_this.isLoadingRules,_this.rulesError,_this.actionError);
 }
 
 @override
 String toString() {
   final _this = this as BlocklistState;
-  return 'BlocklistState(disabledDefaultDomains: ${_this.disabledDefaultDomains}, isLoadingOverrides: ${_this.isLoadingOverrides}, overridesError: ${_this.overridesError}, customRules: ${_this.customRules}, isLoadingRules: ${_this.isLoadingRules}, rulesError: ${_this.rulesError}, actionError: ${_this.actionError})';
+  return 'BlocklistState(defaultCategories: ${_this.defaultCategories}, isLoadingCategories: ${_this.isLoadingCategories}, categoriesError: ${_this.categoriesError}, disabledDefaultDomains: ${_this.disabledDefaultDomains}, isLoadingOverrides: ${_this.isLoadingOverrides}, overridesError: ${_this.overridesError}, customRules: ${_this.customRules}, isLoadingRules: ${_this.isLoadingRules}, rulesError: ${_this.rulesError}, actionError: ${_this.actionError})';
 }
 
 
@@ -51,7 +51,7 @@ abstract mixin class $BlocklistStateCopyWith<$Res>  {
   factory $BlocklistStateCopyWith(BlocklistState value, $Res Function(BlocklistState) _then) = _$BlocklistStateCopyWithImpl;
 @useResult
 $Res call({
- Set<String> disabledDefaultDomains, bool isLoadingOverrides, String? overridesError, List<AuraRuleItem> customRules, bool isLoadingRules, String? rulesError, String? actionError
+ List<AuraDefaultCategory> defaultCategories, bool isLoadingCategories, String? categoriesError, Set<String> disabledDefaultDomains, bool isLoadingOverrides, String? overridesError, List<AuraRuleItem> customRules, bool isLoadingRules, String? rulesError, String? actionError
 });
 
 
@@ -68,9 +68,12 @@ class _$BlocklistStateCopyWithImpl<$Res>
 
 /// Create a copy of BlocklistState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? disabledDefaultDomains = null,Object? isLoadingOverrides = null,Object? overridesError = freezed,Object? customRules = null,Object? isLoadingRules = null,Object? rulesError = freezed,Object? actionError = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? defaultCategories = null,Object? isLoadingCategories = null,Object? categoriesError = freezed,Object? disabledDefaultDomains = null,Object? isLoadingOverrides = null,Object? overridesError = freezed,Object? customRules = null,Object? isLoadingRules = null,Object? rulesError = freezed,Object? actionError = freezed,}) {
   return _then(BlocklistState(
-disabledDefaultDomains: null == disabledDefaultDomains ? _self.disabledDefaultDomains : disabledDefaultDomains // ignore: cast_nullable_to_non_nullable
+defaultCategories: null == defaultCategories ? _self.defaultCategories : defaultCategories // ignore: cast_nullable_to_non_nullable
+as List<AuraDefaultCategory>,isLoadingCategories: null == isLoadingCategories ? _self.isLoadingCategories : isLoadingCategories // ignore: cast_nullable_to_non_nullable
+as bool,categoriesError: freezed == categoriesError ? _self.categoriesError : categoriesError // ignore: cast_nullable_to_non_nullable
+as String?,disabledDefaultDomains: null == disabledDefaultDomains ? _self.disabledDefaultDomains : disabledDefaultDomains // ignore: cast_nullable_to_non_nullable
 as Set<String>,isLoadingOverrides: null == isLoadingOverrides ? _self.isLoadingOverrides : isLoadingOverrides // ignore: cast_nullable_to_non_nullable
 as bool,overridesError: freezed == overridesError ? _self.overridesError : overridesError // ignore: cast_nullable_to_non_nullable
 as String?,customRules: null == customRules ? _self.customRules : customRules // ignore: cast_nullable_to_non_nullable
@@ -162,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( Set<String> disabledDefaultDomains,  bool isLoadingOverrides,  String? overridesError,  List<AuraRuleItem> customRules,  bool isLoadingRules,  String? rulesError,  String? actionError)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<AuraDefaultCategory> defaultCategories,  bool isLoadingCategories,  String? categoriesError,  Set<String> disabledDefaultDomains,  bool isLoadingOverrides,  String? overridesError,  List<AuraRuleItem> customRules,  bool isLoadingRules,  String? rulesError,  String? actionError)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BlocklistState() when $default != null:
-return $default(_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.overridesError,_that.customRules,_that.isLoadingRules,_that.rulesError,_that.actionError);case _:
+return $default(_that.defaultCategories,_that.isLoadingCategories,_that.categoriesError,_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.overridesError,_that.customRules,_that.isLoadingRules,_that.rulesError,_that.actionError);case _:
   return orElse();
 
 }
@@ -183,10 +186,10 @@ return $default(_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.over
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( Set<String> disabledDefaultDomains,  bool isLoadingOverrides,  String? overridesError,  List<AuraRuleItem> customRules,  bool isLoadingRules,  String? rulesError,  String? actionError)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<AuraDefaultCategory> defaultCategories,  bool isLoadingCategories,  String? categoriesError,  Set<String> disabledDefaultDomains,  bool isLoadingOverrides,  String? overridesError,  List<AuraRuleItem> customRules,  bool isLoadingRules,  String? rulesError,  String? actionError)  $default,) {final _that = this;
 switch (_that) {
 case _BlocklistState():
-return $default(_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.overridesError,_that.customRules,_that.isLoadingRules,_that.rulesError,_that.actionError);case _:
+return $default(_that.defaultCategories,_that.isLoadingCategories,_that.categoriesError,_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.overridesError,_that.customRules,_that.isLoadingRules,_that.rulesError,_that.actionError);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +206,10 @@ return $default(_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.over
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( Set<String> disabledDefaultDomains,  bool isLoadingOverrides,  String? overridesError,  List<AuraRuleItem> customRules,  bool isLoadingRules,  String? rulesError,  String? actionError)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<AuraDefaultCategory> defaultCategories,  bool isLoadingCategories,  String? categoriesError,  Set<String> disabledDefaultDomains,  bool isLoadingOverrides,  String? overridesError,  List<AuraRuleItem> customRules,  bool isLoadingRules,  String? rulesError,  String? actionError)?  $default,) {final _that = this;
 switch (_that) {
 case _BlocklistState() when $default != null:
-return $default(_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.overridesError,_that.customRules,_that.isLoadingRules,_that.rulesError,_that.actionError);case _:
+return $default(_that.defaultCategories,_that.isLoadingCategories,_that.categoriesError,_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.overridesError,_that.customRules,_that.isLoadingRules,_that.rulesError,_that.actionError);case _:
   return null;
 
 }
@@ -218,9 +221,18 @@ return $default(_that.disabledDefaultDomains,_that.isLoadingOverrides,_that.over
 
 
 class _BlocklistState implements BlocklistState {
-  const _BlocklistState({ Set<String> disabledDefaultDomains = const {}, this.isLoadingOverrides = true, this.overridesError,  List<AuraRuleItem> customRules = const [], this.isLoadingRules = true, this.rulesError, this.actionError}): _disabledDefaultDomains = disabledDefaultDomains,_customRules = customRules;
+  const _BlocklistState({ List<AuraDefaultCategory> defaultCategories = const [], this.isLoadingCategories = true, this.categoriesError,  Set<String> disabledDefaultDomains = const {}, this.isLoadingOverrides = true, this.overridesError,  List<AuraRuleItem> customRules = const [], this.isLoadingRules = true, this.rulesError, this.actionError}): _defaultCategories = defaultCategories,_disabledDefaultDomains = disabledDefaultDomains,_customRules = customRules;
   
 
+ final  List<AuraDefaultCategory> _defaultCategories;
+@override@JsonKey() List<AuraDefaultCategory> get defaultCategories {
+  if (_defaultCategories is EqualUnmodifiableListView) return _defaultCategories;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_defaultCategories);
+}
+
+@override@JsonKey() final  bool isLoadingCategories;
+@override final  String? categoriesError;
  final  Set<String> _disabledDefaultDomains;
 @override@JsonKey() Set<String> get disabledDefaultDomains {
   if (_disabledDefaultDomains is EqualUnmodifiableSetView) return _disabledDefaultDomains;
@@ -251,18 +263,18 @@ _$BlocklistStateCopyWith<_BlocklistState> get copyWith => __$BlocklistStateCopyW
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BlocklistState&&const DeepCollectionEquality().equals(other.disabledDefaultDomains, _disabledDefaultDomains)&&(identical(other.isLoadingOverrides, isLoadingOverrides) || other.isLoadingOverrides == isLoadingOverrides)&&(identical(other.overridesError, overridesError) || other.overridesError == overridesError)&&const DeepCollectionEquality().equals(other.customRules, _customRules)&&(identical(other.isLoadingRules, isLoadingRules) || other.isLoadingRules == isLoadingRules)&&(identical(other.rulesError, rulesError) || other.rulesError == rulesError)&&(identical(other.actionError, actionError) || other.actionError == actionError));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BlocklistState&&const DeepCollectionEquality().equals(other.defaultCategories, _defaultCategories)&&(identical(other.isLoadingCategories, isLoadingCategories) || other.isLoadingCategories == isLoadingCategories)&&(identical(other.categoriesError, categoriesError) || other.categoriesError == categoriesError)&&const DeepCollectionEquality().equals(other.disabledDefaultDomains, _disabledDefaultDomains)&&(identical(other.isLoadingOverrides, isLoadingOverrides) || other.isLoadingOverrides == isLoadingOverrides)&&(identical(other.overridesError, overridesError) || other.overridesError == overridesError)&&const DeepCollectionEquality().equals(other.customRules, _customRules)&&(identical(other.isLoadingRules, isLoadingRules) || other.isLoadingRules == isLoadingRules)&&(identical(other.rulesError, rulesError) || other.rulesError == rulesError)&&(identical(other.actionError, actionError) || other.actionError == actionError));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_disabledDefaultDomains),isLoadingOverrides,overridesError,const DeepCollectionEquality().hash(_customRules),isLoadingRules,rulesError,actionError);
+    return Object.hash(runtimeType,const DeepCollectionEquality().hash(_defaultCategories),isLoadingCategories,categoriesError,const DeepCollectionEquality().hash(_disabledDefaultDomains),isLoadingOverrides,overridesError,const DeepCollectionEquality().hash(_customRules),isLoadingRules,rulesError,actionError);
 }
 
 @override
 String toString() {
-    return 'BlocklistState(disabledDefaultDomains: $disabledDefaultDomains, isLoadingOverrides: $isLoadingOverrides, overridesError: $overridesError, customRules: $customRules, isLoadingRules: $isLoadingRules, rulesError: $rulesError, actionError: $actionError)';
+    return 'BlocklistState(defaultCategories: $defaultCategories, isLoadingCategories: $isLoadingCategories, categoriesError: $categoriesError, disabledDefaultDomains: $disabledDefaultDomains, isLoadingOverrides: $isLoadingOverrides, overridesError: $overridesError, customRules: $customRules, isLoadingRules: $isLoadingRules, rulesError: $rulesError, actionError: $actionError)';
 }
 
 
@@ -273,7 +285,7 @@ abstract mixin class _$BlocklistStateCopyWith<$Res> implements $BlocklistStateCo
   factory _$BlocklistStateCopyWith(_BlocklistState value, $Res Function(_BlocklistState) _then) = __$BlocklistStateCopyWithImpl;
 @override @useResult
 $Res call({
- Set<String> disabledDefaultDomains, bool isLoadingOverrides, String? overridesError, List<AuraRuleItem> customRules, bool isLoadingRules, String? rulesError, String? actionError
+ List<AuraDefaultCategory> defaultCategories, bool isLoadingCategories, String? categoriesError, Set<String> disabledDefaultDomains, bool isLoadingOverrides, String? overridesError, List<AuraRuleItem> customRules, bool isLoadingRules, String? rulesError, String? actionError
 });
 
 
@@ -290,9 +302,12 @@ class __$BlocklistStateCopyWithImpl<$Res>
 
 /// Create a copy of BlocklistState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? disabledDefaultDomains = null,Object? isLoadingOverrides = null,Object? overridesError = freezed,Object? customRules = null,Object? isLoadingRules = null,Object? rulesError = freezed,Object? actionError = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? defaultCategories = null,Object? isLoadingCategories = null,Object? categoriesError = freezed,Object? disabledDefaultDomains = null,Object? isLoadingOverrides = null,Object? overridesError = freezed,Object? customRules = null,Object? isLoadingRules = null,Object? rulesError = freezed,Object? actionError = freezed,}) {
   return _then(_BlocklistState(
-disabledDefaultDomains: null == disabledDefaultDomains ? _self._disabledDefaultDomains : disabledDefaultDomains // ignore: cast_nullable_to_non_nullable
+defaultCategories: null == defaultCategories ? _self._defaultCategories : defaultCategories // ignore: cast_nullable_to_non_nullable
+as List<AuraDefaultCategory>,isLoadingCategories: null == isLoadingCategories ? _self.isLoadingCategories : isLoadingCategories // ignore: cast_nullable_to_non_nullable
+as bool,categoriesError: freezed == categoriesError ? _self.categoriesError : categoriesError // ignore: cast_nullable_to_non_nullable
+as String?,disabledDefaultDomains: null == disabledDefaultDomains ? _self._disabledDefaultDomains : disabledDefaultDomains // ignore: cast_nullable_to_non_nullable
 as Set<String>,isLoadingOverrides: null == isLoadingOverrides ? _self.isLoadingOverrides : isLoadingOverrides // ignore: cast_nullable_to_non_nullable
 as bool,overridesError: freezed == overridesError ? _self.overridesError : overridesError // ignore: cast_nullable_to_non_nullable
 as String?,customRules: null == customRules ? _self._customRules : customRules // ignore: cast_nullable_to_non_nullable

@@ -1,3 +1,4 @@
+import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 
 abstract class IBlocklistRepository {
@@ -22,4 +23,6 @@ abstract class IBlocklistRepository {
   Future<AuraRuleItem> toggleRule(String id, bool isEnabled);
   Future<String> validateDomain(String domain);
   Future<Map<String, bool>> getCategories();
+  Future<List<AuraDefaultCategory>> getDefaultCategories();
+  Future<List<String>> getCategoryDomains(String category);
 }

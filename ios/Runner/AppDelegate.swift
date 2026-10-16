@@ -438,6 +438,19 @@ import os.log
                     result(FlutterError(code: "CLEAR_RELEASE_FAILED", message: error.localizedDescription, details: nil))
                 }
 
+            case "getReleaseCategories":
+                let categories = RunnerRuleStore.loadReleaseCategories()
+                result(categories)
+
+            case "getCategoryDomains":
+                guard let args = call.arguments as? [String: Any],
+                      let category = args["category"] as? String else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'category'", details: nil))
+                    return
+                }
+                let domains = RunnerRuleStore.loadCategoryDomains(category: category)
+                result(domains)
+
             default:
                 os_log(.default, log: Self.log, "[MethodChannel] Unhandled method: %{public}@", call.method)
                 result(FlutterMethodNotImplemented)

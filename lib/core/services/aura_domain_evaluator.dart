@@ -1,4 +1,3 @@
-import 'aura_default_categories.dart';
 import 'aura_tunnel_service.dart';
 
 /// Pure domain evaluation and matching logic mirroring native `AuraDNSEngine`.
@@ -121,8 +120,7 @@ class AuraDomainEvaluator {
     }
 
     // 3. Check Default Categories across candidates
-    final categories =
-        categoryDomains ?? AuraDefaultCategoryData.allCategoriesMap;
+    final categories = categoryDomains ?? const {};
     final normalizedDisabled = disabledDefaultDomains
         .map(normalizeDomain)
         .toSet();
@@ -159,6 +157,12 @@ class AuraDomainEvaluator {
     if (hasCustomBlock) return true;
     if (hasDefaultCategoryBlock) return true;
 
-    return false;
+    // Check if any candidate suffix is explicitly disabled by default domain overrides
+    final isDisabledByDefaultOverride = candidates.any(
+      (c) => normalizedDisabled.contains(c),
+    );
+    if (isDisabledByDefaultOverride) return false;
+
+    return fallback;
   }
 }

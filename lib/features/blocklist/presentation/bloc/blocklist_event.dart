@@ -8,6 +8,8 @@ part 'blocklist_event.freezed.dart';
 @freezed
 abstract class BlocklistEvent with _$BlocklistEvent {
   const factory BlocklistEvent.started() = _BlocklistStarted;
+  const factory BlocklistEvent.defaultCategoriesRefreshRequested() =
+      _BlocklistDefaultCategoriesRefreshRequested;
   const factory BlocklistEvent.defaultDomainOverridesRefreshRequested() =
       _BlocklistDefaultDomainOverridesRefreshRequested;
   const factory BlocklistEvent.customRulesRefreshRequested() =

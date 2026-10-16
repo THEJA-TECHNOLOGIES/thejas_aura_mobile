@@ -56,11 +56,12 @@ extension BlocklistEventPatterns on BlocklistEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _BlocklistStarted value)?  started,TResult Function( _BlocklistDefaultDomainOverridesRefreshRequested value)?  defaultDomainOverridesRefreshRequested,TResult Function( _BlocklistCustomRulesRefreshRequested value)?  customRulesRefreshRequested,TResult Function( _BlocklistDefaultDomainToggled value)?  defaultDomainToggled,TResult Function( _BlocklistCustomRuleToggled value)?  customRuleToggled,TResult Function( _BlocklistCustomRuleDeleteRequested value)?  customRuleDeleteRequested,TResult Function( _BlocklistCustomRuleAddRequested value)?  customRuleAddRequested,TResult Function( _BlocklistActionErrorDismissed value)?  actionErrorDismissed,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _BlocklistStarted value)?  started,TResult Function( _BlocklistDefaultCategoriesRefreshRequested value)?  defaultCategoriesRefreshRequested,TResult Function( _BlocklistDefaultDomainOverridesRefreshRequested value)?  defaultDomainOverridesRefreshRequested,TResult Function( _BlocklistCustomRulesRefreshRequested value)?  customRulesRefreshRequested,TResult Function( _BlocklistDefaultDomainToggled value)?  defaultDomainToggled,TResult Function( _BlocklistCustomRuleToggled value)?  customRuleToggled,TResult Function( _BlocklistCustomRuleDeleteRequested value)?  customRuleDeleteRequested,TResult Function( _BlocklistCustomRuleAddRequested value)?  customRuleAddRequested,TResult Function( _BlocklistActionErrorDismissed value)?  actionErrorDismissed,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case _BlocklistStarted() when started != null:
-return started(_that);case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
+return started(_that);case _BlocklistDefaultCategoriesRefreshRequested() when defaultCategoriesRefreshRequested != null:
+return defaultCategoriesRefreshRequested(_that);case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
 return defaultDomainOverridesRefreshRequested(_that);case _BlocklistCustomRulesRefreshRequested() when customRulesRefreshRequested != null:
 return customRulesRefreshRequested(_that);case _BlocklistDefaultDomainToggled() when defaultDomainToggled != null:
 return defaultDomainToggled(_that);case _BlocklistCustomRuleToggled() when customRuleToggled != null:
@@ -85,11 +86,12 @@ return actionErrorDismissed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _BlocklistStarted value)  started,required TResult Function( _BlocklistDefaultDomainOverridesRefreshRequested value)  defaultDomainOverridesRefreshRequested,required TResult Function( _BlocklistCustomRulesRefreshRequested value)  customRulesRefreshRequested,required TResult Function( _BlocklistDefaultDomainToggled value)  defaultDomainToggled,required TResult Function( _BlocklistCustomRuleToggled value)  customRuleToggled,required TResult Function( _BlocklistCustomRuleDeleteRequested value)  customRuleDeleteRequested,required TResult Function( _BlocklistCustomRuleAddRequested value)  customRuleAddRequested,required TResult Function( _BlocklistActionErrorDismissed value)  actionErrorDismissed,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _BlocklistStarted value)  started,required TResult Function( _BlocklistDefaultCategoriesRefreshRequested value)  defaultCategoriesRefreshRequested,required TResult Function( _BlocklistDefaultDomainOverridesRefreshRequested value)  defaultDomainOverridesRefreshRequested,required TResult Function( _BlocklistCustomRulesRefreshRequested value)  customRulesRefreshRequested,required TResult Function( _BlocklistDefaultDomainToggled value)  defaultDomainToggled,required TResult Function( _BlocklistCustomRuleToggled value)  customRuleToggled,required TResult Function( _BlocklistCustomRuleDeleteRequested value)  customRuleDeleteRequested,required TResult Function( _BlocklistCustomRuleAddRequested value)  customRuleAddRequested,required TResult Function( _BlocklistActionErrorDismissed value)  actionErrorDismissed,}){
 final _that = this;
 switch (_that) {
 case _BlocklistStarted():
-return started(_that);case _BlocklistDefaultDomainOverridesRefreshRequested():
+return started(_that);case _BlocklistDefaultCategoriesRefreshRequested():
+return defaultCategoriesRefreshRequested(_that);case _BlocklistDefaultDomainOverridesRefreshRequested():
 return defaultDomainOverridesRefreshRequested(_that);case _BlocklistCustomRulesRefreshRequested():
 return customRulesRefreshRequested(_that);case _BlocklistDefaultDomainToggled():
 return defaultDomainToggled(_that);case _BlocklistCustomRuleToggled():
@@ -113,11 +115,12 @@ return actionErrorDismissed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _BlocklistStarted value)?  started,TResult? Function( _BlocklistDefaultDomainOverridesRefreshRequested value)?  defaultDomainOverridesRefreshRequested,TResult? Function( _BlocklistCustomRulesRefreshRequested value)?  customRulesRefreshRequested,TResult? Function( _BlocklistDefaultDomainToggled value)?  defaultDomainToggled,TResult? Function( _BlocklistCustomRuleToggled value)?  customRuleToggled,TResult? Function( _BlocklistCustomRuleDeleteRequested value)?  customRuleDeleteRequested,TResult? Function( _BlocklistCustomRuleAddRequested value)?  customRuleAddRequested,TResult? Function( _BlocklistActionErrorDismissed value)?  actionErrorDismissed,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _BlocklistStarted value)?  started,TResult? Function( _BlocklistDefaultCategoriesRefreshRequested value)?  defaultCategoriesRefreshRequested,TResult? Function( _BlocklistDefaultDomainOverridesRefreshRequested value)?  defaultDomainOverridesRefreshRequested,TResult? Function( _BlocklistCustomRulesRefreshRequested value)?  customRulesRefreshRequested,TResult? Function( _BlocklistDefaultDomainToggled value)?  defaultDomainToggled,TResult? Function( _BlocklistCustomRuleToggled value)?  customRuleToggled,TResult? Function( _BlocklistCustomRuleDeleteRequested value)?  customRuleDeleteRequested,TResult? Function( _BlocklistCustomRuleAddRequested value)?  customRuleAddRequested,TResult? Function( _BlocklistActionErrorDismissed value)?  actionErrorDismissed,}){
 final _that = this;
 switch (_that) {
 case _BlocklistStarted() when started != null:
-return started(_that);case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
+return started(_that);case _BlocklistDefaultCategoriesRefreshRequested() when defaultCategoriesRefreshRequested != null:
+return defaultCategoriesRefreshRequested(_that);case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
 return defaultDomainOverridesRefreshRequested(_that);case _BlocklistCustomRulesRefreshRequested() when customRulesRefreshRequested != null:
 return customRulesRefreshRequested(_that);case _BlocklistDefaultDomainToggled() when defaultDomainToggled != null:
 return defaultDomainToggled(_that);case _BlocklistCustomRuleToggled() when customRuleToggled != null:
@@ -141,10 +144,11 @@ return actionErrorDismissed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  started,TResult Function()?  defaultDomainOverridesRefreshRequested,TResult Function()?  customRulesRefreshRequested,TResult Function( String domain,  bool isEnabled)?  defaultDomainToggled,TResult Function( AuraRuleItem rule)?  customRuleToggled,TResult Function( String id,  Completer<bool>? completer)?  customRuleDeleteRequested,TResult Function( String domain,  bool isBlocked,  Completer<bool>? completer)?  customRuleAddRequested,TResult Function()?  actionErrorDismissed,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  started,TResult Function()?  defaultCategoriesRefreshRequested,TResult Function()?  defaultDomainOverridesRefreshRequested,TResult Function()?  customRulesRefreshRequested,TResult Function( String domain,  bool isEnabled)?  defaultDomainToggled,TResult Function( AuraRuleItem rule)?  customRuleToggled,TResult Function( String id,  Completer<bool>? completer)?  customRuleDeleteRequested,TResult Function( String domain,  bool isBlocked,  Completer<bool>? completer)?  customRuleAddRequested,TResult Function()?  actionErrorDismissed,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BlocklistStarted() when started != null:
-return started();case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
+return started();case _BlocklistDefaultCategoriesRefreshRequested() when defaultCategoriesRefreshRequested != null:
+return defaultCategoriesRefreshRequested();case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
 return defaultDomainOverridesRefreshRequested();case _BlocklistCustomRulesRefreshRequested() when customRulesRefreshRequested != null:
 return customRulesRefreshRequested();case _BlocklistDefaultDomainToggled() when defaultDomainToggled != null:
 return defaultDomainToggled(_that.domain,_that.isEnabled);case _BlocklistCustomRuleToggled() when customRuleToggled != null:
@@ -169,10 +173,11 @@ return actionErrorDismissed();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  started,required TResult Function()  defaultDomainOverridesRefreshRequested,required TResult Function()  customRulesRefreshRequested,required TResult Function( String domain,  bool isEnabled)  defaultDomainToggled,required TResult Function( AuraRuleItem rule)  customRuleToggled,required TResult Function( String id,  Completer<bool>? completer)  customRuleDeleteRequested,required TResult Function( String domain,  bool isBlocked,  Completer<bool>? completer)  customRuleAddRequested,required TResult Function()  actionErrorDismissed,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  started,required TResult Function()  defaultCategoriesRefreshRequested,required TResult Function()  defaultDomainOverridesRefreshRequested,required TResult Function()  customRulesRefreshRequested,required TResult Function( String domain,  bool isEnabled)  defaultDomainToggled,required TResult Function( AuraRuleItem rule)  customRuleToggled,required TResult Function( String id,  Completer<bool>? completer)  customRuleDeleteRequested,required TResult Function( String domain,  bool isBlocked,  Completer<bool>? completer)  customRuleAddRequested,required TResult Function()  actionErrorDismissed,}) {final _that = this;
 switch (_that) {
 case _BlocklistStarted():
-return started();case _BlocklistDefaultDomainOverridesRefreshRequested():
+return started();case _BlocklistDefaultCategoriesRefreshRequested():
+return defaultCategoriesRefreshRequested();case _BlocklistDefaultDomainOverridesRefreshRequested():
 return defaultDomainOverridesRefreshRequested();case _BlocklistCustomRulesRefreshRequested():
 return customRulesRefreshRequested();case _BlocklistDefaultDomainToggled():
 return defaultDomainToggled(_that.domain,_that.isEnabled);case _BlocklistCustomRuleToggled():
@@ -196,10 +201,11 @@ return actionErrorDismissed();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  started,TResult? Function()?  defaultDomainOverridesRefreshRequested,TResult? Function()?  customRulesRefreshRequested,TResult? Function( String domain,  bool isEnabled)?  defaultDomainToggled,TResult? Function( AuraRuleItem rule)?  customRuleToggled,TResult? Function( String id,  Completer<bool>? completer)?  customRuleDeleteRequested,TResult? Function( String domain,  bool isBlocked,  Completer<bool>? completer)?  customRuleAddRequested,TResult? Function()?  actionErrorDismissed,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  started,TResult? Function()?  defaultCategoriesRefreshRequested,TResult? Function()?  defaultDomainOverridesRefreshRequested,TResult? Function()?  customRulesRefreshRequested,TResult? Function( String domain,  bool isEnabled)?  defaultDomainToggled,TResult? Function( AuraRuleItem rule)?  customRuleToggled,TResult? Function( String id,  Completer<bool>? completer)?  customRuleDeleteRequested,TResult? Function( String domain,  bool isBlocked,  Completer<bool>? completer)?  customRuleAddRequested,TResult? Function()?  actionErrorDismissed,}) {final _that = this;
 switch (_that) {
 case _BlocklistStarted() when started != null:
-return started();case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
+return started();case _BlocklistDefaultCategoriesRefreshRequested() when defaultCategoriesRefreshRequested != null:
+return defaultCategoriesRefreshRequested();case _BlocklistDefaultDomainOverridesRefreshRequested() when defaultDomainOverridesRefreshRequested != null:
 return defaultDomainOverridesRefreshRequested();case _BlocklistCustomRulesRefreshRequested() when customRulesRefreshRequested != null:
 return customRulesRefreshRequested();case _BlocklistDefaultDomainToggled() when defaultDomainToggled != null:
 return defaultDomainToggled(_that.domain,_that.isEnabled);case _BlocklistCustomRuleToggled() when customRuleToggled != null:
@@ -238,6 +244,38 @@ int get hashCode => runtimeType.hashCode;
 @override
 String toString() {
     return 'BlocklistEvent.started()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class _BlocklistDefaultCategoriesRefreshRequested implements BlocklistEvent {
+  const _BlocklistDefaultCategoriesRefreshRequested();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BlocklistDefaultCategoriesRefreshRequested);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'BlocklistEvent.defaultCategoriesRefreshRequested()';
 }
 
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.dart';
 import 'package:theja_aura/features/blocklist/presentation/pages/widgets/category_domain_sheet.dart';
@@ -14,11 +13,12 @@ class DefaultDomainTab extends StatelessWidget {
     final typo = context.appTypography;
     return BlocBuilder<BlocklistBloc, BlocklistState>(
       builder: (context, state) {
-        if (state.isLoadingOverrides) {
+        if (state.isLoadingOverrides || state.isLoadingCategories) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (state.overridesError != null) {
+        final error = state.overridesError ?? state.categoriesError;
+        if (error != null) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -32,14 +32,14 @@ class DefaultDomainTab extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    state.overridesError!,
+                    error,
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () => context.read<BlocklistBloc>().add(
-                      const BlocklistEvent.defaultDomainOverridesRefreshRequested(),
+                      const BlocklistEvent.started(),
                     ),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Retry'),
@@ -50,11 +50,64 @@ class DefaultDomainTab extends StatelessWidget {
           );
         }
 
-        final categories = AuraDefaultCategoryData.categories;
+        final categories = state.defaultCategories;
+
+        if (categories.isEmpty) {
+          return RefreshIndicator(
+            onRefresh: () async => context.read<BlocklistBloc>().add(
+              const BlocklistEvent.started(),
+            ),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.cloud_off_outlined,
+                          size: 56,
+                          color: colors.textSecondary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No Categories Installed',
+                          style: typo.titleMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Published blocklist categories and domains will appear here once synchronized with the backend.',
+                          textAlign: TextAlign.center,
+                          style: typo.bodySmall.copyWith(
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: () => context.read<BlocklistBloc>().add(
+                            const BlocklistEvent.started(),
+                          ),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Check for Updates'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
 
         return RefreshIndicator(
           onRefresh: () async => context.read<BlocklistBloc>().add(
-            const BlocklistEvent.defaultDomainOverridesRefreshRequested(),
+            const BlocklistEvent.started(),
           ),
           child: ListView(
             padding: const EdgeInsets.all(16),
@@ -108,7 +161,7 @@ class DefaultDomainTab extends StatelessWidget {
                                 style: typo.bodySmall.copyWith(
                                   color: colors.textSecondary,
                                 ),
-                                overflow: .ellipsis,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -117,7 +170,7 @@ class DefaultDomainTab extends StatelessWidget {
                         Text(
                           category.domainCount.toString(),
                           style: typo.titleSmall.copyWith(
-                            fontWeight: .w600,
+                            fontWeight: FontWeight.w600,
                             color: colors.textSecondary,
                           ),
                         ),

@@ -457,7 +457,7 @@ class AuraTunnelService {
     }
   }
 
-  /// Removes the downloaded blocklist release from App Group storage, reverting to the bundled defaults.
+  /// Removes the downloaded blocklist release from App Group storage.
   Future<bool> clearInstalledRelease() async {
     try {
       final bool? res = await _controlChannel.invokeMethod<bool>(
@@ -470,6 +470,49 @@ class AuraTunnelService {
       throw AuraRuleException(
         e.code,
         e.message ?? 'Failed to clear installed blocklist release.',
+      );
+    }
+  }
+
+  /// Retrieves metadata of each category installed in the active backend release.
+  /// Returns empty list if no release is installed or on unsupported platforms.
+  Future<List<Map<String, dynamic>>?> getReleaseCategories() async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'getReleaseCategories',
+      );
+      if (raw is List) {
+        return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return null;
+    } on MissingPluginException {
+      return null;
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to query release categories.',
+      );
+    }
+  }
+
+  /// Retrieves the list of domains for a specific category from the active backend release.
+  /// Returns empty list if no release is installed, if category is empty, or on unsupported platforms.
+  Future<List<String>?> getCategoryDomains(String category) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'getCategoryDomains',
+        {'category': category},
+      );
+      if (raw is List) {
+        return raw.map((e) => e.toString().trim()).toList();
+      }
+      return null;
+    } on MissingPluginException {
+      return null;
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to query category domains for $category.',
       );
     }
   }

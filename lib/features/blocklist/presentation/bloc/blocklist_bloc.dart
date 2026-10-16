@@ -20,6 +20,7 @@ class BlocklistBloc extends Bloc<BlocklistEvent, BlocklistState> {
     on<BlocklistEvent>((event, emit) async {
       await event.when(
         started: () => _onStarted(emit),
+        defaultCategoriesRefreshRequested: () => _fetchDefaultCategories(emit),
         defaultDomainOverridesRefreshRequested: () =>
             _fetchDefaultDomainOverrides(emit),
         customRulesRefreshRequested: () => _fetchCustomRules(emit),
@@ -37,9 +38,31 @@ class BlocklistBloc extends Bloc<BlocklistEvent, BlocklistState> {
 
   Future<void> _onStarted(Emitter<BlocklistState> emit) async {
     await Future.wait([
+      _fetchDefaultCategories(emit),
       _fetchDefaultDomainOverrides(emit),
       _fetchCustomRules(emit),
     ]);
+  }
+
+  Future<void> _fetchDefaultCategories(Emitter<BlocklistState> emit) async {
+    emit(state.copyWith(isLoadingCategories: true, categoriesError: null));
+
+    try {
+      final categories = await _repository.getDefaultCategories();
+      emit(
+        state.copyWith(
+          defaultCategories: categories,
+          isLoadingCategories: false,
+        ),
+      );
+    } catch (e) {
+      emit(
+        state.copyWith(
+          isLoadingCategories: false,
+          categoriesError: 'Failed to load categories: $e',
+        ),
+      );
+    }
   }
 
   Future<void> _fetchDefaultDomainOverrides(

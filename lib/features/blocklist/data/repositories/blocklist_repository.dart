@@ -1,4 +1,5 @@
 import 'package:injectable/injectable.dart';
+import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 
 import '../../domain/repositories/i_blocklist_repository.dart';
@@ -76,5 +77,29 @@ class BlocklistRepository implements IBlocklistRepository {
   @override
   Future<Map<String, bool>> getCategories() {
     return _tunnelService.getCategories();
+  }
+
+  @override
+  Future<List<AuraDefaultCategory>> getDefaultCategories() async {
+    final rawCats = await _tunnelService.getReleaseCategories();
+    if (rawCats == null || rawCats.isEmpty) {
+      return const [];
+    }
+    return rawCats.map((item) {
+      final name = item['name'] as String? ?? '';
+      final count = (item['domainCount'] as num?)?.toInt() ?? 0;
+      return AuraDefaultCategory(
+        name: name,
+        description: AuraCategoryMetadata.descriptionForCategory(name),
+        icon: AuraCategoryMetadata.iconForCategory(name),
+        domainCount: count,
+      );
+    }).toList();
+  }
+
+  @override
+  Future<List<String>> getCategoryDomains(String category) async {
+    final domains = await _tunnelService.getCategoryDomains(category);
+    return domains ?? const [];
   }
 }

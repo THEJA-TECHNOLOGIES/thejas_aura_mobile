@@ -119,6 +119,9 @@ public final class AuraCategoryStore {
         guard let container = try? decoder.decode(AuraInstalledReleaseContainer.self, from: data) else {
             return nil
         }
+        if container.version.hasPrefix("bundled") || container.version == "legacy" || container.version == "synthetic" {
+            return nil
+        }
         guard let dirName = container.releaseDirectory, !dirName.isEmpty,
               let root = releasesRootDirectoryURL else {
             return nil
@@ -436,6 +439,11 @@ public final class AuraCategoryStore {
             return nil
         }
 
+        if container.version.hasPrefix("bundled") || container.version == "legacy" || container.version == "synthetic" {
+            os_log(.info, log: Self.log, "Release version '%{public}@' is a legacy synthetic placeholder — treating as no backend release", container.version)
+            return nil
+        }
+
         // Verify that if a releaseDirectory is specified, it exists on disk and contains all declared files
         if let dirName = container.releaseDirectory, let root = releasesRootDirectoryURL {
             let releaseDir = root.appendingPathComponent(dirName)
@@ -480,13 +488,14 @@ public final class AuraCategoryStore {
         if let metadataURL = releaseFileURL, fileManager.fileExists(atPath: metadataURL.path) {
             try fileManager.removeItem(at: metadataURL)
         }
-        os_log(.info, log: Self.log, "Cleared installed release from App Group; reverting to static bundle")
+        os_log(.info, log: Self.log, "Cleared installed release from App Group; no active categories remain")
     }
 
-    // MARK: - Bundled Category Domain Lists Loader
+    // MARK: - Active Release Category Domain Lists Loader
 
-    /// Loads the active domains for a given category ("Ads", "Trackers", "Analytics", "Malware", etc.).
-    /// Checks the App Group container active release directory first, falling back to static bundled files.
+    /// Loads the active domains for a given category ("Ads", "Trackers", "Analytics", etc.).
+    /// Checks the App Group container active release directory only.
+    /// Returns an empty set if no backend release is active or if the category does not exist.
     public static func loadBundledDomains(for category: String) -> Set<String> {
         let fileName = category.lowercased()
 
@@ -497,73 +506,32 @@ public final class AuraCategoryStore {
             }
         }
 
-        // 1. Try App Group container active release directory first (downloaded release takes precedence)
+        // 1. App Group container active release directory (backend-installed release)
         if let activeDir = activeReleaseDirectoryURL {
             let candidate = activeDir.appendingPathComponent("\(fileName).txt")
             if FileManager.default.fileExists(atPath: candidate.path) {
                 if let content = try? String(contentsOf: candidate, encoding: .utf8) {
                     let domains = parseDomains(from: content)
-                    if !domains.isEmpty {
-                        os_log(.info, log: Self.log, "Loaded %{public}ld domains from active release directory for category '%{public}@'", domains.count, category)
-                        return domains
-                    }
+                    os_log(.info, log: Self.log, "Loaded %{public}ld domains from active release directory for category '%{public}@'", domains.count, category)
+                    return domains
                 }
             }
         }
 
-        // 2. Try legacy categories directory if no activeReleaseDirectoryURL
-        if let legacyDir = customCategoriesDirectoryURL ?? sharedContainerURL?.appendingPathComponent("categories"),
-           FileManager.default.fileExists(atPath: legacyDir.path) {
-            let candidate = legacyDir.appendingPathComponent("\(fileName).txt")
+        // 2. Custom categories directory if explicitly set in test environments
+        if let customDir = customCategoriesDirectoryURL,
+           FileManager.default.fileExists(atPath: customDir.path) {
+            let candidate = customDir.appendingPathComponent("\(fileName).txt")
             if FileManager.default.fileExists(atPath: candidate.path) {
                 if let content = try? String(contentsOf: candidate, encoding: .utf8) {
                     let domains = parseDomains(from: content)
-                    if !domains.isEmpty {
-                        os_log(.info, log: Self.log, "Loaded %{public}ld domains from legacy categories directory for category '%{public}@'", domains.count, category)
-                        return domains
-                    }
+                    return domains
                 }
             }
         }
 
-        // 3. Try bundle for class or main (fallback if no dynamic release installed)
-        let bundle = Bundle(for: AuraCategoryStore.self)
-        var url = bundle.url(forResource: fileName, withExtension: "txt", subdirectory: "categories") ??
-                  bundle.url(forResource: fileName, withExtension: "txt") ??
-                  Bundle.main.url(forResource: fileName, withExtension: "txt", subdirectory: "categories") ??
-                  Bundle.main.url(forResource: fileName, withExtension: "txt")
-
-        // 4. Try App Plugins folder if running inside host Runner.app
-        if url == nil, let pluginsURL = Bundle.main.builtInPlugInsURL {
-            let extBundleURL = pluginsURL.appendingPathComponent("AuraTunnel.appex")
-            if let extBundle = Bundle(url: extBundleURL) {
-                url = extBundle.url(forResource: fileName, withExtension: "txt", subdirectory: "categories") ??
-                      extBundle.url(forResource: fileName, withExtension: "txt")
-            }
-        }
-
-        // 5. Try development filesystem relative path (for SPM/CLI tests)
-        if url == nil {
-            let devCandidates = [
-                "ios/AuraTunnel/Resources/categories/\(fileName).txt",
-                "../ios/AuraTunnel/Resources/categories/\(fileName).txt"
-            ]
-            for candidate in devCandidates {
-                if FileManager.default.fileExists(atPath: candidate) {
-                    url = URL(fileURLWithPath: candidate)
-                    break
-                }
-            }
-        }
-
-        guard let targetURL = url, let content = try? String(contentsOf: targetURL, encoding: .utf8) else {
-            os_log(.error, log: Self.log, "Could not find bundled domain list resource for category '%{public}@'", category)
-            return fallbackDomains(for: category)
-        }
-
-        let domains = parseDomains(from: content)
-        os_log(.info, log: Self.log, "Loaded %{public}ld domains for bundled category '%{public}@'", domains.count, category)
-        return domains
+        // No active backend release or file not found -> return empty set. No static bundle fallback.
+        return []
     }
 
     private static func parseDomains(from content: String) -> Set<String> {
@@ -581,7 +549,8 @@ public final class AuraCategoryStore {
         return domains
     }
 
-    /// Set of all domains belonging to any active or bundled default category.
+    /// Set of all domains belonging to any category in the active backend release.
+    /// Returns an empty set if no backend release is installed.
     public static func allBundledDomains() -> Set<String> {
         var all = Set<String>()
         for (_, domains) in loadAllBundledCategories() {
@@ -590,12 +559,12 @@ public final class AuraCategoryStore {
         return all
     }
 
-    /// Loads all bundled and dynamic categories into a dictionary mapping category name to domain set.
-    /// Strictly guarantees that only categories belonging to the single active release are loaded.
+    /// Loads all categories belonging to the currently active backend release.
+    /// Returns an empty map if no release is installed or active.
     public static func loadAllBundledCategories() -> [String: Set<String>] {
         var categories: [String: Set<String>] = [:]
 
-        // 1. If an active release directory exists, ONLY load categories that exist in this active release
+        // If an active release directory exists, ONLY load categories that exist in this active release
         if let activeDir = activeReleaseDirectoryURL {
             if let items = try? FileManager.default.contentsOfDirectory(atPath: activeDir.path) {
                 for item in items where item.hasSuffix(".txt") {
@@ -603,92 +572,50 @@ public final class AuraCategoryStore {
                     categories[catName] = loadBundledDomains(for: catName)
                 }
             }
-
-            // Ensure standard default category names (Ads, Trackers, Analytics) are also checked
-            // (in case a standard category is not in the directory, loadBundledDomains falls back to bundle)
-            for name in defaultCategoryNames {
-                if categories[name] == nil {
-                    let domains = loadBundledDomains(for: name)
-                    if !domains.isEmpty {
-                        categories[name] = domains
-                    }
-                }
-            }
-
             return categories
         }
 
-        // 2. If no active release directory exists, use standard categories and legacy categories directory
-        for name in defaultCategoryNames {
-            categories[name] = loadBundledDomains(for: name)
-        }
-
-        if let legacyDir = customCategoriesDirectoryURL ?? sharedContainerURL?.appendingPathComponent("categories") {
-            if let items = try? FileManager.default.contentsOfDirectory(atPath: legacyDir.path) {
+        // Custom categories directory if explicitly set in test environments
+        if let customDir = customCategoriesDirectoryURL,
+           FileManager.default.fileExists(atPath: customDir.path) {
+            if let items = try? FileManager.default.contentsOfDirectory(atPath: customDir.path) {
                 for item in items where item.hasSuffix(".txt") {
                     let catName = (item as NSString).deletingPathExtension.capitalized
-                    if categories[catName] == nil {
-                        categories[catName] = loadBundledDomains(for: catName)
-                    }
+                    categories[catName] = loadBundledDomains(for: catName)
                 }
             }
+            return categories
         }
 
-        return categories
+        // No active backend release -> return empty dictionary. No static bundle fallback.
+        return [:]
     }
 
-    /// Fallback in-memory domains used if resources cannot be located.
-    private static func fallbackDomains(for category: String) -> Set<String> {
-        switch category.lowercased() {
-        case "ads":
-            return [
-                "doubleclick.net",
-                "googleads.g.doubleclick.net",
-                "pagead2.googlesyndication.com",
-                "adservice.google.com",
-                "ads.pubmatic.com",
-                "adnxs.com",
-                "c.amazon-adsystem.com",
-                "advertising.apple.com",
-                "taboola.com",
-                "outbrain.com",
-                "rubiconproject.com",
-                "openx.net"
-            ]
-        case "trackers":
-            return [
-                "scorecardresearch.com",
-                "pixel.facebook.com",
-                "tr.snapchat.com",
-                "analytics.tiktok.com",
-                "ads.linkedin.com",
-                "bat.bing.com",
-                "crwdcntrl.net",
-                "moatads.com",
-                "quantserve.com",
-                "branch.io",
-                "appsflyer.com",
-                "adjust.com",
-                "telemetry.app.com"
-            ]
-        case "analytics":
-            return [
-                "google-analytics.com",
-                "ssl.google-analytics.com",
-                "analytics.google.com",
-                "analytics.facebook.com",
-                "api.mixpanel.com",
-                "segment.io",
-                "api.segment.io",
-                "heapanalytics.com",
-                "amplitude.com",
-                "hotjar.com",
-                "clarity.ms",
-                "telemetry.microsoft.com",
-                "app-measurement.com"
-            ]
-        default:
+    /// Loads metadata for each category installed in the active backend release.
+    /// Returns an empty array if no release is installed.
+    public static func loadReleaseCategories() -> [[String: Any]] {
+        guard let activeDir = activeReleaseDirectoryURL else {
             return []
         }
+        var results: [[String: Any]] = []
+        if let items = try? FileManager.default.contentsOfDirectory(atPath: activeDir.path) {
+            for item in items.sorted() where item.hasSuffix(".txt") {
+                let catName = (item as NSString).deletingPathExtension.capitalized
+                let domains = loadBundledDomains(for: catName)
+                results.append([
+                    "name": catName,
+                    "fileName": item,
+                    "domainCount": domains.count
+                ])
+            }
+        }
+        return results
+    }
+
+    /// Loads the domain list for a specific category from the active backend release.
+    /// Returns an empty array if no release is installed or category is empty.
+    public static func loadCategoryDomains(category: String) -> [String] {
+        let domains = loadBundledDomains(for: category)
+        return domains.sorted()
     }
 }

@@ -27,9 +27,6 @@
 		A1110051294A000100000001 /* AuraPSLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110050294A000100000001 /* AuraPSLValidator.swift */; };
 		A1110053294A000100000001 /* AuraCategoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110052294A000100000001 /* AuraCategoryStore.swift */; };
 		A1110055294A000100000001 /* Resources/public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* Resources/public_suffix_list.dat */; };
-		A1110057294A000100000001 /* Resources/categories/ads.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110056294A000100000001 /* Resources/categories/ads.txt */; };
-		A1110059294A000100000001 /* Resources/categories/trackers.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110058294A000100000001 /* Resources/categories/trackers.txt */; };
-		A1110061294A000100000001 /* Resources/categories/analytics.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1110060294A000100000001 /* Resources/categories/analytics.txt */; };
 		A1110065294A000100000001 /* AuraActivityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110064294A000100000001 /* AuraActivityDatabase.swift */; };
 		A1110071294A000100000001 /* AuraActivityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110070294A000100000001 /* AuraActivityRepository.swift */; };
 		A1110081294A000100000001 /* AuraPSLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110050294A000100000001 /* AuraPSLValidator.swift */; };
@@ -114,9 +111,6 @@
 		A1110050294A000100000001 /* AuraPSLValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraPSLValidator.swift; sourceTree = "<group>"; };
 		A1110052294A000100000001 /* AuraCategoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraCategoryStore.swift; sourceTree = "<group>"; };
 		A1110054294A000100000001 /* Resources/public_suffix_list.dat */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/public_suffix_list.dat; sourceTree = "<group>"; };
-		A1110056294A000100000001 /* Resources/categories/ads.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/categories/ads.txt; sourceTree = "<group>"; };
-		A1110058294A000100000001 /* Resources/categories/trackers.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/categories/trackers.txt; sourceTree = "<group>"; };
-		A1110060294A000100000001 /* Resources/categories/analytics.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/categories/analytics.txt; sourceTree = "<group>"; };
 		A1110064294A000100000001 /* AuraActivityDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityDatabase.swift; sourceTree = "<group>"; };
 		A1110070294A000100000001 /* AuraActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityRepository.swift; sourceTree = "<group>"; };
 		A1110091294A000100000001 /* AuraDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraDatabaseTests.swift; sourceTree = "<group>"; };
@@ -216,9 +210,6 @@
 				A1110050294A000100000001 /* AuraPSLValidator.swift */,
 				A1110052294A000100000001 /* AuraCategoryStore.swift */,
 				A1110054294A000100000001 /* Resources/public_suffix_list.dat */,
-				A1110056294A000100000001 /* Resources/categories/ads.txt */,
-				A1110058294A000100000001 /* Resources/categories/trackers.txt */,
-				A1110060294A000100000001 /* Resources/categories/analytics.txt */,
 				A1110064294A000100000001 /* AuraActivityDatabase.swift */,
 				A1110013294A000100000001 /* Info.plist */,
 				A1110014294A000100000001 /* AuraTunnel.entitlements */,
@@ -360,9 +351,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1110055294A000100000001 /* Resources/public_suffix_list.dat in Resources */,
-				A1110057294A000100000001 /* Resources/categories/ads.txt in Resources */,
-				A1110059294A000100000001 /* Resources/categories/trackers.txt in Resources */,
-				A1110061294A000100000001 /* Resources/categories/analytics.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

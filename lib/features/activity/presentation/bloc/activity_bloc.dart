@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:injectable/injectable.dart';
-import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_domain_evaluator.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_repository.dart';
@@ -300,9 +299,8 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
       await _blocklistRepository.deleteRule(existingAllowRule.id);
     }
 
-    // 2. If it's directly in bundled default categories and was disabled, re-enable it
-    if (AuraDefaultCategoryData.allBundledDomains.contains(normalized) &&
-        state.disabledDefaultDomains.contains(normalized)) {
+    // 2. If it was disabled in default domain overrides, re-enable it
+    if (state.disabledDefaultDomains.contains(normalized)) {
       await _blocklistRepository.toggleDefaultDomain(
         domain: normalized,
         isEnabled: true,
@@ -340,13 +338,13 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
       await _blocklistRepository.deleteRule(existingBlockRule.id);
     }
 
-    // 2. If it is directly in bundled categories, disable it in default domain overrides
-    if (AuraDefaultCategoryData.allBundledDomains.contains(normalized)) {
+    // 2. Disable it in default domain overrides in case it is part of an active category
+    try {
       await _blocklistRepository.toggleDefaultDomain(
         domain: normalized,
         isEnabled: false,
       );
-    }
+    } catch (_) {}
 
     // Check if it is STILL effectively blocked (e.g. matched by parent category domain or parent custom rule)
     final currentRules =

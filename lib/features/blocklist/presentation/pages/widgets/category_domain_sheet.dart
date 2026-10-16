@@ -4,6 +4,9 @@ import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.dart';
 
+import 'package:theja_aura/core/DI/injection.dart';
+import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_repository.dart';
+
 class CategoryDomainSheet extends StatefulWidget {
   final AuraDefaultCategory category;
   final Set<String> disabledDomains;
@@ -22,7 +25,7 @@ class CategoryDomainSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: Colors.transparent,
+      // backgroundColor: Colors.transparent,
       useRootNavigator: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -42,6 +45,41 @@ class _CategoryDomainSheetState extends State<CategoryDomainSheet> {
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _pendingToggles = {};
   String _filter = '';
+  List<String>? _loadedDomains;
+  bool _isLoadingDomains = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.category.domains.isNotEmpty ||
+        widget.category.domainCount == 0) {
+      _loadedDomains = widget.category.domains;
+    } else {
+      _loadDomains();
+    }
+  }
+
+  Future<void> _loadDomains() async {
+    setState(() => _isLoadingDomains = true);
+    try {
+      final domains = await getIt<IBlocklistRepository>().getCategoryDomains(
+        widget.category.name,
+      );
+      if (mounted) {
+        setState(() {
+          _loadedDomains = domains;
+          _isLoadingDomains = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loadedDomains = const [];
+          _isLoadingDomains = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -59,7 +97,7 @@ class _CategoryDomainSheetState extends State<CategoryDomainSheet> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final typo = context.appTypography;
-    final allDomains = widget.category.domains;
+    final allDomains = _loadedDomains ?? widget.category.domains;
     final filteredDomains = _filter.isEmpty
         ? allDomains
         : allDomains.where((d) => d.contains(_filter.toLowerCase())).toList();
@@ -106,7 +144,7 @@ class _CategoryDomainSheetState extends State<CategoryDomainSheet> {
                               ),
                             ),
                             Text(
-                              '${widget.category.domainCount} bundled domains',
+                              '${widget.category.domainCount} domains',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade400,
@@ -154,7 +192,14 @@ class _CategoryDomainSheetState extends State<CategoryDomainSheet> {
                   ),
                 ),
                 Expanded(
-                  child: filteredDomains.isEmpty
+                  child: _isLoadingDomains
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : filteredDomains.isEmpty
                       ? Center(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
