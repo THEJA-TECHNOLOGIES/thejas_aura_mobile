@@ -1,9 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/app_button.dart';
+import 'package:theja_aura/core/utils/app_text_field.dart';
 import 'package:theja_aura/core/utils/app_toast.dart';
 
 import '../bloc/blocklist_bloc.dart';
@@ -65,87 +68,95 @@ class _BlocklistPageState extends State<BlocklistPage>
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(isBlocked ? 'Add Block Rule' : 'Add Allow Rule'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: domainController,
-                      autofocus: true,
-                      autocorrect: false,
-                      keyboardType: TextInputType.url,
-                      decoration: InputDecoration(
-                        labelText: 'Domain Name',
-                        hintText: 'e.g. tracker.example.com',
-                        border: const OutlineInputBorder(),
-                        errorText: validationError,
-                      ),
-                      onChanged: (val) {
-                        if (validationError != null) {
-                          setDialogState(() {
-                            validationError = null;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Text(
-                          'Action: ',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const Spacer(),
-                        ChoiceChip(
-                          label: const Text('Block'),
-                          selected: isBlocked,
-                          selectedColor: Colors.red.shade900,
-                          onSelected: (sel) {
-                            if (sel) {
-                              setDialogState(() => isBlocked = true);
-                            }
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        ChoiceChip(
-                          label: const Text('Allow'),
-                          selected: !isBlocked,
-                          selectedColor: Colors.green.shade900,
-                          onSelected: (sel) {
-                            if (sel) {
-                              setDialogState(() => isBlocked = false);
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      isBlocked
-                          ? 'Queries matching this domain and subdomains will be blocked.'
-                          : 'Queries matching this domain will bypass category blocking.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-                  ],
-                ),
+            final colors = context.theme.appColors;
+            final typo = context.theme.appTypography;
+            return Dialog(
+              constraints: BoxConstraints(maxWidth: 500),
+              backgroundColor: colors.segmentBg,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: colors.border, width: 1),
               ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
+              insetPadding: EdgeInsets.symmetric(horizontal: 16),
+              // title: Text(isBlocked ? 'Add Block Rule' : 'Add Allow Rule'),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "Add a domain",
+                              style: typo.titleMedium.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              context.pop();
+                            },
+                            child: Container(
+                              decoration: ShapeDecoration(
+                                color: colors.surfaceRaised,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: .circular(8),
+                                  side: BorderSide(
+                                    color: colors.border,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      AppTextField(
+                        hintText: "ads.example.com",
+                        borderColor: colors.border,
+                        controller: domainController,
+                        keyboardType: TextInputType.url,
+                        errorText: validationError,
+                        showSuffixIcon: false,
+                        prefixIcon: Icon(
+                          Icons.language,
+                          color: colors.textSecondary,
+                        ),
+                        onChanged: (val) {
+                          if (validationError != null) {
+                            setDialogState(() {
+                              validationError = null;
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Queries matching this domain and subdomains will be blocked.',
+                        style: typo.bodySmall.copyWith(
+                          color: colors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      AppButton(
+                        text: "Block",
+                        color: colors.primary,
+                        width: double.infinity,
+                        padding: .symmetric(vertical: 12),
+                        onPressed: () async {
                           final rawDomain = domainController.text.trim();
                           if (rawDomain.isEmpty) {
                             setDialogState(() {
@@ -182,13 +193,8 @@ class _BlocklistPageState extends State<BlocklistPage>
                             Navigator.of(dialogContext).pop();
 
                             if (success) {
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Added rule for $rawDomain'),
-                                  backgroundColor: isBlocked
-                                      ? Colors.red.shade900
-                                      : Colors.green.shade900,
-                                ),
+                              showSuccessToast(
+                                message: 'Added $rawDomain to your list.',
                               );
                             }
                           } on AuraRuleException catch (e) {
@@ -203,15 +209,89 @@ class _BlocklistPageState extends State<BlocklistPage>
                             });
                           }
                         },
-                  child: isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Add Rule'),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
+
+              // actions: [
+              //   TextButton(
+              //     onPressed: isSubmitting
+              //         ? null
+              //         : () => Navigator.of(dialogContext).pop(),
+              //     child: const Text('Cancel'),
+              //   ),
+              //   ElevatedButton(
+              //     onPressed: isSubmitting
+              //         ? null
+              //         : () async {
+              //             final rawDomain = domainController.text.trim();
+              //             if (rawDomain.isEmpty) {
+              //               setDialogState(() {
+              //                 validationError = 'Domain name cannot be empty.';
+              //               });
+              //               return;
+              //             }
+
+              //             setDialogState(() {
+              //               isSubmitting = true;
+              //               validationError = null;
+              //             });
+
+              //             try {
+              //               final isValid = await context
+              //                   .read<BlocklistBloc>()
+              //                   .validateDomain(rawDomain);
+              //               if (!isValid) {
+              //                 setDialogState(() {
+              //                   isSubmitting = false;
+              //                   validationError =
+              //                       'Invalid domain or public suffix rejected.';
+              //                 });
+              //                 return;
+              //               }
+              //               final success = await context
+              //                   .read<BlocklistBloc>()
+              //                   .addRule(
+              //                     domain: rawDomain,
+              //                     isBlocked: isBlocked,
+              //                   );
+
+              //               if (!dialogContext.mounted || !mounted) return;
+              //               Navigator.of(dialogContext).pop();
+
+              //               if (success) {
+              //                 ScaffoldMessenger.of(this.context).showSnackBar(
+              //                   SnackBar(
+              //                     content: Text('Added rule for $rawDomain'),
+              //                     backgroundColor: isBlocked
+              //                         ? Colors.red.shade900
+              //                         : Colors.green.shade900,
+              //                   ),
+              //                 );
+              //               }
+              //             } on AuraRuleException catch (e) {
+              //               setDialogState(() {
+              //                 isSubmitting = false;
+              //                 validationError = e.message;
+              //               });
+              //             } catch (e) {
+              //               setDialogState(() {
+              //                 isSubmitting = false;
+              //                 validationError = 'Error: $e';
+              //               });
+              //             }
+              //           },
+              //     child: isSubmitting
+              //         ? const SizedBox(
+              //             width: 16,
+              //             height: 16,
+              //             child: CircularProgressIndicator(strokeWidth: 2),
+              //           )
+              //         : const Text('Add Rule'),
+              //   ),
+              // ],
             );
           },
         );
@@ -222,34 +302,73 @@ class _BlocklistPageState extends State<BlocklistPage>
   Future<void> _handleDeleteRule(AuraRuleItem rule) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Rule'),
-        content: Text(
-          'Are you sure you want to delete the rule for "${rule.domain}"?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+      builder: (ctx) {
+        final colors = context.appColors;
+        return Dialog(
+          constraints: BoxConstraints(maxWidth: 500),
+          backgroundColor: colors.background,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: colors.border, width: 1),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade900,
-              foregroundColor: Colors.white,
+          insetPadding: EdgeInsets.symmetric(horizontal: 16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: .start,
+                children: [
+                  Text(
+                    "Remove this domain?",
+                    style: context.theme.appTypography.titleLarge.copyWith(),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "${rule.domain} will stop being blocked right away.",
+                    style: context.theme.appTypography.labelLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    spacing: 16,
+                    children: [
+                      Expanded(
+                        child: AppButton(
+                          text: "Cancel",
+                          color: colors.gray2,
+                          onPressed: () {
+                            ctx.pop(false);
+                          },
+                          padding: .symmetric(vertical: 10),
+                        ),
+                      ),
+                      Expanded(
+                        child: AppButton(
+                          text: "Remove",
+                          padding: .symmetric(vertical: 10),
+                          color: colors.error,
+                          onPressed: () {
+                            ctx.pop(true);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
           ),
-        ],
-      ),
+        );
+      },
     );
 
     if (confirmed != true) return;
     final success = await context.read<BlocklistBloc>().deleteRule(rule.id);
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Deleted rule for ${rule.domain}')),
-      );
+      showErrorToast(message: "Deleated ${rule.domain} form your list.");
     }
   }
 
@@ -294,7 +413,7 @@ class _BlocklistPageState extends State<BlocklistPage>
                   dividerColor: Colors.transparent,
                   dividerHeight: 0.0,
                   indicator: BoxDecoration(
-                    color: colors.card,
+                    color: colors.surfaceRaised,
                     borderRadius: .circular(12),
                   ),
                   indicatorSize: .tab,
@@ -317,8 +436,16 @@ class _BlocklistPageState extends State<BlocklistPage>
               if (_tabController.index != 1) return const SizedBox.shrink();
               return FloatingActionButton.extended(
                 onPressed: () => _handleAddRule(isBlockedDefault: true),
-                icon: const Icon(Icons.add),
-                label: const Text('Add Domain'),
+                icon: Icon(Icons.add, color: colors.white),
+                label: Text(
+                  'Add Domain',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                elevation: 0,
+                backgroundColor: colors.primary,
               );
             },
           ),
@@ -521,7 +648,7 @@ class _BlocklistPageState extends State<BlocklistPage>
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         itemCount: state.customRules.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
+        separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final rule = state.customRules[index];
           final isBlocked = rule.isBlocked;
@@ -549,7 +676,7 @@ class _BlocklistPageState extends State<BlocklistPage>
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '• ${isEnabled ? "Allowed" : "Blocked"}',
+                        '• ${!isEnabled ? "Allowed" : "Blocked"}',
                         style: typo.bodySmall.copyWith(
                           color: isEnabled
                               ? colors.primary

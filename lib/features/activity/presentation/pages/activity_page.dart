@@ -90,48 +90,11 @@ class _ActivityPageState extends State<ActivityPage>
     );
   }
 
-  Color _getOutcomeColor(String outcome) {
-    switch (outcome.toLowerCase()) {
-      case 'blocked':
-        return Colors.redAccent;
-      case 'allowed':
-        return Colors.greenAccent;
-      case 'failed':
-        return Colors.amberAccent;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getOutcomeIcon(String outcome) {
-    switch (outcome.toLowerCase()) {
-      case 'blocked':
-        return Icons.block;
-      case 'allowed':
-        return Icons.check_circle_outline;
-      case 'failed':
-        return Icons.error_outline;
-      default:
-        return Icons.help_outline;
-    }
-  }
-
-  String _formatTimestamp(DateTime dt) {
-    final year = dt.year.toString().padLeft(4, '0');
-    final month = dt.month.toString().padLeft(2, '0');
-    final day = dt.day.toString().padLeft(2, '0');
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final second = dt.second.toString().padLeft(2, '0');
-    return '$year-$month-$day $hour:$minute:$second';
-  }
-
   @override
   Widget build(BuildContext context) {
     final isLogs = widget.isLogsMode;
     final screenTitle = isLogs ? 'Logs' : 'Live Activity';
     final colors = context.appColors;
-    final typo = context.appTypography;
 
     return BlocConsumer<ActivityBloc, ActivityState>(
       listener: (context, state) {
