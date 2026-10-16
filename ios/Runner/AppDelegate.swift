@@ -11,6 +11,7 @@ import os.log
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+        RunnerRuleStore.cleanupStaging()
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
@@ -384,6 +385,57 @@ import os.log
                     }
                 case .failure(let error):
                     result(FlutterError(code: error.errorCode, message: error.errorDescription, details: nil))
+                }
+
+            case "getInstalledRelease":
+                let release = RunnerRuleStore.loadInstalledRelease()
+                result(release)
+
+            case "installBlocklistRelease":
+                guard let args = call.arguments as? [String: Any],
+                      let version = args["version"] as? String,
+                      let files = args["files"] as? [String: String] else {
+                    result(FlutterError(code: "INVALID_ARGS", message: "Expected dictionary with 'version' and 'files'", details: nil))
+                    return
+                }
+
+                let domainCount = args["domainCount"] as? Int ?? 0
+                let etag = args["etag"] as? String
+                let checksum = args["checksum"] as? String
+
+                do {
+                    var installRes = try RunnerRuleStore.installBlocklistRelease(
+                        version: version,
+                        files: files,
+                        domainCount: domainCount,
+                        etag: etag,
+                        checksum: checksum
+                    )
+
+                    AuraTunnelManager.shared.notifyCategoriesUpdated { reloadResult in
+                        switch reloadResult {
+                        case .success(let reloaded):
+                            installRes["reloaded"] = reloaded
+                            result(installRes)
+                        case .failure(let error):
+                            os_log(.error, log: Self.log, "[MethodChannel] Release installed but firewall reload failed: %{public}@", error.underlyingDescription)
+                            installRes["reloaded"] = false
+                            installRes["reloadError"] = error.errorDescription ?? error.underlyingDescription
+                            result(installRes)
+                        }
+                    }
+                } catch {
+                    result(FlutterError(code: "INSTALL_RELEASE_FAILED", message: error.localizedDescription, details: nil))
+                }
+
+            case "clearInstalledRelease":
+                do {
+                    try RunnerRuleStore.clearInstalledRelease()
+                    AuraTunnelManager.shared.notifyCategoriesUpdated { _ in
+                        result(true)
+                    }
+                } catch {
+                    result(FlutterError(code: "CLEAR_RELEASE_FAILED", message: error.localizedDescription, details: nil))
                 }
 
             default:

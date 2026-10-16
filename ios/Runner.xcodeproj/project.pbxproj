@@ -38,6 +38,7 @@
 		A1110084294A000100000001 /* Resources/public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* Resources/public_suffix_list.dat */; };
 		A1110085294A000100000001 /* AuraActivityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110064294A000100000001 /* AuraActivityDatabase.swift */; };
 		A1110093294A000100000001 /* AuraDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110091294A000100000001 /* AuraDatabaseTests.swift */; };
+		A1110094294A000100000001 /* AuraReleaseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110092294A000100000001 /* AuraReleaseStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -119,6 +120,7 @@
 		A1110064294A000100000001 /* AuraActivityDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityDatabase.swift; sourceTree = "<group>"; };
 		A1110070294A000100000001 /* AuraActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityRepository.swift; sourceTree = "<group>"; };
 		A1110091294A000100000001 /* AuraDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraDatabaseTests.swift; sourceTree = "<group>"; };
+		A1110092294A000100000001 /* AuraReleaseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraReleaseStoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -145,6 +147,7 @@
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 				A1110091294A000100000001 /* AuraDatabaseTests.swift */,
+				A1110092294A000100000001 /* AuraReleaseStoreTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -406,6 +409,7 @@
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
 				A1110093294A000100000001 /* AuraDatabaseTests.swift in Sources */,
+				A1110094294A000100000001 /* AuraReleaseStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

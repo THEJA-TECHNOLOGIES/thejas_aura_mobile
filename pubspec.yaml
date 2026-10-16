@@ -46,6 +46,9 @@ dependencies:
   json_annotation: ^4.9.0
   flutter_secure_storage: ^11.2.0
   sqlite3_flutter_libs: ^0.6.0+eol
+  http: ^1.2.0
+  flutter_dotenv: ^5.2.1
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

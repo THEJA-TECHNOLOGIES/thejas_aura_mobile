@@ -128,14 +128,25 @@ public final class RunnerRuleStore {
     public static let sharedAppGroupIdentifier = "group.com.thejatech.aura"
     public static let rulesFileName = "aura_rules.json"
 
+    public static var customSharedContainerURL: URL? = nil
+
     public static var sharedContainerURL: URL? {
-        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: sharedAppGroupIdentifier)
+        return customSharedContainerURL ?? FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: sharedAppGroupIdentifier)
     }
 
     public static var customRulesFileURL: URL? = nil
 
     public static var rulesFileURL: URL? {
         return customRulesFileURL ?? sharedContainerURL?.appendingPathComponent(rulesFileName)
+    }
+
+    public static func resetCustomURLs() {
+        customSharedContainerURL = nil
+        customRulesFileURL = nil
+    }
+
+    public static func cleanupStaging() {
+        AuraCategoryStore.cleanupStaging()
     }
 
     // MARK: - Core Persistence
@@ -400,5 +411,31 @@ public final class RunnerRuleStore {
         } catch {
             return .failure(.persistenceFailed(error.localizedDescription))
         }
+    }
+
+    // MARK: - Backend Blocklist Release Bridge
+
+    public static func loadInstalledRelease() -> [String: Any]? {
+        return AuraCategoryStore.loadInstalledRelease()
+    }
+
+    public static func installBlocklistRelease(
+        version: String,
+        files: [String: String],
+        domainCount: Int = 0,
+        etag: String? = nil,
+        checksum: String? = nil
+    ) throws -> [String: Any] {
+        return try AuraCategoryStore.installRelease(
+            version: version,
+            files: files,
+            domainCount: domainCount,
+            etag: etag,
+            checksum: checksum
+        )
+    }
+
+    public static func clearInstalledRelease() throws {
+        try AuraCategoryStore.clearInstalledRelease()
     }
 }

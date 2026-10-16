@@ -21,6 +21,35 @@ public struct AuraDefaultDomainOverridesContainer: Codable {
     }
 }
 
+/// Metadata container for an installed backend blocklist release.
+public struct AuraInstalledReleaseContainer: Codable {
+    public let version: String
+    public let installedAt: Date
+    public let domainCount: Int
+    public let files: [String: String]
+    public let checksum: String?
+    public let etag: String?
+    public let releaseDirectory: String?
+
+    public init(
+        version: String,
+        installedAt: Date = Date(),
+        domainCount: Int = 0,
+        files: [String: String] = [:],
+        checksum: String? = nil,
+        etag: String? = nil,
+        releaseDirectory: String? = nil
+    ) {
+        self.version = version
+        self.installedAt = installedAt
+        self.domainCount = domainCount
+        self.files = files
+        self.checksum = checksum
+        self.etag = etag
+        self.releaseDirectory = releaseDirectory
+    }
+}
+
 /// App Group category preference persistence and bundled category list loader.
 public final class AuraCategoryStore {
 
@@ -28,6 +57,7 @@ public final class AuraCategoryStore {
     public static let sharedAppGroupIdentifier = "group.com.thejatech.aura"
     public static let preferencesFileName = "aura_category_preferences.json"
     public static let overridesFileName = "aura_default_domain_overrides.json"
+    public static let releaseFileName = "installed_release.json"
 
     public static let defaultCategoryNames = ["Ads", "Trackers", "Analytics"]
 
@@ -39,8 +69,10 @@ public final class AuraCategoryStore {
         ]
     }
 
+    public static var customSharedContainerURL: URL? = nil
+
     public static var sharedContainerURL: URL? {
-        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: sharedAppGroupIdentifier)
+        return customSharedContainerURL ?? FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: sharedAppGroupIdentifier)
     }
 
     public static var customPreferencesFileURL: URL? = nil
@@ -55,7 +87,79 @@ public final class AuraCategoryStore {
         return customOverridesFileURL ?? sharedContainerURL?.appendingPathComponent(overridesFileName)
     }
 
+    public static var customReleaseFileURL: URL? = nil
+
+    public static var releaseFileURL: URL? {
+        return customReleaseFileURL ?? sharedContainerURL?.appendingPathComponent(releaseFileName)
+    }
+
+    public static var customReleasesDirectoryURL: URL? = nil
+
+    public static var releasesRootDirectoryURL: URL? {
+        return customReleasesDirectoryURL ?? sharedContainerURL?.appendingPathComponent("releases")
+    }
+
+    public static var customStagingDirectoryURL: URL? = nil
+
+    public static var stagingRootDirectoryURL: URL? {
+        return customStagingDirectoryURL ?? sharedContainerURL?.appendingPathComponent("staging")
+    }
+
+    public static var customCategoriesDirectoryURL: URL? = nil
+
+    /// URL of the currently active release directory containing its category .txt files.
+    /// Derived from `installed_release.json`. If no valid release directory is found, falls back to nil.
+    public static var activeReleaseDirectoryURL: URL? {
+        guard let targetURL = releaseFileURL, FileManager.default.fileExists(atPath: targetURL.path) else {
+            return nil
+        }
+        guard let data = try? Data(contentsOf: targetURL) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let container = try? decoder.decode(AuraInstalledReleaseContainer.self, from: data) else {
+            return nil
+        }
+        guard let dirName = container.releaseDirectory, !dirName.isEmpty,
+              let root = releasesRootDirectoryURL else {
+            return nil
+        }
+        let candidate = root.appendingPathComponent(dirName)
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir), isDir.boolValue {
+            return candidate
+        }
+        return nil
+    }
+
+    /// For backward compatibility, returns activeReleaseDirectoryURL if active, or legacy categories directory.
+    public static var categoriesDirectoryURL: URL? {
+        return activeReleaseDirectoryURL ?? customCategoriesDirectoryURL ?? sharedContainerURL?.appendingPathComponent("categories")
+    }
+
     public static var customCategoryDomainFiles: [String: URL]? = nil
+
+    /// Cleans up any orphaned staging directories left behind by interrupted installations.
+    public static func cleanupStaging() {
+        guard let stagingRoot = stagingRootDirectoryURL, FileManager.default.fileExists(atPath: stagingRoot.path) else { return }
+        if let stagingItems = try? FileManager.default.contentsOfDirectory(atPath: stagingRoot.path) {
+            for item in stagingItems {
+                let leftover = stagingRoot.appendingPathComponent(item)
+                try? FileManager.default.removeItem(at: leftover)
+            }
+        }
+    }
+
+    /// Resets all custom test URLs to defaults.
+    public static func resetCustomURLs() {
+        customSharedContainerURL = nil
+        customPreferencesFileURL = nil
+        customOverridesFileURL = nil
+        customReleaseFileURL = nil
+        customCategoriesDirectoryURL = nil
+        customReleasesDirectoryURL = nil
+        customStagingDirectoryURL = nil
+        customCategoryDomainFiles = nil
+    }
 
     // MARK: - Preferences Persistence
 
@@ -184,9 +288,205 @@ public final class AuraCategoryStore {
         }
     }
 
+    // MARK: - Installed Release Persistence
+
+    public static func installRelease(
+        version: String,
+        files: [String: String],
+        domainCount: Int = 0,
+        etag: String? = nil,
+        checksum: String? = nil
+    ) throws -> [String: Any] {
+        guard let containerURL = sharedContainerURL else {
+            throw NSError(domain: "AuraCategoryStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "App Group container URL is nil"])
+        }
+        guard !files.isEmpty else {
+            throw NSError(domain: "AuraCategoryStore", code: 2, userInfo: [NSLocalizedDescriptionKey: "Cannot install empty release with no files"])
+        }
+
+        let fileManager = FileManager.default
+        guard let releasesRoot = releasesRootDirectoryURL,
+              let stagingRoot = stagingRootDirectoryURL else {
+            throw NSError(domain: "AuraCategoryStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Releases or staging root directory URL is nil"])
+        }
+
+        // 1. Clean up any orphaned staging directories and create roots if needed
+        cleanupStaging()
+        try fileManager.createDirectory(at: stagingRoot, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: releasesRoot, withIntermediateDirectories: true)
+
+        // 2. Create an isolated staging directory for this release
+        let releaseToken = UUID().uuidString.prefix(8)
+        let sanitizedVersion = version.replacingOccurrences(of: "[^a-zA-Z0-9.-]", with: "_", options: .regularExpression)
+        let releaseDirName = "rel_\(sanitizedVersion)_\(releaseToken)"
+        let stageDir = stagingRoot.appendingPathComponent("stage_\(releaseDirName)")
+        let finalReleaseDir = releasesRoot.appendingPathComponent(releaseDirName)
+
+        if fileManager.fileExists(atPath: stageDir.path) {
+            try fileManager.removeItem(at: stageDir)
+        }
+        try fileManager.createDirectory(at: stageDir, withIntermediateDirectories: true)
+
+        var activationSucceeded = false
+        defer {
+            if !activationSucceeded {
+                try? fileManager.removeItem(at: stageDir)
+                if fileManager.fileExists(atPath: finalReleaseDir.path) {
+                    try? fileManager.removeItem(at: finalReleaseDir)
+                }
+            }
+        }
+
+        // 3. Write each file into staging directory
+        var installedFilesMap: [String: String] = [:]
+        for (name, content) in files {
+            let normalizedName = name.lowercased().hasSuffix(".txt") ? name.lowercased() : "\(name.lowercased()).txt"
+            let fileURL = stageDir.appendingPathComponent(normalizedName)
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            installedFilesMap[name] = normalizedName
+        }
+
+        // 4. Verify release integrity in staging before moving
+        for (name, _) in files {
+            let normalizedName = name.lowercased().hasSuffix(".txt") ? name.lowercased() : "\(name.lowercased()).txt"
+            let fileURL = stageDir.appendingPathComponent(normalizedName)
+            var isDir: ObjCBool = false
+            guard fileManager.fileExists(atPath: fileURL.path, isDirectory: &isDir), !isDir.boolValue else {
+                throw NSError(domain: "AuraCategoryStore", code: 4, userInfo: [NSLocalizedDescriptionKey: "Staged file \(normalizedName) is missing or is a directory"])
+            }
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8),
+                  !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw NSError(domain: "AuraCategoryStore", code: 5, userInfo: [NSLocalizedDescriptionKey: "Staged file \(normalizedName) is empty or unreadable"])
+            }
+        }
+
+        // 5. Move stageDir to finalReleaseDir in releases/
+        if fileManager.fileExists(atPath: finalReleaseDir.path) {
+            try fileManager.removeItem(at: finalReleaseDir)
+        }
+        try fileManager.moveItem(at: stageDir, to: finalReleaseDir)
+
+        // 6. Atomically write metadata pointing to the new release
+        let releaseContainer = AuraInstalledReleaseContainer(
+            version: version,
+            installedAt: Date(),
+            domainCount: domainCount,
+            files: installedFilesMap,
+            checksum: checksum,
+            etag: etag,
+            releaseDirectory: releaseDirName
+        )
+
+        guard let metadataURL = releaseFileURL else {
+            throw NSError(domain: "AuraCategoryStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Release file URL is nil"])
+        }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(releaseContainer)
+        try data.write(to: metadataURL, options: .atomic)
+
+        // Activation succeeded!
+        activationSucceeded = true
+
+        // 7. Prune older releases (keep only the active releaseDirName)
+        if let releaseDirs = try? fileManager.contentsOfDirectory(atPath: releasesRoot.path) {
+            for item in releaseDirs where item != releaseDirName {
+                let oldDir = releasesRoot.appendingPathComponent(item)
+                try? fileManager.removeItem(at: oldDir)
+            }
+        }
+
+        // Clean up legacy categories/ directory if it exists to eliminate any obsolete files
+        if let legacyCatDir = customCategoriesDirectoryURL ?? containerURL.appendingPathComponent("categories") as URL?,
+           fileManager.fileExists(atPath: legacyCatDir.path) {
+            try? fileManager.removeItem(at: legacyCatDir)
+        }
+
+        // Clean up any other staging directories
+        if let stagingItems = try? fileManager.contentsOfDirectory(atPath: stagingRoot.path) {
+            for item in stagingItems {
+                let leftover = stagingRoot.appendingPathComponent(item)
+                try? fileManager.removeItem(at: leftover)
+            }
+        }
+
+        os_log(.info, log: Self.log, "Successfully activated release %{public}@ (dir: %{public}@) with %{public}ld files into App Group", version, releaseDirName, files.count)
+
+        let isoDate = ISO8601DateFormatter().string(from: releaseContainer.installedAt)
+        return [
+            "success": true,
+            "version": version,
+            "installedAt": isoDate,
+            "domainCount": domainCount,
+            "files": installedFilesMap,
+            "releaseDirectory": releaseDirName
+        ]
+    }
+
+    public static func loadInstalledRelease() -> [String: Any]? {
+        guard let targetURL = releaseFileURL, FileManager.default.fileExists(atPath: targetURL.path) else {
+            return nil
+        }
+        guard let data = try? Data(contentsOf: targetURL) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let container = try? decoder.decode(AuraInstalledReleaseContainer.self, from: data) else {
+            return nil
+        }
+
+        // Verify that if a releaseDirectory is specified, it exists on disk and contains all declared files
+        if let dirName = container.releaseDirectory, let root = releasesRootDirectoryURL {
+            let releaseDir = root.appendingPathComponent(dirName)
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: releaseDir.path, isDirectory: &isDir), isDir.boolValue else {
+                os_log(.error, log: Self.log, "Active release points to missing directory %{public}@ — treating release as invalid", dirName)
+                return nil
+            }
+            for (_, fileName) in container.files {
+                let fileURL = releaseDir.appendingPathComponent(fileName)
+                if !FileManager.default.fileExists(atPath: fileURL.path) {
+                    os_log(.error, log: Self.log, "Active release directory is missing declared file %{public}@ — treating release as invalid", fileName)
+                    return nil
+                }
+            }
+        }
+
+        var dict: [String: Any] = [
+            "version": container.version,
+            "installedAt": ISO8601DateFormatter().string(from: container.installedAt),
+            "domainCount": container.domainCount,
+            "files": container.files
+        ]
+        if let dir = container.releaseDirectory { dict["releaseDirectory"] = dir }
+        if let etag = container.etag { dict["etag"] = etag }
+        if let checksum = container.checksum { dict["checksum"] = checksum }
+        return dict
+    }
+
+    public static func clearInstalledRelease() throws {
+        let fileManager = FileManager.default
+        if let releasesRoot = releasesRootDirectoryURL, fileManager.fileExists(atPath: releasesRoot.path) {
+            try? fileManager.removeItem(at: releasesRoot)
+        }
+        if let stagingRoot = stagingRootDirectoryURL, fileManager.fileExists(atPath: stagingRoot.path) {
+            try? fileManager.removeItem(at: stagingRoot)
+        }
+        if let legacyDir = customCategoriesDirectoryURL ?? sharedContainerURL?.appendingPathComponent("categories"),
+           fileManager.fileExists(atPath: legacyDir.path) {
+            try? fileManager.removeItem(at: legacyDir)
+        }
+        if let metadataURL = releaseFileURL, fileManager.fileExists(atPath: metadataURL.path) {
+            try fileManager.removeItem(at: metadataURL)
+        }
+        os_log(.info, log: Self.log, "Cleared installed release from App Group; reverting to static bundle")
+    }
+
     // MARK: - Bundled Category Domain Lists Loader
 
-    /// Loads the bundled default domains for a given category ("Ads", "Trackers", "Analytics").
+    /// Loads the active domains for a given category ("Ads", "Trackers", "Analytics", "Malware", etc.).
+    /// Checks the App Group container active release directory first, falling back to static bundled files.
     public static func loadBundledDomains(for category: String) -> Set<String> {
         let fileName = category.lowercased()
 
@@ -197,14 +497,43 @@ public final class AuraCategoryStore {
             }
         }
 
-        // 1. Try bundle for class or main
+        // 1. Try App Group container active release directory first (downloaded release takes precedence)
+        if let activeDir = activeReleaseDirectoryURL {
+            let candidate = activeDir.appendingPathComponent("\(fileName).txt")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                if let content = try? String(contentsOf: candidate, encoding: .utf8) {
+                    let domains = parseDomains(from: content)
+                    if !domains.isEmpty {
+                        os_log(.info, log: Self.log, "Loaded %{public}ld domains from active release directory for category '%{public}@'", domains.count, category)
+                        return domains
+                    }
+                }
+            }
+        }
+
+        // 2. Try legacy categories directory if no activeReleaseDirectoryURL
+        if let legacyDir = customCategoriesDirectoryURL ?? sharedContainerURL?.appendingPathComponent("categories"),
+           FileManager.default.fileExists(atPath: legacyDir.path) {
+            let candidate = legacyDir.appendingPathComponent("\(fileName).txt")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                if let content = try? String(contentsOf: candidate, encoding: .utf8) {
+                    let domains = parseDomains(from: content)
+                    if !domains.isEmpty {
+                        os_log(.info, log: Self.log, "Loaded %{public}ld domains from legacy categories directory for category '%{public}@'", domains.count, category)
+                        return domains
+                    }
+                }
+            }
+        }
+
+        // 3. Try bundle for class or main (fallback if no dynamic release installed)
         let bundle = Bundle(for: AuraCategoryStore.self)
         var url = bundle.url(forResource: fileName, withExtension: "txt", subdirectory: "categories") ??
                   bundle.url(forResource: fileName, withExtension: "txt") ??
                   Bundle.main.url(forResource: fileName, withExtension: "txt", subdirectory: "categories") ??
                   Bundle.main.url(forResource: fileName, withExtension: "txt")
 
-        // 2. Try App Plugins folder if running inside host Runner.app
+        // 4. Try App Plugins folder if running inside host Runner.app
         if url == nil, let pluginsURL = Bundle.main.builtInPlugInsURL {
             let extBundleURL = pluginsURL.appendingPathComponent("AuraTunnel.appex")
             if let extBundle = Bundle(url: extBundleURL) {
@@ -213,15 +542,7 @@ public final class AuraCategoryStore {
             }
         }
 
-        // 3. Try App Group container or relative resource path
-        if url == nil, let containerURL = sharedContainerURL {
-            let candidate = containerURL.appendingPathComponent("categories/\(fileName).txt")
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                url = candidate
-            }
-        }
-
-        // 4. Try development filesystem relative path (for SPM/CLI tests)
+        // 5. Try development filesystem relative path (for SPM/CLI tests)
         if url == nil {
             let devCandidates = [
                 "ios/AuraTunnel/Resources/categories/\(fileName).txt",
@@ -260,21 +581,59 @@ public final class AuraCategoryStore {
         return domains
     }
 
-    /// Set of all domains belonging to any bundled default category.
+    /// Set of all domains belonging to any active or bundled default category.
     public static func allBundledDomains() -> Set<String> {
         var all = Set<String>()
-        for name in defaultCategoryNames {
-            all.formUnion(loadBundledDomains(for: name))
+        for (_, domains) in loadAllBundledCategories() {
+            all.formUnion(domains)
         }
         return all
     }
 
-    /// Loads all bundled categories into a dictionary mapping category name to domain set.
+    /// Loads all bundled and dynamic categories into a dictionary mapping category name to domain set.
+    /// Strictly guarantees that only categories belonging to the single active release are loaded.
     public static func loadAllBundledCategories() -> [String: Set<String>] {
         var categories: [String: Set<String>] = [:]
+
+        // 1. If an active release directory exists, ONLY load categories that exist in this active release
+        if let activeDir = activeReleaseDirectoryURL {
+            if let items = try? FileManager.default.contentsOfDirectory(atPath: activeDir.path) {
+                for item in items where item.hasSuffix(".txt") {
+                    let catName = (item as NSString).deletingPathExtension.capitalized
+                    categories[catName] = loadBundledDomains(for: catName)
+                }
+            }
+
+            // Ensure standard default category names (Ads, Trackers, Analytics) are also checked
+            // (in case a standard category is not in the directory, loadBundledDomains falls back to bundle)
+            for name in defaultCategoryNames {
+                if categories[name] == nil {
+                    let domains = loadBundledDomains(for: name)
+                    if !domains.isEmpty {
+                        categories[name] = domains
+                    }
+                }
+            }
+
+            return categories
+        }
+
+        // 2. If no active release directory exists, use standard categories and legacy categories directory
         for name in defaultCategoryNames {
             categories[name] = loadBundledDomains(for: name)
         }
+
+        if let legacyDir = customCategoriesDirectoryURL ?? sharedContainerURL?.appendingPathComponent("categories") {
+            if let items = try? FileManager.default.contentsOfDirectory(atPath: legacyDir.path) {
+                for item in items where item.hasSuffix(".txt") {
+                    let catName = (item as NSString).deletingPathExtension.capitalized
+                    if categories[catName] == nil {
+                        categories[catName] = loadBundledDomains(for: catName)
+                    }
+                }
+            }
+        }
+
         return categories
     }
 

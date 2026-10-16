@@ -398,4 +398,79 @@ class AuraTunnelService {
       );
     }
   }
+
+  /// Retrieves metadata of the currently installed backend blocklist release from native App Group storage.
+  /// Returns null if no release has been installed yet (using static bundle) or on unsupported platforms.
+  Future<Map<String, dynamic>?> getInstalledRelease() async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'getInstalledRelease',
+      );
+      if (raw is Map) {
+        return Map<String, dynamic>.from(raw);
+      }
+      return null;
+    } on MissingPluginException {
+      return null;
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to query installed blocklist release.',
+      );
+    }
+  }
+
+  /// Atomically installs a validated backend blocklist release into native App Group storage.
+  /// If the firewall is currently active, notifies the Network Extension to reload rules live.
+  Future<Map<String, dynamic>> installBlocklistRelease({
+    required String version,
+    required Map<String, String> files,
+    int domainCount = 0,
+    String? etag,
+    String? checksum,
+  }) async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'installBlocklistRelease',
+        {
+          'version': version,
+          'files': files,
+          'domainCount': domainCount,
+          'etag': ?etag,
+          'checksum': ?checksum,
+        },
+      );
+      if (raw is Map) {
+        return Map<String, dynamic>.from(raw);
+      }
+      return {'success': true, 'version': version};
+    } on MissingPluginException {
+      throw const AuraRuleException(
+        'UNSUPPORTED_PLATFORM',
+        'Native blocklist installation is not supported on this platform.',
+      );
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to install blocklist release $version.',
+      );
+    }
+  }
+
+  /// Removes the downloaded blocklist release from App Group storage, reverting to the bundled defaults.
+  Future<bool> clearInstalledRelease() async {
+    try {
+      final bool? res = await _controlChannel.invokeMethod<bool>(
+        'clearInstalledRelease',
+      );
+      return res ?? true;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException catch (e) {
+      throw AuraRuleException(
+        e.code,
+        e.message ?? 'Failed to clear installed blocklist release.',
+      );
+    }
+  }
 }
