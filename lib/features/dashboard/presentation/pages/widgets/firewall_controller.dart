@@ -3,8 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
-/// Home hero: status chip → two rings + power button → title + subtitle.
-/// Pixel values below are 1:1 with the design (240 / 206 / 172 circles).
 class FirewallController extends StatelessWidget {
   const FirewallController({super.key});
 

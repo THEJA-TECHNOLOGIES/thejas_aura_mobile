@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:theja_aura/core/theme/app_colors.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
-import 'package:theja_aura/core/theme/app_typography.dart';
 import 'package:theja_aura/core/utils/app_button.dart';
 import 'package:theja_aura/core/utils/app_toast.dart';
 import 'package:theja_aura/core/utils/app_utils.dart';
@@ -68,12 +66,6 @@ class _ActivityPageState extends State<ActivityPage>
     if (widget.isLogsMode) return;
     context.read<ActivityBloc>().add(
       ActivityEvent.outcomeFilterChanged(outcome),
-    );
-  }
-
-  void _onTimeWindowChanged(int? windowMillis) {
-    context.read<ActivityBloc>().add(
-      ActivityEvent.timeWindowFilterChanged(windowMillis),
     );
   }
 
@@ -394,154 +386,6 @@ class _ActivityPageState extends State<ActivityPage>
               ],
             ),
           );
-          // return ListTile(
-          //   leading: const Icon(
-          //     Icons.block,
-          //     color: Colors.redAccent,
-          //     size: 22,
-          //   ),
-          //   title: Text(
-          //     record.domain,
-          //     style: const TextStyle(
-          //       fontWeight: FontWeight.w600,
-          //       fontSize: 14,
-          //     ),
-          //     overflow: TextOverflow.ellipsis,
-          //   ),
-          //   subtitle: Text(
-          //     _formatTimestamp(record.dateTime),
-          //     style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
-          //   ),
-          //   trailing: Container(
-          //     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          //     decoration: BoxDecoration(
-          //       color: Colors.red.shade900.withValues(alpha: 0.3),
-          //       borderRadius: BorderRadius.circular(4),
-          //     ),
-          //     child: const Text(
-          //       'BLOCKED',
-          //       style: TextStyle(
-          //         color: Colors.redAccent,
-          //         fontSize: 10,
-          //         fontWeight: FontWeight.bold,
-          //       ),
-          //     ),
-          //   ),
-          // );
-
-          // // Live Activity mode: Domain, Timestamp, Outcome, QueryType, Categories
-          // final outcomeColor = _getOutcomeColor(record.outcome);
-          // final outcomeIcon = _getOutcomeIcon(record.outcome);
-
-          // return ListTile(
-          //   leading: Icon(outcomeIcon, color: outcomeColor),
-          //   title: Row(
-          //     children: [
-          //       Expanded(
-          //         child: Text(
-          //           record.domain,
-          //           style: const TextStyle(
-          //             fontWeight: FontWeight.w600,
-          //             fontSize: 14,
-          //           ),
-          //           overflow: TextOverflow.ellipsis,
-          //         ),
-          //       ),
-          //       Container(
-          //         padding: const EdgeInsets.symmetric(
-          //           horizontal: 6,
-          //           vertical: 2,
-          //         ),
-          //         decoration: BoxDecoration(
-          //           color: Colors.grey.shade800,
-          //           borderRadius: BorderRadius.circular(4),
-          //         ),
-          //         child: Text(
-          //           record.queryType,
-          //           style: TextStyle(
-          //             color: Colors.grey.shade300,
-          //             fontSize: 10,
-          //             fontWeight: FontWeight.bold,
-          //           ),
-          //         ),
-          //       ),
-          //     ],
-          //   ),
-          //   subtitle: Column(
-          //     crossAxisAlignment: CrossAxisAlignment.start,
-          //     children: [
-          //       const SizedBox(height: 4),
-          //       Row(
-          //         children: [
-          //           Text(
-          //             record.outcome.toUpperCase(),
-          //             style: TextStyle(
-          //               color: outcomeColor,
-          //               fontWeight: FontWeight.bold,
-          //               fontSize: 11,
-          //             ),
-          //           ),
-          //           const SizedBox(width: 8),
-          //           Text(
-          //             _formatTimestamp(record.dateTime),
-          //             style: TextStyle(
-          //               color: Colors.grey.shade400,
-          //               fontSize: 11,
-          //             ),
-          //           ),
-          //           if (record.matchedSource != 'none') ...[
-          //             const SizedBox(width: 8),
-          //             Text(
-          //               '• ${record.matchedSource}',
-          //               style: TextStyle(
-          //                 color: Colors.grey.shade400,
-          //                 fontSize: 11,
-          //               ),
-          //             ),
-          //           ],
-          //         ],
-          //       ),
-          //       if (record.matchedCategories.isNotEmpty) ...[
-          //         const SizedBox(height: 4),
-          //         Wrap(
-          //           spacing: 4,
-          //           runSpacing: 2,
-          //           children: record.matchedCategories.map((cat) {
-          //             return Container(
-          //               padding: const EdgeInsets.symmetric(
-          //                 horizontal: 6,
-          //                 vertical: 1,
-          //               ),
-          //               decoration: BoxDecoration(
-          //                 color: Colors.deepPurple.shade900,
-          //                 borderRadius: BorderRadius.circular(10),
-          //               ),
-          //               child: Text(
-          //                 cat,
-          //                 style: const TextStyle(
-          //                   fontSize: 9,
-          //                   color: Colors.white70,
-          //                 ),
-          //               ),
-          //             );
-          //           }).toList(),
-          //         ),
-          //       ],
-          //       if (record.reason != null && record.reason!.isNotEmpty) ...[
-          //         const SizedBox(height: 2),
-          //         Text(
-          //           record.reason!,
-          //           style: TextStyle(
-          //             color: Colors.grey.shade400,
-          //             fontSize: 10,
-          //             fontStyle: FontStyle.italic,
-          //           ),
-          //           overflow: TextOverflow.ellipsis,
-          //         ),
-          //       ],
-          //     ],
-          //   ),
-          // );
         },
       ),
     );
