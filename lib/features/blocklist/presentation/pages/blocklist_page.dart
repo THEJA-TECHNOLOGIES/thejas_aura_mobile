@@ -7,6 +7,7 @@ import 'package:theja_aura/features/blocklist/presentation/pages/widgets/custom_
 import 'package:theja_aura/features/blocklist/presentation/pages/widgets/default_domain_tab.dart';
 
 import '../bloc/blocklist_bloc.dart';
+import '../bloc/blocklist_sync_cubit.dart';
 
 class BlocklistPage extends StatefulWidget {
   const BlocklistPage({super.key});
@@ -37,16 +38,32 @@ class _BlocklistPageState extends State<BlocklistPage>
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final typo = context.appTypography;
-    return BlocConsumer<BlocklistBloc, BlocklistState>(
-      listener: (context, state) {
-        if (state.actionError != null) {
-          showErrorToast(message: state.actionError!);
-          context.read<BlocklistBloc>().add(
-            const BlocklistEvent.actionErrorDismissed(),
-          );
-        }
-      },
-      builder: (context, state) {
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<BlocklistBloc, BlocklistState>(
+          listener: (context, state) {
+            if (state.actionError != null) {
+              showErrorToast(message: state.actionError!);
+              context.read<BlocklistBloc>().add(
+                const BlocklistEvent.actionErrorDismissed(),
+              );
+            }
+          },
+        ),
+        BlocListener<BlocklistSyncCubit, BlocklistSyncState>(
+          listenWhen: (previous, current) =>
+              previous.state != current.state &&
+              (current.state == SyncState.updated ||
+                  current.state == SyncState.upToDate),
+          listener: (context, syncState) {
+            context.read<BlocklistBloc>().add(
+              const BlocklistEvent.defaultCategoriesRefreshRequested(),
+            );
+          },
+        ),
+      ],
+      child: BlocBuilder<BlocklistBloc, BlocklistState>(
+        builder: (context, state) {
         return Scaffold(
           appBar: AppBar(title: const Text('Block lists')),
           body: Column(
@@ -113,6 +130,7 @@ class _BlocklistPageState extends State<BlocklistPage>
           ),
         );
       },
+      ),
     );
   }
 

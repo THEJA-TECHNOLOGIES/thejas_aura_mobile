@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:theja_aura/core/config/app_config.dart';
 import 'package:theja_aura/core/services/aura_activity_service.dart';
+import 'package:theja_aura/core/services/aura_default_categories.dart';
 import 'package:theja_aura/core/services/aura_domain_evaluator.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 import 'package:theja_aura/features/blocklist/data/datasources/blocklist_api_client.dart';
@@ -345,6 +346,19 @@ crashlytics.com
 # Domains: 0
 ''';
 
+        const malwareContent = '''
+# PrivacyShield compiled blocklist - Category: MALWARE
+# Version: 6ad193313259a32fe8debeb9
+bad-trojan.xyz
+malicious-site.com
+''';
+
+        const socialContent = '''
+# PrivacyShield compiled blocklist - Category: SOCIAL
+# Version: 6ad193313259a32fe8debeb9
+# Domains: 0
+''';
+
         final httpClient = MockHttpClient((request) async {
           if (request.url.path == '/api/public/blocklist/manifest') {
             return http.Response(
@@ -377,6 +391,22 @@ crashlytics.com
               headers: {'content-type': 'text/plain'},
             );
           }
+          if (request.url.path ==
+              '/api/public/blocklist/categories/malware/domains.txt') {
+            return http.Response(
+              malwareContent,
+              200,
+              headers: {'content-type': 'text/plain'},
+            );
+          }
+          if (request.url.path ==
+              '/api/public/blocklist/categories/social/domains.txt') {
+            return http.Response(
+              socialContent,
+              200,
+              headers: {'content-type': 'text/plain'},
+            );
+          }
           return http.Response('Not Found: ${request.url.path}', 404);
         });
 
@@ -397,11 +427,11 @@ crashlytics.com
         expect(result.isChecksumVerified, isFalse);
         expect(
           result.installedCategories,
-          containsAll(['ADS', 'TRACKERS', 'ANALYTICS']),
+          containsAll(['ADS', 'TRACKERS', 'ANALYTICS', 'MALWARE', 'SOCIAL']),
         );
         expect(
           result.unsupportedCategories,
-          containsAll(['MALWARE', 'SOCIAL']),
+          isEmpty,
         );
 
         // Verify native install was called
@@ -422,8 +452,11 @@ crashlytics.com
         expect(files.containsKey('ads.txt'), isTrue);
         expect(files.containsKey('trackers.txt'), isTrue);
         expect(files.containsKey('analytics.txt'), isTrue);
+        expect(files.containsKey('malware.txt'), isTrue);
+        expect(files.containsKey('social.txt'), isTrue);
         expect((files['ads.txt'] as String).contains('0.avmarket.rs'), isTrue);
         expect((files['trackers.txt'] as String).contains('adjust.io'), isTrue);
+        expect((files['malware.txt'] as String).contains('bad-trojan.xyz'), isTrue);
         // Header-only empty category file installed
         expect(
           (files['analytics.txt'] as String).contains('# Domains: 0'),
@@ -1768,6 +1801,89 @@ crashlytics.com
         categoryDomains: const {},
       );
       expect(evaluatorBlocked, isFalse, reason: 'Zero category domains must be blocked when no release is installed');
+    });
+
+    test('11. Dynamic category discovery exposes all 5 published backend categories with formatted names', () async {
+      mockReleaseCategoriesResponse = [
+        {'id': 'ads', 'name': 'Ads', 'fileName': 'ads.txt', 'domainCount': 192771},
+        {'id': 'trackers', 'name': 'Trackers', 'fileName': 'trackers.txt', 'domainCount': 34},
+        {'id': 'analytics', 'name': 'Analytics', 'fileName': 'analytics.txt', 'domainCount': 0},
+        {'id': 'malware', 'name': 'Malware', 'fileName': 'malware.txt', 'domainCount': 437},
+        {'id': 'social', 'name': 'Social', 'fileName': 'social.txt', 'domainCount': 0},
+      ];
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final categories = await repo.getDefaultCategories();
+
+      expect(categories.length, equals(5));
+      expect(categories.map((c) => c.name), containsAll(['Ads', 'Trackers', 'Analytics', 'Malware', 'Social']));
+      expect(categories.firstWhere((c) => c.name == 'Malware').domainCount, equals(437));
+      expect(categories.firstWhere((c) => c.name == 'Social').domainCount, equals(0));
+      expect(categories.firstWhere((c) => c.name == 'Ads').icon, isNotNull);
+    });
+
+    test('12. Dynamic category discovery supports arbitrary unknown future categories without code changes', () async {
+      final manifestJson = jsonEncode({
+        'version': '2026.11.01-01',
+        'updatedAt': '2026-11-01T00:00:00Z',
+        'domainCount': 500,
+        'categories': {
+          'CRYPTO_MINING': {
+            'domainCount': 350,
+            'files': {'domains': '/categories/crypto/domains.txt'},
+          },
+          'GAMBLING': {
+            'domainCount': 150,
+            'files': {'domains': '/categories/gambling/domains.txt'},
+          },
+        },
+      });
+
+      final httpClient = MockHttpClient((request) async {
+        if (request.url.path == '/api/public/blocklist/manifest') {
+          return http.Response(manifestJson, 200, headers: {'content-type': 'application/json'});
+        }
+        if (request.url.path == '/categories/crypto/domains.txt') {
+          return http.Response('coinhive.com\nminer.pool\n', 200, headers: {'content-type': 'text/plain'});
+        }
+        if (request.url.path == '/categories/gambling/domains.txt') {
+          return http.Response('betting-casino.biz\n', 200, headers: {'content-type': 'text/plain'});
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final config = AppConfig(apiBaseUrl: Uri.parse('http://127.0.0.1:8080'));
+      final syncRepo = BlocklistSyncRepository(BlocklistApiClient(config, httpClient), AuraTunnelService());
+      final result = await syncRepo.sync(force: true);
+
+      expect(result.isSuccess, isTrue);
+      expect(result.installedCategories, containsAll(['CRYPTO_MINING', 'GAMBLING']));
+      expect(result.unsupportedCategories, isEmpty);
+
+      // Verify native install call received the dynamic filenames
+      final installCall = recordedControlCalls.lastWhere((c) => c.method == 'installBlocklistRelease');
+      final files = (installCall.arguments as Map)['files'] as Map;
+      expect(files.containsKey('crypto_mining.txt'), isTrue);
+      expect(files.containsKey('gambling.txt'), isTrue);
+
+      // Verify category display name formatting helper
+      expect(AuraCategoryMetadata.formatDisplayName('CRYPTO_MINING'), equals('Crypto Mining'));
+      expect(AuraCategoryMetadata.formatDisplayName('GAMBLING'), equals('Gambling'));
+    });
+
+    test('13. Category removal between releases: omitted categories are pruned and absent from native storage', () async {
+      // Setup mock native response simulating release with category removed
+      mockReleaseCategoriesResponse = [
+        {'id': 'ads', 'name': 'Ads', 'fileName': 'ads.txt', 'domainCount': 100},
+        {'id': 'trackers', 'name': 'Trackers', 'fileName': 'trackers.txt', 'domainCount': 50},
+      ];
+
+      final repo = BlocklistRepository(AuraTunnelService());
+      final categories = await repo.getDefaultCategories();
+
+      expect(categories.length, equals(2));
+      expect(categories.any((c) => c.name.toLowerCase() == 'malware'), isFalse);
+      expect(categories.any((c) => c.name.toLowerCase() == 'social'), isFalse);
     });
   });
 }

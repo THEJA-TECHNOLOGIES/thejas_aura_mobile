@@ -51,6 +51,17 @@ class AuraDefaultCategory {
 
 /// Metadata mapping and UI presentation helpers for backend-published categories.
 class AuraCategoryMetadata {
+  /// Converts any backend category identifier (e.g. 'ADS', 'CRYPTO_MINING', 'malware') to a clean display name.
+  static String formatDisplayName(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final parts = trimmed.split(RegExp(r'[_ -]+'));
+    return parts.map((part) {
+      if (part.isEmpty) return '';
+      return part[0].toUpperCase() + part.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
   static IconData iconForCategory(String name) {
     switch (name.toLowerCase().trim()) {
       case 'ads':

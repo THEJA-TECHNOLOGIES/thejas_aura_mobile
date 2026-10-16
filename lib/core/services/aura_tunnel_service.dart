@@ -294,7 +294,7 @@ class AuraTunnelService {
         }
         return result;
       }
-      return {'Ads': true, 'Trackers': true, 'Analytics': true};
+      return const {};
     } on PlatformException catch (e) {
       throw AuraRuleException(
         e.code,
@@ -320,7 +320,7 @@ class AuraTunnelService {
         }
         return result;
       }
-      return {'Ads': true, 'Trackers': true, 'Analytics': true};
+      return const {};
     } on PlatformException catch (e) {
       throw AuraRuleException(
         e.code,

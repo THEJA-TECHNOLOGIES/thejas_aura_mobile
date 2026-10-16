@@ -86,12 +86,15 @@ class BlocklistRepository implements IBlocklistRepository {
       return const [];
     }
     return rawCats.map((item) {
-      final name = item['name'] as String? ?? '';
+      final rawName = item['name'] as String? ?? '';
+      final rawId = item['id'] as String? ?? rawName;
+      final displayName = AuraCategoryMetadata.formatDisplayName(rawName);
       final count = (item['domainCount'] as num?)?.toInt() ?? 0;
       return AuraDefaultCategory(
-        name: name,
-        description: AuraCategoryMetadata.descriptionForCategory(name),
-        icon: AuraCategoryMetadata.iconForCategory(name),
+        id: rawId,
+        name: displayName,
+        description: AuraCategoryMetadata.descriptionForCategory(rawName),
+        icon: AuraCategoryMetadata.iconForCategory(rawName),
         domainCount: count,
       );
     }).toList();

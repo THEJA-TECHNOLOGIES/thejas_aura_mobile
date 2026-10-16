@@ -72,8 +72,8 @@ void main() {
       expect(result.isUpdated, isTrue);
       expect(result.version, equals('6ad193313259a32fe8debeb9'));
       expect(result.isCategoryEndpointsMissing, isFalse);
-      expect(result.installedCategories, containsAll(['ADS', 'TRACKERS', 'ANALYTICS']));
-      expect(result.unsupportedCategories, containsAll(['MALWARE', 'SOCIAL']));
+      expect(result.installedCategories, containsAll(['ADS', 'TRACKERS', 'ANALYTICS', 'MALWARE', 'SOCIAL']));
+      expect(result.unsupportedCategories, isEmpty);
 
       // 5. Verify installed release metadata
       final release = await repository.getInstalledRelease();
@@ -82,9 +82,13 @@ void main() {
       expect(release.categoryFiles.containsKey('ads.txt'), isTrue);
       expect(release.categoryFiles.containsKey('trackers.txt'), isTrue);
       expect(release.categoryFiles.containsKey('analytics.txt'), isTrue);
+      expect(release.categoryFiles.containsKey('malware.txt'), isTrue);
+      expect(release.categoryFiles.containsKey('social.txt'), isTrue);
       expect(release.categoryDomainCounts['ads'], equals(192771));
       expect(release.categoryDomainCounts['trackers'], equals(34));
       expect(release.categoryDomainCounts['analytics'], equals(0));
+      expect(release.categoryDomainCounts['malware'], equals(437));
+      expect(release.categoryDomainCounts['social'], equals(0));
 
       // 6. Verify second sync without force reports up-to-date
       final secondSync = await repository.sync();

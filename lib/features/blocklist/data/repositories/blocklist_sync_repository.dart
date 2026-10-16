@@ -11,12 +11,6 @@ import '../datasources/blocklist_api_client.dart';
 
 @LazySingleton(as: IBlocklistSyncRepository)
 class BlocklistSyncRepository implements IBlocklistSyncRepository {
-  /// Maps supported backend category names (case-insensitive) to their local release filenames.
-  static const Map<String, String> supportedCategoryFileMapping = {
-    'ads': 'ads.txt',
-    'trackers': 'trackers.txt',
-    'analytics': 'analytics.txt',
-  };
 
   final IBlocklistApiClient _apiClient;
   final AuraTunnelService _tunnelService;
@@ -125,7 +119,7 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
       final filesToDownload = <String, String>{}; // destinationFileName -> urlOrPath
       final installedCategories = <String>[];
 
-      // 3.1. Check for category-specific endpoints in manifest.categories
+      // 3.1. Process category-specific endpoints in manifest.categories dynamically
       if (manifest.categories != null && manifest.categories!.isNotEmpty) {
         for (final entry in manifest.categories!.entries) {
           final catKey = entry.key;
@@ -138,15 +132,13 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
               meta.hostsUrl ??
               meta.files['hosts'];
 
-          if (supportedCategoryFileMapping.containsKey(normalizedKey)) {
-            final destinationFileName =
-                supportedCategoryFileMapping[normalizedKey]!;
-            if (url != null && url.isNotEmpty) {
-              filesToDownload[destinationFileName] = url;
-              installedCategories.add(catKey);
-            }
+          if (url != null && url.isNotEmpty) {
+            final destinationFileName = normalizedKey.endsWith('.txt')
+                ? normalizedKey
+                : '$normalizedKey.txt';
+            filesToDownload[destinationFileName] = url;
+            installedCategories.add(catKey);
           } else {
-            // Category published in manifest but unsupported by current application UI/native preferences
             unsupportedCategories.add(catKey);
           }
         }
@@ -160,19 +152,17 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
           if (key.contains('categories/')) {
             final parts = key.split('/');
             final cat = parts.length > 1 ? parts[1].toLowerCase().trim() : key;
-            if (supportedCategoryFileMapping.containsKey(cat)) {
-              filesToDownload[supportedCategoryFileMapping[cat]!] = url;
-              installedCategories.add(cat);
-            } else {
-              filesToDownload['$cat.txt'] = url;
-            }
+            final destinationFileName = cat.endsWith('.txt') ? cat : '$cat.txt';
+            filesToDownload[destinationFileName] = url;
+            installedCategories.add(cat.replaceAll('.txt', ''));
           } else if (key == 'domains' || key == 'domains.txt') {
             filesToDownload['domains.txt'] = url;
           } else if (key == 'hosts' || key == 'hosts.txt') {
             filesToDownload['hosts.txt'] = url;
-          } else if (supportedCategoryFileMapping.containsKey(key)) {
-            filesToDownload[supportedCategoryFileMapping[key]!] = url;
-            installedCategories.add(entry.key);
+          } else {
+            final destinationFileName = key.endsWith('.txt') ? key : '$key.txt';
+            filesToDownload[destinationFileName] = url;
+            installedCategories.add(entry.key.replaceAll('.txt', ''));
           }
         }
       }

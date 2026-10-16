@@ -59,14 +59,18 @@ public final class AuraCategoryStore {
     public static let overridesFileName = "aura_default_domain_overrides.json"
     public static let releaseFileName = "installed_release.json"
 
-    public static let defaultCategoryNames = ["Ads", "Trackers", "Analytics"]
-
     public static var defaultPreferences: [String: Bool] {
-        return [
-            "Ads": true,
-            "Trackers": true,
-            "Analytics": true
-        ]
+        let releaseCategories = loadReleaseCategories()
+        if releaseCategories.isEmpty {
+            return [:]
+        }
+        var prefs: [String: Bool] = [:]
+        for cat in releaseCategories {
+            if let name = cat["name"] as? String {
+                prefs[name] = true
+            }
+        }
+        return prefs
     }
 
     public static var customSharedContainerURL: URL? = nil
@@ -497,9 +501,10 @@ public final class AuraCategoryStore {
     /// Checks the App Group container active release directory only.
     /// Returns an empty set if no backend release is active or if the category does not exist.
     public static func loadBundledDomains(for category: String) -> Set<String> {
-        let fileName = category.lowercased()
+        let fileName = category.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedAlt = fileName.replacingOccurrences(of: " ", with: "_")
 
-        if let customURL = customCategoryDomainFiles?[fileName],
+        if let customURL = customCategoryDomainFiles?[fileName] ?? customCategoryDomainFiles?[normalizedAlt],
            FileManager.default.fileExists(atPath: customURL.path) {
             if let content = try? String(contentsOf: customURL, encoding: .utf8) {
                 return parseDomains(from: content)
@@ -509,12 +514,13 @@ public final class AuraCategoryStore {
         // 1. App Group container active release directory (backend-installed release)
         if let activeDir = activeReleaseDirectoryURL {
             let candidate = activeDir.appendingPathComponent("\(fileName).txt")
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                if let content = try? String(contentsOf: candidate, encoding: .utf8) {
-                    let domains = parseDomains(from: content)
-                    os_log(.info, log: Self.log, "Loaded %{public}ld domains from active release directory for category '%{public}@'", domains.count, category)
-                    return domains
-                }
+            let candidateAlt = activeDir.appendingPathComponent("\(normalizedAlt).txt")
+            let fileURL = FileManager.default.fileExists(atPath: candidate.path) ? candidate :
+                          (FileManager.default.fileExists(atPath: candidateAlt.path) ? candidateAlt : nil)
+            if let fileURL = fileURL, let content = try? String(contentsOf: fileURL, encoding: .utf8) {
+                let domains = parseDomains(from: content)
+                os_log(.info, log: Self.log, "Loaded %{public}ld domains from active release directory for category '%{public}@'", domains.count, category)
+                return domains
             }
         }
 
@@ -522,11 +528,12 @@ public final class AuraCategoryStore {
         if let customDir = customCategoriesDirectoryURL,
            FileManager.default.fileExists(atPath: customDir.path) {
             let candidate = customDir.appendingPathComponent("\(fileName).txt")
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                if let content = try? String(contentsOf: candidate, encoding: .utf8) {
-                    let domains = parseDomains(from: content)
-                    return domains
-                }
+            let candidateAlt = customDir.appendingPathComponent("\(normalizedAlt).txt")
+            let fileURL = FileManager.default.fileExists(atPath: candidate.path) ? candidate :
+                          (FileManager.default.fileExists(atPath: candidateAlt.path) ? candidateAlt : nil)
+            if let fileURL = fileURL, let content = try? String(contentsOf: fileURL, encoding: .utf8) {
+                let domains = parseDomains(from: content)
+                return domains
             }
         }
 
@@ -568,6 +575,10 @@ public final class AuraCategoryStore {
         if let activeDir = activeReleaseDirectoryURL {
             if let items = try? FileManager.default.contentsOfDirectory(atPath: activeDir.path) {
                 for item in items where item.hasSuffix(".txt") {
+                    let lower = item.lowercased()
+                    if lower == "domains.txt" || lower == "hosts.txt" {
+                        continue
+                    }
                     let catName = (item as NSString).deletingPathExtension.capitalized
                     categories[catName] = loadBundledDomains(for: catName)
                 }
@@ -580,6 +591,10 @@ public final class AuraCategoryStore {
            FileManager.default.fileExists(atPath: customDir.path) {
             if let items = try? FileManager.default.contentsOfDirectory(atPath: customDir.path) {
                 for item in items where item.hasSuffix(".txt") {
+                    let lower = item.lowercased()
+                    if lower == "domains.txt" || lower == "hosts.txt" {
+                        continue
+                    }
                     let catName = (item as NSString).deletingPathExtension.capitalized
                     categories[catName] = loadBundledDomains(for: catName)
                 }
@@ -600,9 +615,15 @@ public final class AuraCategoryStore {
         var results: [[String: Any]] = []
         if let items = try? FileManager.default.contentsOfDirectory(atPath: activeDir.path) {
             for item in items.sorted() where item.hasSuffix(".txt") {
-                let catName = (item as NSString).deletingPathExtension.capitalized
-                let domains = loadBundledDomains(for: catName)
+                let lower = item.lowercased()
+                if lower == "domains.txt" || lower == "hosts.txt" {
+                    continue
+                }
+                let rawId = (item as NSString).deletingPathExtension
+                let catName = rawId.capitalized
+                let domains = loadBundledDomains(for: rawId)
                 results.append([
+                    "id": rawId,
                     "name": catName,
                     "fileName": item,
                     "domainCount": domains.count

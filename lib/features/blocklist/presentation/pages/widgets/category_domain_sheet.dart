@@ -63,7 +63,9 @@ class _CategoryDomainSheetState extends State<CategoryDomainSheet> {
     setState(() => _isLoadingDomains = true);
     try {
       final domains = await getIt<IBlocklistRepository>().getCategoryDomains(
-        widget.category.name,
+        widget.category.id.isNotEmpty
+            ? widget.category.id
+            : widget.category.name,
       );
       if (mounted) {
         setState(() {

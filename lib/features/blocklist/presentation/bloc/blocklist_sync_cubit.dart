@@ -6,6 +6,7 @@ import 'package:injectable/injectable.dart';
 import '../../domain/repositories/i_blocklist_sync_repository.dart';
 import 'blocklist_sync_state.dart';
 
+export '../../domain/repositories/i_blocklist_sync_repository.dart' show SyncState;
 export 'blocklist_sync_state.dart';
 
 @injectable
