@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/app_utils.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.dart';
 import 'package:theja_aura/features/blocklist/presentation/pages/widgets/category_domain_sheet.dart';
 
@@ -106,9 +107,8 @@ class DefaultDomainTab extends StatelessWidget {
         }
 
         return RefreshIndicator(
-          onRefresh: () async => context.read<BlocklistBloc>().add(
-            const BlocklistEvent.started(),
-          ),
+          onRefresh: () async =>
+              context.read<BlocklistBloc>().add(const BlocklistEvent.started()),
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -168,7 +168,7 @@ class DefaultDomainTab extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          category.domainCount.toString(),
+                          formatNumber(category.domainCount),
                           style: typo.titleSmall.copyWith(
                             fontWeight: FontWeight.w600,
                             color: colors.textSecondary,

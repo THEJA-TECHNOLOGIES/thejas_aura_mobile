@@ -35,7 +35,6 @@ class _DashboardPageState extends State<DashboardPage>
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<DashboardBloc, DashboardState>(
@@ -72,9 +71,9 @@ class _DashboardPageState extends State<DashboardPage>
                 SizedBox(height: 22),
                 FirewallController(),
                 const SizedBox(height: 18),
-                CTAButtons(),
-                const SizedBox(height: 18),
                 StatisticsSection(),
+                const SizedBox(height: 18),
+                CTAButtons(),
                 const SizedBox(height: 24),
               ],
             ),
@@ -83,5 +82,4 @@ class _DashboardPageState extends State<DashboardPage>
       },
     );
   }
-
 }

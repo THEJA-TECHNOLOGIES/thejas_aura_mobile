@@ -285,4 +285,43 @@ final class AuraDatabaseTests: XCTestCase {
 
         repository.close()
     }
+
+    func testDashboardStatsAllTimeQueryAndRepeatedDomains() throws {
+        let dbWriter = AuraActivityDatabase(fileURL: testDatabaseURL)
+        XCTAssertTrue(dbWriter.open())
+
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let records = [
+            // google.com x 3 (2 blocked, 1 allowed)
+            ActivityRecord(domain: "google.com", timestamp: now - 5000, queryType: "A", outcome: "blocked", matchedSource: "custom"),
+            ActivityRecord(domain: "google.com", timestamp: now - 4000, queryType: "A", outcome: "blocked", matchedSource: "custom"),
+            ActivityRecord(domain: "google.com", timestamp: now - 3000, queryType: "AAAA", outcome: "allowed", matchedSource: "none"),
+            // youtube.com x 2 (2 blocked)
+            ActivityRecord(domain: "youtube.com", timestamp: now - 2000, queryType: "A", outcome: "blocked", matchedSource: "custom"),
+            ActivityRecord(domain: "youtube.com", timestamp: now - 1000, queryType: "A", outcome: "blocked", matchedSource: "custom"),
+            // example.com x 1 (1 allowed)
+            ActivityRecord(domain: "example.com", timestamp: now, queryType: "A", outcome: "allowed", matchedSource: "none")
+        ]
+
+        let writeSuccess = dbWriter.insertBatch(records)
+        XCTAssertTrue(writeSuccess)
+        dbWriter.close()
+
+        let repository = AuraActivityRepository(fileURL: testDatabaseURL)
+        try repository.open()
+
+        // All-time query with timeWindowMillis: 0 (no date restriction)
+        let allTimeStats = try repository.getDashboardStats(timeWindowMillis: 0)
+
+        // All-Time Logs counts all 6 records, including repeated requests
+        XCTAssertEqual(allTimeStats.totalQueries, 6)
+        // Unique domains counts distinct domain values (google.com, youtube.com, example.com)
+        XCTAssertEqual(allTimeStats.uniqueDomainsTotal, 3)
+        // Blocked counts
+        XCTAssertEqual(allTimeStats.totalBlocked, 4)
+        XCTAssertEqual(allTimeStats.uniqueBlockedDomains, 2)
+        XCTAssertEqual(allTimeStats.totalAllowed, 2)
+
+        repository.close()
+    }
 }

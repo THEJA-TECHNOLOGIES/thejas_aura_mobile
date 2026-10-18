@@ -11,6 +11,19 @@ import '../bloc/blocklist_sync_cubit.dart';
 
 class BlocklistPage extends StatefulWidget {
   const BlocklistPage({super.key});
+  static Future<void> show({required BuildContext context}) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      // backgroundColor: Colors.transparent,
+      useRootNavigator: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => BlocklistPage(),
+    );
+  }
 
   @override
   State<BlocklistPage> createState() => _BlocklistPageState();
@@ -64,75 +77,76 @@ class _BlocklistPageState extends State<BlocklistPage>
       ],
       child: BlocBuilder<BlocklistBloc, BlocklistState>(
         builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(title: const Text('Block lists')),
-          body: Column(
-            children: [
-              Container(
-                padding: .all(4),
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                decoration: BoxDecoration(
-                  color: colors.segmentBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: colors.border, width: 1),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  tabs: const [
-                    Tab(text: 'Default'),
-                    Tab(text: 'Custom'),
-                  ],
-                  labelStyle: typo.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
+          return ClipRRect(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            child: Scaffold(
+              appBar: AppBar(title: const Text('Block lists')),
+              body: Column(
+                children: [
+                  Container(
+                    padding: .all(4),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.segmentBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: colors.border, width: 1),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      tabs: const [
+                        Tab(text: 'Default'),
+                        Tab(text: 'Custom'),
+                      ],
+                      labelStyle: typo.titleMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      unselectedLabelStyle: typo.titleMedium.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                      dividerColor: Colors.transparent,
+                      dividerHeight: 0.0,
+                      indicator: BoxDecoration(
+                        color: colors.surfaceRaised,
+                        borderRadius: .circular(12),
+                      ),
+                      indicatorSize: .tab,
+                    ),
                   ),
-                  unselectedLabelStyle: typo.titleMedium.copyWith(
-                    color: colors.textSecondary,
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [DefaultDomainTab(), CustomDomainTab()],
+                    ),
                   ),
-                  dividerColor: Colors.transparent,
-                  dividerHeight: 0.0,
-                  indicator: BoxDecoration(
-                    color: colors.surfaceRaised,
-                    borderRadius: .circular(12),
-                  ),
-                  indicatorSize: .tab,
-                ),
+                ],
               ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    DefaultDomainTab(),
-                    CustomDomainTab(),
-                  ],
-                ),
+              floatingActionButton: AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) {
+                  if (_tabController.index != 1) return const SizedBox.shrink();
+                  return FloatingActionButton.extended(
+                    onPressed: () =>
+                        handleAddRule(isBlockedDefault: true, context: context),
+                    icon: Icon(Icons.add, color: colors.white),
+                    label: Text(
+                      'Add Domain',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    elevation: 0,
+                    backgroundColor: colors.primary,
+                  );
+                },
               ),
-            ],
-          ),
-          floatingActionButton: AnimatedBuilder(
-            animation: _tabController,
-            builder: (context, _) {
-              if (_tabController.index != 1) return const SizedBox.shrink();
-              return FloatingActionButton.extended(
-                onPressed: () =>
-                    handleAddRule(isBlockedDefault: true, context: context),
-                icon: Icon(Icons.add, color: colors.white),
-                label: Text(
-                  'Add Domain',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                elevation: 0,
-                backgroundColor: colors.primary,
-              );
-            },
-          ),
-        );
-      },
+            ),
+          );
+        },
       ),
     );
   }
-
-
 }

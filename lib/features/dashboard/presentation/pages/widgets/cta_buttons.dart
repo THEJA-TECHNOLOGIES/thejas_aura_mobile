@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/features/activity/presentation/pages/activity_page.dart';
+import 'package:theja_aura/features/blocklist/presentation/pages/blocklist_page.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
 class CTAButtons extends StatelessWidget {
@@ -9,17 +10,8 @@ class CTAButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    void openLogs() async {
-      await context.push('/logs');
-      if (context.mounted) {
-        context.read<DashboardBloc>().add(
-          const DashboardEvent.statsRefreshRequested(),
-        );
-      }
-    }
-
     void openLiveActivity() async {
-      await context.push('/activity');
+      ActivityPage.show(context: context);
       if (context.mounted) {
         context.read<DashboardBloc>().add(
           const DashboardEvent.statsRefreshRequested(),
@@ -28,7 +20,8 @@ class CTAButtons extends StatelessWidget {
     }
 
     void openBlocklist() async {
-      await context.push('/blocklist');
+      // await context.push('/blocklist');
+      BlocklistPage.show(context: context);
       if (context.mounted) {
         context.read<DashboardBloc>().add(
           const DashboardEvent.statsRefreshRequested(),
@@ -40,16 +33,16 @@ class CTAButtons extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Expanded(
-            child: CtaButtons(
-              label: 'Logs',
-              subtitle: 'Blocked events',
-              icon: Icons.notes,
-              color: Colors.blueAccent,
-              onTap: openLogs,
-            ),
-          ),
-          const SizedBox(width: 8),
+          // Expanded(
+          //   child: CtaButtons(
+          //     label: 'Logs',
+          //     subtitle: 'Blocked events',
+          //     icon: Icons.notes,
+          //     color: Colors.blueAccent,
+          //     onTap: openLogs,
+          //   ),
+          // ),
+          // const SizedBox(width: 8),
           Expanded(
             child: CtaButtons(
               label: 'Live Activity',

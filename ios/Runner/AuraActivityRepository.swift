@@ -430,10 +430,20 @@ public final class AuraActivityRepository {
 
         guard let db = db else { throw AuraRepositoryError.databaseNotFound }
 
+        let isAllTime = timeWindowMillis <= 0
         let endTime = currentTimeMillis
-        let startTime = endTime - timeWindowMillis
+        let startTime = isAllTime ? 0 : (endTime - timeWindowMillis)
 
-        let sql = """
+        let sql = isAllTime ? """
+        SELECT 
+            COUNT(*) AS total_queries,
+            COUNT(CASE WHEN outcome = 'blocked' THEN 1 END) AS total_blocked,
+            COUNT(CASE WHEN outcome = 'allowed' THEN 1 END) AS total_allowed,
+            COUNT(CASE WHEN outcome = 'failed' THEN 1 END) AS total_failed,
+            COUNT(DISTINCT CASE WHEN outcome = 'blocked' THEN domain END) AS unique_blocked_domains,
+            COUNT(DISTINCT domain) AS unique_domains_total
+        FROM dns_activity;
+        """ : """
         SELECT 
             COUNT(*) AS total_queries,
             COUNT(CASE WHEN outcome = 'blocked' THEN 1 END) AS total_blocked,
@@ -452,8 +462,10 @@ public final class AuraActivityRepository {
         }
         defer { sqlite3_finalize(preparedStmt) }
 
-        sqlite3_bind_int64(preparedStmt, 1, startTime)
-        sqlite3_bind_int64(preparedStmt, 2, endTime)
+        if !isAllTime {
+            sqlite3_bind_int64(preparedStmt, 1, startTime)
+            sqlite3_bind_int64(preparedStmt, 2, endTime)
+        }
 
         var totalQueries: Int64 = 0
         var totalBlocked: Int64 = 0

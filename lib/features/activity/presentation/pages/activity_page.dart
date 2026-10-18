@@ -14,6 +14,22 @@ class ActivityPage extends StatefulWidget {
   final bool isLogsMode;
 
   const ActivityPage({super.key, this.isLogsMode = false});
+  static Future<void> show({
+    required BuildContext context,
+    bool isLogsMode = false,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      // backgroundColor: Colors.transparent,
+      useRootNavigator: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => ActivityPage(isLogsMode: isLogsMode),
+    );
+  }
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
@@ -98,91 +114,95 @@ class _ActivityPageState extends State<ActivityPage>
         }
       },
       builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(screenTitle),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
-                onPressed: () => context.read<ActivityBloc>().add(
-                  const ActivityEvent.refreshRequested(),
+        return ClipRRect(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(screenTitle),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh',
+                  onPressed: () => context.read<ActivityBloc>().add(
+                    const ActivityEvent.refreshRequested(),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          body: Column(
-            children: [
-              if (isLogs)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: isLogs
-                          ? 'Search blocked domains...'
-                          : 'Search captured domains...',
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: state.searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () {
-                                _searchController.clear();
-                                context.read<ActivityBloc>().add(
-                                  const ActivityEvent.searchQueryChanged(''),
-                                );
-                              },
-                            )
-                          : null,
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
+              ],
+            ),
+            body: Column(
+              children: [
+                if (isLogs)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: isLogs
+                            ? 'Search blocked domains...'
+                            : 'Search captured domains...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: state.searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  context.read<ActivityBloc>().add(
+                                    const ActivityEvent.searchQueryChanged(''),
+                                  );
+                                },
+                              )
+                            : null,
+                        isDense: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onChanged: (val) => context.read<ActivityBloc>().add(
+                        ActivityEvent.searchQueryChanged(val),
                       ),
                     ),
-                    onChanged: (val) => context.read<ActivityBloc>().add(
-                      ActivityEvent.searchQueryChanged(val),
+                  ),
+
+                if (!isLogs)
+                  Container(
+                    padding: .all(4),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.segmentBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: colors.border, width: 1),
+                    ),
+                    child: Row(
+                      spacing: 6,
+                      children: [
+                        FilterWidget(
+                          onTap: () => _onOutcomeChanged('all'),
+                          isSelected: state.selectedOutcome == 'all',
+                          label: 'All',
+                        ),
+
+                        FilterWidget(
+                          onTap: () => _onOutcomeChanged('allowed'),
+                          isSelected: state.selectedOutcome == 'allowed',
+                          label: 'Allowed',
+                        ),
+
+                        FilterWidget(
+                          onTap: () => _onOutcomeChanged('blocked'),
+                          isSelected: state.selectedOutcome == 'blocked',
+                          label: 'Blocked',
+                        ),
+                      ],
                     ),
                   ),
-                ),
 
-              if (!isLogs)
-                Container(
-                  padding: .all(4),
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.segmentBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: colors.border, width: 1),
-                  ),
-                  child: Row(
-                    spacing: 6,
-                    children: [
-                      FilterWidget(
-                        onTap: () => _onOutcomeChanged('all'),
-                        isSelected: state.selectedOutcome == 'all',
-                        label: 'All',
-                      ),
-
-                      FilterWidget(
-                        onTap: () => _onOutcomeChanged('allowed'),
-                        isSelected: state.selectedOutcome == 'allowed',
-                        label: 'Allowed',
-                      ),
-
-                      FilterWidget(
-                        onTap: () => _onOutcomeChanged('blocked'),
-                        isSelected: state.selectedOutcome == 'blocked',
-                        label: 'Blocked',
-                      ),
-                    ],
-                  ),
-                ),
-
-              Expanded(child: _buildContent(context, state)),
-            ],
+                Expanded(child: _buildContent(context, state)),
+              ],
+            ),
           ),
         );
       },
@@ -333,13 +353,20 @@ class _ActivityPageState extends State<ActivityPage>
                   child: Column(
                     crossAxisAlignment: .start,
                     children: [
-                      Text(
-                        '${record.domain} • ${record.queryType}',
-                        style: typo.titleMedium.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              record.domain,
+                              style: typo.titleMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(" • ${record.queryType}"),
+                        ],
                       ),
                       Row(
                         children: [

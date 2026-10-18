@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class NameAvatar extends StatelessWidget {
   final String name;
@@ -77,4 +78,13 @@ class NameAvatar extends StatelessWidget {
       ),
     );
   }
+}
+
+String formatNumber(num number) {
+  // Using 'en_IN' automatically formats 100,000+ to "L" and 10,000,000+ to "Cr"
+  // We remove the currency symbol by setting it to an empty string.
+  final NumberFormat formatter = NumberFormat.compact(locale: 'en_IN');
+
+  // Custom fallback: 'en_IN' natively formats 4000 to "4K" and 45000 to "45K".
+  return formatter.format(number);
 }

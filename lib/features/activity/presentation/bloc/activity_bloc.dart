@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:injectable/injectable.dart';
+import 'package:theja_aura/core/services/aura_activity_service.dart';
 import 'package:theja_aura/core/services/aura_domain_evaluator.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_repository.dart';
@@ -134,7 +135,17 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
 
       emit(
         state.copyWith(
-          records: result.records,
+          records: [
+            ...result.records,
+            DnsActivityRecord(
+              id: 4657,
+              domain: "domain kdjfvidf jdf kjdfdkjfnjd fknvndfnkdfkdnlkfnvlkdnvflkndvlkndl",
+              timestamp: 233546,
+              queryType: "AAAA",
+              outcome: "outcome",
+              matchedSource: "matchedSource",
+            ),
+          ],
           effectiveBlockedState: {
             ...state.effectiveBlockedState,
             ...effectiveMap,

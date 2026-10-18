@@ -42,8 +42,9 @@ class DashboardRepository implements IDashboardRepository {
     ).subtract(Duration(days: now.weekday - 1));
     final millisThisWeek = now.difference(startOfWeek).inMilliseconds;
 
-    // 3. Total Blocked Domains: distinct blocked domains overall (retained history)
-    final millisAllTime = now.millisecondsSinceEpoch;
+    // 3. All-Time Logs: total persisted DNS activity log records across all retained history
+    // Passing 0 requests an unbounded all-time query without date restrictions.
+    const millisAllTime = 0;
 
     final results = await Future.wait([
       _activityService.getDashboardStats(timeWindowMillis: millisToday),
@@ -54,7 +55,9 @@ class DashboardRepository implements IDashboardRepository {
     return DashboardStats(
       blockedToday: results[0].totalBlocked,
       blockedThisWeek: results[1].totalBlocked,
-      totalBlockedDomains: results[2].uniqueBlockedDomains,
+      totalBlockedDomains: results[2].totalQueries,
+      uniqueBlockedDomains: results[2].uniqueBlockedDomains,
+      uniqueDomainsTotal: results[2].uniqueDomainsTotal,
     );
   }
 }

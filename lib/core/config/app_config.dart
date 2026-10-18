@@ -5,7 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 /// Configuration and environment settings for Theja Aura.
 /// Encapsulates backend API endpoint resolution and validation.
 class AppConfig {
-  static const String defaultLocalUrl = 'http://127.0.0.1:8080';
+  static const String defaultLocalUrl = 'https://mobileapi.theja.in';
   static const String envVarName = 'API_BASE_URL';
 
   final Uri apiBaseUrl;
