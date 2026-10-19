@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:theja_aura/core/utils/sized_context.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/cta_buttons.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/firewall_controller.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/statistics_section.dart';
@@ -64,20 +65,48 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(height: 22),
-                FirewallController(),
-                const SizedBox(height: 18),
-                StatisticsSection(),
-                const SizedBox(height: 18),
-                CTAButtons(),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+          body: !context.isMobile
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                        child: FirewallController(),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          StatisticsSection(),
+                          SizedBox(height: 22),
+                          CTAButtons(),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(height: 22),
+                      FirewallController(),
+                      const SizedBox(height: 18),
+                      StatisticsSection(),
+                      const SizedBox(height: 18),
+                      CTAButtons(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
         );
       },
     );

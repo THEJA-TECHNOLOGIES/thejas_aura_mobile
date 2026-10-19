@@ -137,14 +137,14 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
         state.copyWith(
           records: [
             ...result.records,
-            DnsActivityRecord(
-              id: 4657,
-              domain: "domain kdjfvidf jdf kjdfdkjfnjd fknvndfnkdfkdnlkfnvlkdnvflkndvlkndl",
-              timestamp: 233546,
-              queryType: "AAAA",
-              outcome: "outcome",
-              matchedSource: "matchedSource",
-            ),
+            // DnsActivityRecord(
+            //   id: 4657,
+            //   domain: "domain kdjfvidf jdf kjdfdkjfnjd fknvndfnkdfkdnlkfnvlkdnvflkndvlkndl",
+            //   timestamp: 233546,
+            //   queryType: "AAAA",
+            //   outcome: "outcome",
+            //   matchedSource: "matchedSource",
+            // ),
           ],
           effectiveBlockedState: {
             ...state.effectiveBlockedState,
