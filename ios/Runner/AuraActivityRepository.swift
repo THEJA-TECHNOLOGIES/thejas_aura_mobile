@@ -62,7 +62,8 @@ public final class AuraActivityRepository {
                 "queryType": queryType,
                 "outcome": outcome,
                 "matchedSource": matchedSource,
-                "matchedCategories": matchedCategories
+                "matchedCategories": matchedCategories,
+                "matched_categories": matchedCategories
             ]
             if let v = matchedRuleId { dict["matchedRuleId"] = v }
             if let v = reason { dict["reason"] = v }
@@ -358,10 +359,19 @@ public final class AuraActivityRepository {
             }
 
             var categories: [String] = []
-            if let catText = sqlite3_column_text(preparedStmt, 7),
-               let catData = String(cString: catText).data(using: .utf8),
-               let parsed = try? JSONSerialization.jsonObject(with: catData) as? [String] {
-                categories = parsed
+            if let catText = sqlite3_column_text(preparedStmt, 7) {
+                let raw = String(cString: catText).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !raw.isEmpty {
+                    if raw.hasPrefix("["),
+                       let catData = raw.data(using: .utf8),
+                       let parsed = try? JSONSerialization.jsonObject(with: catData) as? [String] {
+                        categories = parsed.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                    } else {
+                        categories = raw.components(separatedBy: ",")
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\"'")) }
+                            .filter { !$0.isEmpty }
+                    }
+                }
             }
 
             var reason: String? = nil

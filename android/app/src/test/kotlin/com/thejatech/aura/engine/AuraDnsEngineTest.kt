@@ -97,6 +97,96 @@ class AuraDnsEngineTest {
         val decision = engine.evaluate("ad.doubleclick.net", pslValidator)
         assertFalse(decision.isBlocked)
         assertEquals("none", decision.matchedSource)
+        assertEquals(listOf("Ads"), decision.matchedCategories)
+    }
+
+    @Test
+    fun testCategoryAttribution_AllowlistPreservesMatchedCategories() {
+        engine.setRules(
+            listOf(
+                AuraRuleItem(id = "doubleclick.net", domain = "doubleclick.net", isEnabled = true, isBlocked = false)
+            )
+        )
+        engine.setCategories(
+            mapOf(
+                "Ads" to setOf("doubleclick.net"),
+                "Trackers" to setOf("doubleclick.net")
+            )
+        )
+        engine.setCategoryPreferences(mapOf("Ads" to true, "Trackers" to true))
+
+        val decision = engine.evaluate("ad.doubleclick.net", pslValidator)
+        assertFalse(decision.isBlocked)
+        assertEquals("allowlist", decision.matchedSource)
+        assertEquals("doubleclick.net", decision.matchedRule)
+        assertEquals(listOf("Ads", "Trackers"), decision.matchedCategories)
+    }
+
+    @Test
+    fun testCategoryAttribution_CaseInsensitivePreferences() {
+        engine.setRules(emptyList())
+        engine.setCategories(
+            mapOf(
+                "Ads" to setOf("adservice.google.com"),
+                "Crypto_mining" to setOf("crypto.miner.org")
+            )
+        )
+        // Preferences formatted with uppercase or spaces like Dart / UI
+        engine.setCategoryPreferences(
+            mapOf(
+                "ADS" to true,
+                "Crypto Mining" to true
+            )
+        )
+
+        val adDecision = engine.evaluate("adservice.google.com", pslValidator)
+        assertTrue(adDecision.isBlocked)
+        assertEquals("default", adDecision.matchedSource)
+        assertEquals(listOf("Ads"), adDecision.matchedCategories)
+
+        val cryptoDecision = engine.evaluate("crypto.miner.org", pslValidator)
+        assertTrue(cryptoDecision.isBlocked)
+        assertEquals("default", cryptoDecision.matchedSource)
+        assertEquals(listOf("Crypto_mining"), cryptoDecision.matchedCategories)
+    }
+
+    @Test
+    fun testCategoryAttribution_DisabledCategoryPreservesMatchedCategories() {
+        engine.setRules(emptyList())
+        engine.setCategories(
+            mapOf(
+                "Ads" to setOf("doubleclick.net")
+            )
+        )
+        // Ads category disabled by user
+        engine.setCategoryPreferences(mapOf("Ads" to false))
+
+        val decision = engine.evaluate("doubleclick.net", pslValidator)
+        assertFalse(decision.isBlocked)
+        assertEquals("none", decision.matchedSource)
+        // Category is preserved in matchedCategories so activity logs reflect the category match
+        assertEquals(listOf("Ads"), decision.matchedCategories)
+    }
+
+    @Test
+    fun testCategoryAttribution_CustomBlockPreservesMatchedCategories() {
+        engine.setRules(
+            listOf(
+                AuraRuleItem(id = "doubleclick.net", domain = "doubleclick.net", isEnabled = true, isBlocked = true)
+            )
+        )
+        engine.setCategories(
+            mapOf(
+                "Ads" to setOf("doubleclick.net")
+            )
+        )
+        engine.setCategoryPreferences(mapOf("Ads" to true))
+
+        val decision = engine.evaluate("doubleclick.net", pslValidator)
+        assertTrue(decision.isBlocked)
+        assertEquals("custom", decision.matchedSource)
+        assertEquals("doubleclick.net", decision.matchedRule)
+        assertEquals(listOf("Ads"), decision.matchedCategories)
     }
 
     @Test

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
@@ -40,25 +41,48 @@ class DnsActivityRecord {
       DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true).toLocal();
 
   factory DnsActivityRecord.fromMap(Map<String, dynamic> map) {
-    final rawCats = map['matchedCategories'];
+    final rawCats = map['matchedCategories'] ?? map['matched_categories'];
     List<String> categories = const [];
     if (rawCats is List) {
-      categories = rawCats.map((e) => e.toString()).toList();
+      categories = rawCats
+          .map((e) => e?.toString().trim() ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } else if (rawCats is String && rawCats.trim().isNotEmpty) {
+      final trimmed = rawCats.trim();
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          final decoded = jsonDecode(trimmed);
+          if (decoded is List) {
+            categories = decoded
+                .map((e) => e?.toString().trim() ?? '')
+                .where((e) => e.isNotEmpty)
+                .toList();
+          }
+        } catch (_) {}
+      }
+      if (categories.isEmpty) {
+        categories = trimmed
+            .split(',')
+            .map((e) => e.replaceAll('"', '').replaceAll("'", '').trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
     }
 
     return DnsActivityRecord(
-      id: (map['id'] as num).toInt(),
+      id: (map['id'] as num?)?.toInt() ?? 0,
       domain: map['domain'] as String? ?? 'unknown',
-      timestamp: (map['timestamp'] as num).toInt(),
-      queryType: map['queryType'] as String? ?? 'A',
+      timestamp: (map['timestamp'] as num?)?.toInt() ?? 0,
+      queryType: map['queryType'] as String? ?? map['query_type'] as String? ?? 'A',
       outcome: map['outcome'] as String? ?? 'allowed',
-      matchedSource: map['matchedSource'] as String? ?? 'none',
-      matchedRuleId: map['matchedRuleId'] as String?,
+      matchedSource: map['matchedSource'] as String? ?? map['matched_source'] as String? ?? 'none',
+      matchedRuleId: map['matchedRuleId'] as String? ?? map['matched_rule_id'] as String?,
       matchedCategories: categories,
       reason: map['reason'] as String?,
-      appIdentifier: map['appIdentifier'] as String?,
-      appName: map['appName'] as String?,
-      appIconKey: map['appIconKey'] as String?,
+      appIdentifier: map['appIdentifier'] as String? ?? map['app_identifier'] as String?,
+      appName: map['appName'] as String? ?? map['app_name'] as String?,
+      appIconKey: map['appIconKey'] as String? ?? map['app_icon_key'] as String?,
     );
   }
 }

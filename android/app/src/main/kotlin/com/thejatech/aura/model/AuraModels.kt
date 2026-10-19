@@ -78,7 +78,8 @@ data class ActivityRecord(
             "queryType" to queryType,
             "outcome" to outcome,
             "matchedSource" to matchedSource,
-            "matchedCategories" to matchedCategories
+            "matchedCategories" to matchedCategories,
+            "matched_categories" to matchedCategories
         )
         if (matchedRuleId != null) dict["matchedRuleId"] = matchedRuleId
         if (reason != null) dict["reason"] = reason

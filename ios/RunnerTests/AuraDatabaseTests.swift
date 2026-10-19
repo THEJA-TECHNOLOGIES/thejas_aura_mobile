@@ -324,4 +324,71 @@ final class AuraDatabaseTests: XCTestCase {
 
         repository.close()
     }
+
+    func testActivityRecordMatchedCategoriesParsing() throws {
+        // Bootstrap database
+        try AuraActivityDatabase.bootstrapSharedDatabase(fileURL: testDatabaseURL)
+
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(testDatabaseURL.path, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+            XCTFail("Failed to open test database directly")
+            return
+        }
+        defer { if let db = db { sqlite3_close(db) } }
+
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let insertSQL = """
+        INSERT INTO dns_activity (domain, timestamp, query_type, outcome, matched_source, matched_rule_id, matched_categories, reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        """
+
+        let testCases: [(domain: String, categoriesCol: String?)] = [
+            ("json-array.com", "[\"Ads\", \"Trackers\"]"),
+            ("comma-separated.com", "Ads, Trackers"),
+            ("single-string.com", "Ads"),
+            ("empty-string.com", ""),
+            ("null-col.com", nil)
+        ]
+
+        for (i, tc) in testCases.enumerated() {
+            var stmt: OpaquePointer?
+            XCTAssertEqual(sqlite3_prepare_v2(db, insertSQL, -1, &stmt, nil), SQLITE_OK)
+            sqlite3_bind_text(stmt, 1, tc.domain, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int64(stmt, 2, now + Int64(i * 1000))
+            sqlite3_bind_text(stmt, 3, "A", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 4, "blocked", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 5, "default", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_null(stmt, 6)
+            if let cats = tc.categoriesCol {
+                sqlite3_bind_text(stmt, 7, cats, -1, SQLITE_TRANSIENT)
+            } else {
+                sqlite3_bind_null(stmt, 7)
+            }
+            sqlite3_bind_null(stmt, 8)
+            XCTAssertEqual(sqlite3_step(stmt), SQLITE_DONE)
+            sqlite3_finalize(stmt)
+        }
+
+        let repository = AuraActivityRepository(fileURL: testDatabaseURL)
+        try repository.open()
+
+        let result = try repository.queryActivity(limit: 10)
+        XCTAssertEqual(result.records.count, 5)
+
+        // Records are ordered by timestamp DESC
+        let byDomain = Dictionary(uniqueKeysWithValues: result.records.map { ($0.domain, $0) })
+
+        XCTAssertEqual(byDomain["json-array.com"]?.matchedCategories, ["Ads", "Trackers"])
+        XCTAssertEqual(byDomain["comma-separated.com"]?.matchedCategories, ["Ads", "Trackers"])
+        XCTAssertEqual(byDomain["single-string.com"]?.matchedCategories, ["Ads"])
+        XCTAssertEqual(byDomain["empty-string.com"]?.matchedCategories, [])
+        XCTAssertEqual(byDomain["null-col.com"]?.matchedCategories, [])
+
+        // Also verify toDictionary outputs both camelCase and snake_case
+        let dict = byDomain["json-array.com"]!.toDictionary()
+        XCTAssertEqual(dict["matchedCategories"] as? [String], ["Ads", "Trackers"])
+        XCTAssertEqual(dict["matched_categories"] as? [String], ["Ads", "Trackers"])
+
+        repository.close()
+    }
 }

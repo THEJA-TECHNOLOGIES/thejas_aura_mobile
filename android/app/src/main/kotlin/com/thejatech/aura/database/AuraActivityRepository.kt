@@ -87,12 +87,25 @@ class AuraActivityRepository(private val context: Context) {
 
                 val categories = mutableListOf<String>()
                 if (!cursor.isNull(7)) {
-                    try {
-                        val array = JSONArray(cursor.getString(7))
-                        for (i in 0 until array.length()) {
-                            categories.add(array.getString(i))
+                    val raw = cursor.getString(7).trim()
+                    if (raw.isNotEmpty()) {
+                        try {
+                            if (raw.startsWith("[")) {
+                                val array = JSONArray(raw)
+                                for (i in 0 until array.length()) {
+                                    val cat = array.getString(i).trim()
+                                    if (cat.isNotEmpty()) categories.add(cat)
+                                }
+                            } else {
+                                raw.split(",").map { it.trim().removeSurrounding("\"").removeSurrounding("'") }.filter { it.isNotEmpty() }.forEach {
+                                    categories.add(it)
+                                }
+                            }
+                        } catch (_: Exception) {
+                            val single = raw.removeSurrounding("\"").removeSurrounding("'").trim()
+                            if (single.isNotEmpty()) categories.add(single)
                         }
-                    } catch (_: Exception) {}
+                    }
                 }
 
                 val reason = if (!cursor.isNull(8)) cursor.getString(8) else null

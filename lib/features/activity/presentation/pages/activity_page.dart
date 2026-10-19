@@ -375,6 +375,19 @@ class _ActivityPageState extends State<ActivityPage>
                         ),
                         Row(
                           children: [
+                            Text(
+                              '${!state.isDomainBlocked(record.domain, record) ? "Allowed" : "Blocked"} • ',
+                              style: typo.bodySmall.copyWith(
+                                color:
+                                    !state.isDomainBlocked(
+                                      record.domain,
+                                      record,
+                                    )
+                                    ? colors.primary
+                                    : colors.error,
+                                fontSize: 11,
+                              ),
+                            ),
                             if (record.matchedSource != 'none') ...[
                               Text(
                                 '${record.matchedSource} • ',
@@ -385,7 +398,10 @@ class _ActivityPageState extends State<ActivityPage>
                               ),
                             ],
                             Text(
-                              formatTimestamp(record.dateTime, locale: "en"),
+                              formatTimestamp(
+                                record.dateTime,
+                                locale: "en_short",
+                              ),
                               style: typo.bodySmall.copyWith(
                                 color: colors.textSecondary,
                                 fontSize: 11,
@@ -393,6 +409,32 @@ class _ActivityPageState extends State<ActivityPage>
                             ),
                           ],
                         ),
+                        if (record.matchedCategories.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 2,
+                            children: record.matchedCategories.map((cat) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  cat,
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
                       ],
                     ),
                   ),

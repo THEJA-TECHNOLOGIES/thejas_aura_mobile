@@ -14,19 +14,19 @@ class AuraDnsEngine {
         val reason: String
     ) {
         companion object {
-            fun allowedByAllowlist(rule: String): MatchDecision = MatchDecision(
+            fun allowedByAllowlist(rule: String, categories: List<String> = emptyList()): MatchDecision = MatchDecision(
                 isBlocked = false,
                 matchedSource = "allowlist",
                 matchedRule = rule,
-                matchedCategories = emptyList(),
+                matchedCategories = categories,
                 reason = "Allowed by custom allowlist rule: $rule"
             )
 
-            fun allowedDefault(domain: String): MatchDecision = MatchDecision(
+            fun allowedDefault(domain: String, categories: List<String> = emptyList()): MatchDecision = MatchDecision(
                 isBlocked = false,
                 matchedSource = "none",
                 matchedRule = null,
-                matchedCategories = emptyList(),
+                matchedCategories = categories,
                 reason = "Permitted domain"
             )
 
@@ -88,6 +88,18 @@ class AuraDnsEngine {
         }
     }
 
+    private fun isCategoryEnabled(catName: String, prefs: Map<String, Boolean>): Boolean {
+        prefs[catName]?.let { return it }
+        val normTarget = catName.lowercase().replace("_", "").replace(" ", "").replace("-", "")
+        for ((key, value) in prefs) {
+            val normKey = key.lowercase().replace("_", "").replace(" ", "").replace("-", "")
+            if (normKey == normTarget) {
+                return value
+            }
+        }
+        return true
+    }
+
     fun evaluate(domain: String, pslValidator: AuraPslValidator? = null): MatchDecision {
         val target = normalizeDomain(domain)
         if (target.isEmpty()) {
@@ -112,10 +124,12 @@ class AuraDnsEngine {
         }
 
         // 1. Check Custom Allowlist (highest precedence)
+        var matchedAllowRule: String? = null
         for (candidate in candidates) {
             val rule = currentRules[candidate]
             if (rule != null && rule.isEnabled && !rule.isBlocked) {
-                return MatchDecision.allowedByAllowlist(candidate)
+                matchedAllowRule = candidate
+                break
             }
         }
 
@@ -129,39 +143,47 @@ class AuraDnsEngine {
             }
         }
 
-        // Check matching enabled categories
+        // Check matching categories across all candidates
         val matchingEnabledCategories = mutableSetOf<String>()
+        val allMatchingCategories = mutableSetOf<String>()
         var firstCategoryMatchedDomain: String? = null
 
         for ((catName, domainSet) in currentCategories) {
-            val isEnabled = currentPrefs[catName] ?: true
-            if (isEnabled) {
-                for (candidate in candidates) {
-                    if (domainSet.contains(candidate) && !currentDisabled.contains(candidate)) {
+            val isEnabled = isCategoryEnabled(catName, currentPrefs)
+            for (candidate in candidates) {
+                if (domainSet.contains(candidate)) {
+                    allMatchingCategories.add(catName)
+                    if (isEnabled && !currentDisabled.contains(candidate)) {
                         matchingEnabledCategories.add(catName)
                         if (firstCategoryMatchedDomain == null) {
                             firstCategoryMatchedDomain = candidate
                         }
-                        break
                     }
+                    break
                 }
             }
         }
 
-        val sortedCategories = matchingEnabledCategories.sorted()
+        val sortedEnabledCategories = matchingEnabledCategories.sorted()
+        val sortedAllCategories = allMatchingCategories.sorted()
+        val recordCategories = if (sortedEnabledCategories.isNotEmpty()) sortedEnabledCategories else sortedAllCategories
+
+        if (matchedAllowRule != null) {
+            return MatchDecision.allowedByAllowlist(matchedAllowRule, recordCategories)
+        }
 
         if (matchedCustomBlock != null) {
-            return MatchDecision.blockedByCustom(matchedCustomBlock, sortedCategories)
+            return MatchDecision.blockedByCustom(matchedCustomBlock, recordCategories)
         }
 
         // 3. Check Default Categories
-        if (sortedCategories.isNotEmpty()) {
+        if (sortedEnabledCategories.isNotEmpty()) {
             val matchedDomain = firstCategoryMatchedDomain ?: target
-            return MatchDecision.blockedByDefault(sortedCategories, matchedDomain)
+            return MatchDecision.blockedByDefault(sortedEnabledCategories, matchedDomain)
         }
 
         // 4. Default Allow
-        return MatchDecision.allowedDefault(target)
+        return MatchDecision.allowedDefault(target, recordCategories)
     }
 
     data class DnsHeader(

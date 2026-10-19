@@ -66,22 +66,22 @@ public final class AuraDNSEngine {
             }
         }
 
-        public static func allowedByAllowlist(rule: String) -> MatchDecision {
+        public static func allowedByAllowlist(rule: String, categories: [String] = []) -> MatchDecision {
             return MatchDecision(
                 isBlocked: false,
                 matchedSource: "allowlist",
                 matchedRule: rule,
-                matchedCategories: [],
+                matchedCategories: categories,
                 reason: "Allowed by custom allowlist rule: \(rule)"
             )
         }
 
-        public static func allowedDefault(domain: String) -> MatchDecision {
+        public static func allowedDefault(domain: String, categories: [String] = []) -> MatchDecision {
             return MatchDecision(
                 isBlocked: false,
                 matchedSource: "none",
                 matchedRule: nil,
-                matchedCategories: [],
+                matchedCategories: categories,
                 reason: "Permitted domain"
             )
         }
@@ -105,6 +105,14 @@ public final class AuraDNSEngine {
                 matchedCategories: categories,
                 reason: "Blocked by \(categories.joined(separator: ", "))"
             )
+        }
+
+        public static func == (lhs: MatchDecision, rhs: MatchResult) -> Bool {
+            return lhs.legacyMatchResult == rhs
+        }
+
+        public static func == (lhs: MatchResult, rhs: MatchDecision) -> Bool {
+            return lhs == rhs.legacyMatchResult
         }
     }
 
@@ -217,6 +225,18 @@ public final class AuraDNSEngine {
     /// 4. If multiple enabled default categories match, all matching categories are recorded deterministically.
     /// 5. Disabling one category does not unblock a domain still matched by another enabled category or custom block rule.
     /// 6. A child allow rule (e.g. "mail.google.com") permits itself and its subdomains, but does NOT allow parent or sibling domains.
+    private func isCategoryEnabled(catName: String, prefs: [String: Bool]) -> Bool {
+        if let exact = prefs[catName] { return exact }
+        let normTarget = catName.lowercased().replacingOccurrences(of: "_", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "")
+        for (key, value) in prefs {
+            let normKey = key.lowercased().replacingOccurrences(of: "_", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "")
+            if normKey == normTarget {
+                return value
+            }
+        }
+        return true
+    }
+
     public func evaluate(domain: String) -> MatchDecision {
         let target = AuraDNSEngine.normalizeDomain(domain)
         guard !target.isEmpty else {
@@ -236,9 +256,11 @@ public final class AuraDNSEngine {
         }
 
         // 1. Check Custom Allowlist first (highest precedence across all candidates)
+        var matchedAllowRule: String? = nil
         for candidate in candidates {
             if let rule = currentRules[candidate], rule.isEnabled && !rule.isBlocked {
-                return .allowedByAllowlist(rule: candidate)
+                matchedAllowRule = candidate
+                break
             }
         }
 
@@ -251,40 +273,48 @@ public final class AuraDNSEngine {
             }
         }
 
-        // Check matching enabled categories across candidates
+        // Check matching categories across all candidates
         var matchingEnabledCategories = Set<String>()
+        var allMatchingCategories = Set<String>()
         var firstCategoryMatchedDomain: String? = nil
 
         for (catName, domainSet) in currentCategories {
-            let isEnabled = currentPrefs[catName] ?? true // Defaults to true if preference missing
-            if isEnabled {
-                for candidate in candidates {
-                    if domainSet.contains(candidate) && !currentDisabledDefaultDomains.contains(candidate) {
+            let isEnabled = isCategoryEnabled(catName: catName, prefs: currentPrefs)
+            for candidate in candidates {
+                if domainSet.contains(candidate) {
+                    allMatchingCategories.insert(catName)
+                    if isEnabled && !currentDisabledDefaultDomains.contains(candidate) {
                         matchingEnabledCategories.insert(catName)
                         if firstCategoryMatchedDomain == nil {
                             firstCategoryMatchedDomain = candidate
                         }
-                        break
                     }
+                    break
                 }
             }
         }
 
-        let sortedCategories = matchingEnabledCategories.sorted()
+        let sortedEnabledCategories = matchingEnabledCategories.sorted()
+        let sortedAllCategories = allMatchingCategories.sorted()
+        let recordCategories = !sortedEnabledCategories.isEmpty ? sortedEnabledCategories : sortedAllCategories
+
+        if let allowRule = matchedAllowRule {
+            return .allowedByAllowlist(rule: allowRule, categories: recordCategories)
+        }
 
         // If custom block matched:
         if let customRule = matchedCustomBlock {
-            return .blockedByCustom(rule: customRule, categories: sortedCategories)
+            return .blockedByCustom(rule: customRule, categories: recordCategories)
         }
 
         // 3. Check Default Categories (if any enabled category matched)
-        if !sortedCategories.isEmpty {
+        if !sortedEnabledCategories.isEmpty {
             let matchedDomain = firstCategoryMatchedDomain ?? target
-            return .blockedByDefault(categories: sortedCategories, matchedDomain: matchedDomain)
+            return .blockedByDefault(categories: sortedEnabledCategories, matchedDomain: matchedDomain)
         }
 
         // 4. Default Allow
-        return .allowedDefault(domain: target)
+        return .allowedDefault(domain: target, categories: recordCategories)
     }
 
     /// Legacy evaluation method for callers expecting MatchResult.

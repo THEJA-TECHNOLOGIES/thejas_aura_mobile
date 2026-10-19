@@ -72,6 +72,76 @@ final class AuraDNSTests: XCTestCase {
         XCTAssertEqual(engine.evaluate(domain: "sub.mail.google.com"), .allowed(matchedRule: "mail.google.com"))
     }
 
+    func testCategoryAttribution_AllowlistPreservesMatchedCategories() {
+        let rules = [
+            AuraDNSEngine.Rule(domain: "doubleclick.net", isEnabled: true, isBlocked: false)
+        ]
+        engine.setRules(rules)
+        engine.setCategories([
+            "Ads": ["doubleclick.net"],
+            "Trackers": ["doubleclick.net"]
+        ])
+        engine.setCategoryPreferences(["Ads": true, "Trackers": true])
+
+        let decision = engine.evaluate(domain: "ad.doubleclick.net")
+        XCTAssertFalse(decision.isBlocked)
+        XCTAssertEqual(decision.matchedSource, "allowlist")
+        XCTAssertEqual(decision.matchedRule, "doubleclick.net")
+        XCTAssertEqual(decision.matchedCategories, ["Ads", "Trackers"])
+    }
+
+    func testCategoryAttribution_CaseInsensitivePreferences() {
+        engine.setRules([])
+        engine.setCategories([
+            "Ads": ["adservice.google.com"],
+            "Crypto_mining": ["crypto.miner.org"]
+        ])
+        engine.setCategoryPreferences([
+            "ADS": true,
+            "Crypto Mining": true
+        ])
+
+        let adDecision = engine.evaluate(domain: "adservice.google.com")
+        XCTAssertTrue(adDecision.isBlocked)
+        XCTAssertEqual(adDecision.matchedSource, "default")
+        XCTAssertEqual(adDecision.matchedCategories, ["Ads"])
+
+        let cryptoDecision = engine.evaluate(domain: "crypto.miner.org")
+        XCTAssertTrue(cryptoDecision.isBlocked)
+        XCTAssertEqual(cryptoDecision.matchedSource, "default")
+        XCTAssertEqual(cryptoDecision.matchedCategories, ["Crypto_mining"])
+    }
+
+    func testCategoryAttribution_DisabledCategoryPreservesMatchedCategories() {
+        engine.setRules([])
+        engine.setCategories([
+            "Ads": ["doubleclick.net"]
+        ])
+        engine.setCategoryPreferences(["Ads": false])
+
+        let decision = engine.evaluate(domain: "doubleclick.net")
+        XCTAssertFalse(decision.isBlocked)
+        XCTAssertEqual(decision.matchedSource, "none")
+        XCTAssertEqual(decision.matchedCategories, ["Ads"])
+    }
+
+    func testCategoryAttribution_CustomBlockPreservesMatchedCategories() {
+        let rules = [
+            AuraDNSEngine.Rule(domain: "doubleclick.net", isEnabled: true, isBlocked: true)
+        ]
+        engine.setRules(rules)
+        engine.setCategories([
+            "Ads": ["doubleclick.net"]
+        ])
+        engine.setCategoryPreferences(["Ads": true])
+
+        let decision = engine.evaluate(domain: "doubleclick.net")
+        XCTAssertTrue(decision.isBlocked)
+        XCTAssertEqual(decision.matchedSource, "custom")
+        XCTAssertEqual(decision.matchedRule, "doubleclick.net")
+        XCTAssertEqual(decision.matchedCategories, ["Ads"])
+    }
+
     // MARK: - DNS Packet Parsing & Synthesis Tests
 
     func testDNSHeaderParsing() {
