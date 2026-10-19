@@ -70,12 +70,6 @@ class CustomDomainTab extends StatelessWidget {
                     style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                   ),
                   const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: () =>
-                        handleAddRule(isBlockedDefault: true, context: context),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Rule'),
-                  ),
                 ],
               ),
             ),

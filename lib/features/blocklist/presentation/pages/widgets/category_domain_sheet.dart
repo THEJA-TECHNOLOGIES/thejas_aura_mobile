@@ -216,103 +216,113 @@ class _CategoryDomainSheetState extends State<CategoryDomainSheet> {
                             ),
                           ),
                         )
-                      : ListView.separated(
+                      : Scrollbar(
                           controller: scrollController,
-                          itemCount: filteredDomains.length,
-                          separatorBuilder: (context, index) =>
-                              SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            final domain = filteredDomains[index];
-                            final isDomainEnabled = !state
-                                .disabledDefaultDomains
-                                .contains(domain);
-                            final isPending = _pendingToggles.contains(domain);
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              margin: .symmetric(horizontal: 16),
-                              decoration: BoxDecoration(
-                                color: colors.segmentBg,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: colors.border,
-                                  width: 1,
+                          thumbVisibility: true,
+                          trackVisibility: true,
+                          thickness: 8.0,
+                          child: ListView.separated(
+                            controller: scrollController,
+                            itemCount: filteredDomains.length,
+                            separatorBuilder: (context, index) =>
+                                SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final domain = filteredDomains[index];
+                              final isDomainEnabled = !state
+                                  .disabledDefaultDomains
+                                  .contains(domain);
+                              final isPending = _pendingToggles.contains(
+                                domain,
+                              );
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: .start,
-                                      children: [
-                                        Text(
-                                          domain,
-                                          style: typo.titleMedium.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 16,
+                                margin: .symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: colors.segmentBg,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: colors.border,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: .start,
+                                        children: [
+                                          Text(
+                                            domain,
+                                            style: typo.titleMedium.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 16,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          '• ${isDomainEnabled ? "Allowed" : "Blocked"}',
-                                          style: typo.bodySmall.copyWith(
-                                            color: isDomainEnabled
-                                                ? colors.primary
-                                                : colors.textSecondary,
-                                            fontSize: 14,
+                                          Text(
+                                            '• ${!isDomainEnabled ? "Allowed" : "Blocked"}',
+                                            style: typo.bodySmall.copyWith(
+                                              color: isDomainEnabled
+                                                  ? colors.primary
+                                                  : colors.textSecondary,
+                                              fontSize: 14,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Switch(
-                                    inactiveThumbColor: colors.textTertiary,
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    inactiveTrackColor: colors.trackOff,
-                                    value: isDomainEnabled,
-                                    onChanged: isPending
-                                        ? null
-                                        : (val) =>
-                                              _handleToggleDomain(domain, val),
-                                  ),
-                                ],
-                              ),
-                            );
-                            // return ListTile(
-                            //   title: Text(
-                            //     domain,
-                            //     style: TextStyle(
-                            //       fontFamily: 'monospace',
-                            //       fontSize: 13,
-                            //       fontWeight: FontWeight.w500,
-                            //       decoration: isDomainEnabled
-                            //           ? null
-                            //           : TextDecoration.lineThrough,
-                            //       color: isDomainEnabled ? null : Colors.grey,
-                            //     ),
-                            //   ),
-                            //   subtitle: Text(
-                            //     isDomainEnabled
-                            //         ? 'Blocking active'
-                            //         : 'Excluded from blocking',
-                            //     style: TextStyle(
-                            //       fontSize: 11,
-                            //       color: isDomainEnabled
-                            //           ? Colors.tealAccent.withValues(alpha: 0.8)
-                            //           : Colors.grey.shade500,
-                            //     ),
-                            //   ),
-                            //   trailing: Switch(
-                            //     value: isDomainEnabled,
-                            //     onChanged: isPending
-                            //         ? null
-                            //         : (val) => _handleToggleDomain(domain, val),
-                            //   ),
-                            // );
-                          },
+                                    Switch(
+                                      inactiveThumbColor: colors.textTertiary,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      inactiveTrackColor: colors.trackOff,
+                                      value: isDomainEnabled,
+                                      onChanged: isPending
+                                          ? null
+                                          : (val) => _handleToggleDomain(
+                                              domain,
+                                              val,
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              // return ListTile(
+                              //   title: Text(
+                              //     domain,
+                              //     style: TextStyle(
+                              //       fontFamily: 'monospace',
+                              //       fontSize: 13,
+                              //       fontWeight: FontWeight.w500,
+                              //       decoration: isDomainEnabled
+                              //           ? null
+                              //           : TextDecoration.lineThrough,
+                              //       color: isDomainEnabled ? null : Colors.grey,
+                              //     ),
+                              //   ),
+                              //   subtitle: Text(
+                              //     isDomainEnabled
+                              //         ? 'Blocking active'
+                              //         : 'Excluded from blocking',
+                              //     style: TextStyle(
+                              //       fontSize: 11,
+                              //       color: isDomainEnabled
+                              //           ? Colors.tealAccent.withValues(alpha: 0.8)
+                              //           : Colors.grey.shade500,
+                              //     ),
+                              //   ),
+                              //   trailing: Switch(
+                              //     value: isDomainEnabled,
+                              //     onChanged: isPending
+                              //         ? null
+                              //         : (val) => _handleToggleDomain(domain, val),
+                              //   ),
+                              // );
+                            },
+                          ),
                         ),
                 ),
               ],

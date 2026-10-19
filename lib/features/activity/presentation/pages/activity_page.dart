@@ -323,97 +323,103 @@ class _ActivityPageState extends State<ActivityPage>
       onRefresh: () async => context.read<ActivityBloc>().add(
         const ActivityEvent.refreshRequested(),
       ),
-      child: ListView.separated(
+      child: Scrollbar(
         controller: _scrollController,
-        itemCount: state.records.length + (state.hasMore ? 1 : 0),
-        separatorBuilder: (context, index) => SizedBox(height: 6),
-        itemBuilder: (context, index) {
-          if (index == state.records.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
+        thickness: 8.0,
+        thumbVisibility: true,
+        trackVisibility: true,
+        child: ListView.separated(
+          controller: _scrollController,
+          itemCount: state.records.length + (state.hasMore ? 1 : 0),
+          separatorBuilder: (context, index) => SizedBox(height: 6),
+          itemBuilder: (context, index) {
+            if (index == state.records.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
 
-          final record = state.records[index];
+            final record = state.records[index];
 
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            margin: .symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: colors.segmentBg,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colors.border, width: 1),
-            ),
-            child: Row(
-              spacing: 8,
-              children: [
-                NameAvatar(name: record.domain, radius: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: .start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              record.domain,
-                              style: typo.titleMedium.copyWith(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              margin: .symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: colors.segmentBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.border, width: 1),
+              ),
+              child: Row(
+                spacing: 8,
+                children: [
+                  NameAvatar(name: record.domain, radius: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: .start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                record.domain,
+                                style: typo.titleMedium.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                          Text(" • ${record.queryType}"),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          if (record.matchedSource != 'none') ...[
+                            Text(" • ${record.queryType}"),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            if (record.matchedSource != 'none') ...[
+                              Text(
+                                '${record.matchedSource} • ',
+                                style: typo.bodySmall.copyWith(
+                                  color: colors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                             Text(
-                              '${record.matchedSource} • ',
+                              formatTimestamp(record.dateTime, locale: "en"),
                               style: typo.bodySmall.copyWith(
                                 color: colors.textSecondary,
                                 fontSize: 11,
                               ),
                             ),
                           ],
-                          Text(
-                            formatTimestamp(record.dateTime, locale: "en"),
-                            style: typo.bodySmall.copyWith(
-                              color: colors.textSecondary,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Switch(
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  value: state.isDomainBlocked(record.domain, record),
-                  onChanged:
-                      state.pendingDomainToggles.contains(
-                        AuraDomainEvaluator.normalizeDomain(record.domain),
-                      )
-                      ? null
-                      : (value) {
-                          context.read<ActivityBloc>().add(
-                            ActivityEvent.domainBlockToggled(
-                              domain: record.domain,
-                              isBlocked: value,
-                            ),
-                          );
-                        },
-                  inactiveThumbColor: colors.textTertiary,
-                  inactiveTrackColor: colors.trackOff,
-                ),
-              ],
-            ),
-          );
-        },
+                  Switch(
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    value: state.isDomainBlocked(record.domain, record),
+                    onChanged:
+                        state.pendingDomainToggles.contains(
+                          AuraDomainEvaluator.normalizeDomain(record.domain),
+                        )
+                        ? null
+                        : (value) {
+                            context.read<ActivityBloc>().add(
+                              ActivityEvent.domainBlockToggled(
+                                domain: record.domain,
+                                isBlocked: value,
+                              ),
+                            );
+                          },
+                    inactiveThumbColor: colors.textTertiary,
+                    inactiveTrackColor: colors.trackOff,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
