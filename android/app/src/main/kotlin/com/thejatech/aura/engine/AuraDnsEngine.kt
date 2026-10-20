@@ -309,7 +309,7 @@ class AuraDnsEngine {
             // 3. Answer Section: only generated for A and AAAA sinkholes
             if (isA || isAaaa) {
                 val rdataLength = if (isAaaa) 16 else 4
-                val answerBuf = ByteBuffer.allocate(10 + rdataLength)
+                val answerBuf = ByteBuffer.allocate(12 + rdataLength)
                 answerBuf.putShort(0xC00C.toShort())         // Name pointer to offset 12 (0xC00C)
                 answerBuf.putShort(question.qType.toShort()) // TYPE matches original question type
                 answerBuf.putShort(1.toShort())              // CLASS IN (1)

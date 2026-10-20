@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -49,7 +51,7 @@ class AuraVpnService : VpnService() {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "aura_firewall_channel"
 
-        private val UPSTREAM_RESOLVERS = listOf(
+        private val FALLBACK_RESOLVERS = listOf(
             InetSocketAddress("9.9.9.9", 53),           // Primary Quad9
             InetSocketAddress("1.1.1.1", 53),           // Fallback Cloudflare
             InetSocketAddress("8.8.8.8", 53),           // Fallback Google
@@ -62,6 +64,7 @@ class AuraVpnService : VpnService() {
     private val isRunning = AtomicBoolean(false)
     private var workerThread: Thread? = null
     private var forwardExecutor: ExecutorService? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val dnsEngine = AuraDnsEngine()
     private lateinit var ruleStore: AuraRuleStore
@@ -144,6 +147,12 @@ class AuraVpnService : VpnService() {
             builder.addRoute("fd00::1", 128)
         } catch (_: Exception) {}
 
+        try {
+            builder.addDisallowedApplication(packageName)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to addDisallowedApplication: $packageName", e)
+        }
+
         builder.setBlocking(true)
 
         val pfd = builder.establish()
@@ -157,6 +166,18 @@ class AuraVpnService : VpnService() {
         isRunning.set(true)
         AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.CONNECTED)
 
+        // Set initial underlying network and register dynamic change callback
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val activeNet = cm?.activeNetwork
+        if (activeNet != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            try {
+                setUnderlyingNetworks(arrayOf(activeNet))
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to set initial underlying networks", e)
+            }
+        }
+        registerNetworkCallback()
+
         forwardExecutor = Executors.newFixedThreadPool(4) { r ->
             Thread(r, "aura-dns-forwarder").apply { isDaemon = true }
         }
@@ -164,6 +185,46 @@ class AuraVpnService : VpnService() {
         workerThread = Thread({ processPackets(pfd) }, "aura-vpn-worker").apply {
             start()
         }
+    }
+
+    private fun registerNetworkCallback() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+                val callback = object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        try {
+                            setUnderlyingNetworks(arrayOf(network))
+                            Log.d(TAG, "Underlying network updated: $network")
+                        } catch (_: Exception) {}
+                    }
+                    override fun onLost(network: Network) {
+                        try {
+                            val active = cm.activeNetwork
+                            if (active != null) {
+                                setUnderlyingNetworks(arrayOf(active))
+                            } else {
+                                setUnderlyingNetworks(null)
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                cm.registerDefaultNetworkCallback(callback)
+                networkCallback = callback
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to register network callback", e)
+            }
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        try {
+            networkCallback?.let {
+                val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                cm?.unregisterNetworkCallback(it)
+            }
+        } catch (_: Exception) {}
+        networkCallback = null
     }
 
     private fun stopForegroundCompat() {
@@ -176,6 +237,8 @@ class AuraVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        unregisterNetworkCallback()
+
         if (!isRunning.getAndSet(false)) {
             AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.DISCONNECTED)
             stopForegroundCompat()
@@ -248,10 +311,22 @@ class AuraVpnService : VpnService() {
 
                 if (length <= 0) continue
 
-                val packet = buffer.copyOf(length)
-                val parsed = IpPacketParser.parse(packet, length) ?: continue
-
-                handleDnsQuery(parsed, outputStream)
+                try {
+                    val packet = buffer.copyOf(length)
+                    val parsed = IpPacketParser.parse(packet, length)
+                    if (parsed != null) {
+                        handleDnsQuery(parsed, outputStream)
+                    } else {
+                        // If it's a TCP probe (e.g. Android Private DNS probing port 853 or port 53),
+                        // reply with TCP RST so the system doesn't stall waiting for DoT handshake
+                        val rst = IpPacketParser.buildTcpResetPacket(packet, length)
+                        if (rst != null) {
+                            sendPacket(outputStream, rst)
+                        }
+                    }
+                } catch (t: Throwable) {
+                    Log.e(TAG, "Error handling packet in processPackets", t)
+                }
             }
         } catch (_: Exception) {
         } finally {
@@ -309,6 +384,33 @@ class AuraVpnService : VpnService() {
         }
     }
 
+    private fun getActiveUpstreamResolvers(): List<InetSocketAddress> {
+        val resolvers = mutableListOf<InetSocketAddress>()
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val activeNet = cm?.activeNetwork
+            if (activeNet != null) {
+                val lp = cm.getLinkProperties(activeNet)
+                lp?.dnsServers?.forEach { inetAddr ->
+                    val host = inetAddr.hostAddress
+                    if (host != null && host != "10.255.255.1" && host != "fd00::1" && host != "10.255.255.2" && host != "fd00::2") {
+                        resolvers.add(InetSocketAddress(inetAddr, 53))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to retrieve active network DNS servers", e)
+        }
+
+        // Add fallback resolvers
+        for (fallback in FALLBACK_RESOLVERS) {
+            if (resolvers.none { it.address == fallback.address }) {
+                resolvers.add(fallback)
+            }
+        }
+        return resolvers
+    }
+
     private fun resolveAndForward(
         queryPacket: ParsedDnsPacket,
         outputStream: FileOutputStream,
@@ -321,11 +423,12 @@ class AuraVpnService : VpnService() {
             var responseDns: ByteArray? = null
             val maxTotalBudget = 2000L // 2.0s
 
-            for (resolver in UPSTREAM_RESOLVERS) {
+            val resolvers = getActiveUpstreamResolvers()
+            for (resolver in resolvers) {
                 val elapsed = System.currentTimeMillis() - startTime
                 if (elapsed >= maxTotalBudget) break
 
-                val remainingTimeout = (maxTotalBudget - elapsed).coerceIn(500L, 1000L).toInt()
+                val remainingTimeout = (maxTotalBudget - elapsed).coerceIn(400L, 800L).toInt()
                 responseDns = queryUpstream(resolver, queryPacket.dnsPayload, remainingTimeout)
                 if (responseDns != null) break
             }
@@ -384,7 +487,11 @@ class AuraVpnService : VpnService() {
         var socket: DatagramSocket? = null
         return try {
             socket = DatagramSocket()
-            protect(socket)
+            val isProtected = protect(socket)
+            if (!isProtected) {
+                Log.w(TAG, "VpnService.protect(socket) failed for upstream ${resolver.address}")
+                return null
+            }
             socket.soTimeout = timeoutMs
 
             val sendPacket = DatagramPacket(
@@ -414,7 +521,8 @@ class AuraVpnService : VpnService() {
             }
 
             recvBuf.copyOf(received)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.d(TAG, "queryUpstream failed for ${resolver.address}: ${e.message}")
             null
         } finally {
             try {

@@ -246,4 +246,103 @@ object IpPacketParser {
         }
         return result
     }
+
+    fun buildTcpResetPacket(packet: ByteArray, length: Int): ByteArray? {
+        if (length < 20) return null
+        val version = (packet[0].toInt() shr 4) and 0x0F
+        if (version == 4) {
+            val ihl = (packet[0].toInt() and 0x0F) * 4
+            if (ihl < 20 || length < ihl + 20) return null
+            val protocol = packet[9].toInt() and 0xFF
+            if (protocol != 6) return null // TCP only
+
+            val srcIp = packet.copyOfRange(12, 16)
+            val dstIp = packet.copyOfRange(16, 20)
+
+            val srcPort = ((packet[ihl].toInt() and 0xFF) shl 8) or (packet[ihl + 1].toInt() and 0xFF)
+            val dstPort = ((packet[ihl + 2].toInt() and 0xFF) shl 8) or (packet[ihl + 3].toInt() and 0xFF)
+
+            val seqNum = ((packet[ihl + 4].toLong() and 0xFF) shl 24) or
+                    ((packet[ihl + 5].toLong() and 0xFF) shl 16) or
+                    ((packet[ihl + 6].toLong() and 0xFF) shl 8) or
+                    (packet[ihl + 7].toLong() and 0xFF)
+
+            val incomingFlags = packet[ihl + 13].toInt() and 0xFF
+            val isSyn = (incomingFlags and 0x02) != 0
+
+            // IPv4 (20) + TCP (20) = 40 bytes RST/ACK packet
+            val rstPacket = ByteArray(40)
+            rstPacket[0] = 0x45.toByte()
+            rstPacket[2] = 0.toByte()
+            rstPacket[3] = 40.toByte() // Total length 40
+            rstPacket[6] = 0x40.toByte() // Don't fragment
+            rstPacket[8] = 64.toByte() // TTL 64
+            rstPacket[9] = 6.toByte()  // Protocol TCP (6)
+
+            // Swap IP
+            System.arraycopy(dstIp, 0, rstPacket, 12, 4)
+            System.arraycopy(srcIp, 0, rstPacket, 16, 4)
+
+            val ipCksum = computeChecksum(rstPacket, 0, 20)
+            rstPacket[10] = ((ipCksum shr 8) and 0xFF).toByte()
+            rstPacket[11] = (ipCksum and 0xFF).toByte()
+
+            // TCP Header (starts at 20)
+            rstPacket[20] = ((dstPort shr 8) and 0xFF).toByte()
+            rstPacket[21] = (dstPort and 0xFF).toByte()
+            rstPacket[22] = ((srcPort shr 8) and 0xFF).toByte()
+            rstPacket[23] = (srcPort and 0xFF).toByte()
+
+            // Seq = 0, Ack = seqNum + (1 if SYN else 0)
+            val ackNum = (seqNum + (if (isSyn) 1L else 0L)) and 0xFFFFFFFFL
+            rstPacket[28] = ((ackNum shr 24) and 0xFF).toByte()
+            rstPacket[29] = ((ackNum shr 16) and 0xFF).toByte()
+            rstPacket[30] = ((ackNum shr 8) and 0xFF).toByte()
+            rstPacket[31] = (ackNum and 0xFF).toByte()
+
+            rstPacket[32] = 0x50.toByte() // Data offset 5 (20 bytes)
+            rstPacket[33] = 0x14.toByte() // Flags: RST (0x04) + ACK (0x10) = 0x14
+
+            val tcpCksum = computeTcpChecksum(rstPacket, 12, 16, 20, 20)
+            rstPacket[36] = ((tcpCksum shr 8) and 0xFF).toByte()
+            rstPacket[37] = (tcpCksum and 0xFF).toByte()
+
+            return rstPacket
+        }
+        return null
+    }
+
+    private fun computeTcpChecksum(
+        packet: ByteArray,
+        srcIpOffset: Int,
+        dstIpOffset: Int,
+        tcpOffset: Int,
+        tcpLength: Int
+    ): Int {
+        var sum = 0L
+        for (i in 0 until 4 step 2) {
+            sum += (((packet[srcIpOffset + i].toInt() and 0xFF) shl 8) or (packet[srcIpOffset + i + 1].toInt() and 0xFF))
+        }
+        for (i in 0 until 4 step 2) {
+            sum += (((packet[dstIpOffset + i].toInt() and 0xFF) shl 8) or (packet[dstIpOffset + i + 1].toInt() and 0xFF))
+        }
+        sum += 6 // Protocol TCP
+        sum += tcpLength
+
+        var i = tcpOffset
+        while (i < tcpOffset + tcpLength - 1) {
+            val word = ((packet[i].toInt() and 0xFF) shl 8) or (packet[i + 1].toInt() and 0xFF)
+            sum += word
+            i += 2
+        }
+        if (i < tcpOffset + tcpLength) {
+            sum += ((packet[i].toInt() and 0xFF) shl 8)
+        }
+        while ((sum shr 16) > 0) {
+            sum = (sum and 0xFFFF) + (sum shr 16)
+        }
+        var result = (sum.inv().toInt() and 0xFFFF)
+        if (result == 0) result = 0xFFFF
+        return result
+    }
 }

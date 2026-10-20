@@ -130,4 +130,62 @@ class IpPacketParserTest {
 
         return packet
     }
+
+    @Test
+    fun testBuildTcpResetPacket() {
+        val srcIp = byteArrayOf(10, 255.toByte(), 255.toByte(), 2)
+        val dstIp = byteArrayOf(10, 255.toByte(), 255.toByte(), 1)
+        val srcPort = 45678
+        val dstPort = 853 // DoT probe
+
+        // Build 40-byte IPv4 TCP SYN packet
+        val synPacket = ByteArray(40)
+        synPacket[0] = 0x45.toByte() // IPv4, IHL = 5 (20 bytes)
+        synPacket[2] = 0.toByte()
+        synPacket[3] = 40.toByte() // Total length 40
+        synPacket[8] = 64.toByte() // TTL 64
+        synPacket[9] = 6.toByte()  // Protocol TCP (6)
+        System.arraycopy(srcIp, 0, synPacket, 12, 4)
+        System.arraycopy(dstIp, 0, synPacket, 16, 4)
+
+        // TCP header
+        synPacket[20] = ((srcPort shr 8) and 0xFF).toByte()
+        synPacket[21] = (srcPort and 0xFF).toByte()
+        synPacket[22] = ((dstPort shr 8) and 0xFF).toByte()
+        synPacket[23] = (dstPort and 0xFF).toByte()
+        // SeqNum = 1000 (0x000003E8)
+        synPacket[24] = 0.toByte()
+        synPacket[25] = 0.toByte()
+        synPacket[26] = 0x03.toByte()
+        synPacket[27] = 0xE8.toByte()
+        synPacket[32] = 0x50.toByte() // Offset 5 (20 bytes)
+        synPacket[33] = 0x02.toByte() // SYN flag
+
+        val rst = IpPacketParser.buildTcpResetPacket(synPacket, synPacket.size)
+        assertNotNull(rst)
+        assertEquals(40, rst!!.size)
+        assertEquals(0x45.toByte(), rst[0])
+        assertEquals(6.toByte(), rst[9]) // Protocol TCP
+
+        // Verify swapped IP
+        val rstSrcIp = rst.copyOfRange(12, 16)
+        val rstDstIp = rst.copyOfRange(16, 20)
+        assertArrayEquals(dstIp, rstSrcIp)
+        assertArrayEquals(srcIp, rstDstIp)
+
+        // Verify swapped Ports
+        val rstSrcPort = ((rst[20].toInt() and 0xFF) shl 8) or (rst[21].toInt() and 0xFF)
+        val rstDstPort = ((rst[22].toInt() and 0xFF) shl 8) or (rst[23].toInt() and 0xFF)
+        assertEquals(853, rstSrcPort)
+        assertEquals(45678, rstDstPort)
+
+        // Verify RST+ACK flags (0x14)
+        assertEquals(0x14.toByte(), rst[33])
+
+        // Verify Ack = SeqNum + 1 = 1001 (0x000003E9)
+        assertEquals(0.toByte(), rst[28])
+        assertEquals(0.toByte(), rst[29])
+        assertEquals(0x03.toByte(), rst[30])
+        assertEquals(0xE9.toByte(), rst[31])
+    }
 }
