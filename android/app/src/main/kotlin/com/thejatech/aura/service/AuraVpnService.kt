@@ -23,6 +23,7 @@ import com.thejatech.aura.model.AuraTunnelStatus
 import com.thejatech.aura.packet.IpPacketParser
 import com.thejatech.aura.packet.ParsedDnsPacket
 import com.thejatech.aura.storage.AuraCategoryStore
+import com.thejatech.aura.storage.AuraPreferences
 import com.thejatech.aura.storage.AuraRuleStore
 import com.thejatech.aura.theja_aura.MainActivity
 import com.thejatech.aura.tunnel.AuraTunnelManager
@@ -41,6 +42,10 @@ class AuraVpnService : VpnService() {
 
     companion object {
         private const val TAG = "AuraVpnService"
+
+        @Volatile
+        var isServiceActive: Boolean = false
+            private set
 
         const val ACTION_START = "com.thejatech.aura.ACTION_START"
         const val ACTION_STOP = "com.thejatech.aura.ACTION_STOP"
@@ -83,7 +88,29 @@ class AuraVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent == null) {
+            // Restarted by system via START_STICKY
+            if (!AuraPreferences.isFirewallDesired(this)) {
+                Log.i(TAG, "START_STICKY restart detected, but firewall desired state is OFF. Stopping.")
+                stopForegroundCompat()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+
         val action = intent?.action ?: ACTION_START
+
+        if (action == ACTION_START) {
+            val prepareIntent = VpnService.prepare(this)
+            if (prepareIntent != null) {
+                Log.w(TAG, "Cannot start VPN without user consent")
+                AuraPreferences.setFirewallDesired(this, false)
+                AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
+                stopForegroundCompat()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
 
         when (action) {
             ACTION_START -> startVpn()
@@ -93,7 +120,7 @@ class AuraVpnService : VpnService() {
             ACTION_RELOAD_DEFAULT_OVERRIDES -> reloadDefaultOverrides()
         }
 
-        return START_STICKY
+        return if (AuraPreferences.isFirewallDesired(this)) START_STICKY else START_NOT_STICKY
     }
 
     private fun startVpn() {
@@ -157,14 +184,17 @@ class AuraVpnService : VpnService() {
 
         val pfd = builder.establish()
         if (pfd == null) {
-            AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.DISCONNECTED)
+            isServiceActive = false
+            AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
             stopSelf()
             return
         }
 
         vpnInterface = pfd
         isRunning.set(true)
-        AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.CONNECTED)
+        isServiceActive = true
+        AuraPreferences.setFirewallDesired(this, true)
+        AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.CONNECTED)
 
         // Set initial underlying network and register dynamic change callback
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
@@ -238,15 +268,24 @@ class AuraVpnService : VpnService() {
 
     private fun stopVpn() {
         unregisterNetworkCallback()
+        isServiceActive = false
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                if (isLockdownEnabled) {
+                    Log.w(TAG, "VPN Lockdown is enabled in Android Settings. Stopping VPN will disrupt network connectivity.")
+                }
+            } catch (_: Exception) {}
+        }
 
         if (!isRunning.getAndSet(false)) {
-            AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.DISCONNECTED)
+            AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
             stopForegroundCompat()
             stopSelf()
             return
         }
 
-        AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.DISCONNECTING)
+        AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTING)
 
         try {
             vpnInterface?.close()
@@ -261,17 +300,20 @@ class AuraVpnService : VpnService() {
 
         activityWriter.flushAndClose(500L)
 
-        AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.DISCONNECTED)
+        AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
         stopForegroundCompat()
         stopSelf()
     }
 
     override fun onRevoke() {
         super.onRevoke()
+        Log.w(TAG, "VPN permission revoked by system or another VPN")
+        AuraPreferences.setFirewallDesired(this, false)
         stopVpn()
     }
 
     override fun onDestroy() {
+        isServiceActive = false
         stopVpn()
         super.onDestroy()
     }

@@ -22,6 +22,7 @@ import java.util.concurrent.Executors
 class MainActivity : FlutterActivity() {
 
     companion object {
+        const val EXTRA_REQUEST_VPN_CONSENT = "com.thejatech.aura.EXTRA_REQUEST_VPN_CONSENT"
         private const val VPN_REQUEST_CODE = 0xA01
         private const val CHANNEL_CONTROL = "com.thejatech.aura/tunnel_control"
         private const val CHANNEL_STATUS = "com.thejatech.aura/tunnel_status"
@@ -34,6 +35,30 @@ class MainActivity : FlutterActivity() {
     private lateinit var ruleStore: AuraRuleStore
     private lateinit var categoryStore: AuraCategoryStore
     private lateinit var activityRepository: AuraActivityRepository
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleConsentIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleConsentIntent(intent)
+    }
+
+    private fun handleConsentIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_REQUEST_VPN_CONSENT, false) == true) {
+            val prepareIntent = VpnService.prepare(this)
+            if (prepareIntent != null) {
+                startActivityForResult(prepareIntent, VPN_REQUEST_CODE)
+            } else {
+                try {
+                    AuraTunnelManager.shared.startTunnel(this)
+                } catch (_: Exception) {}
+            }
+        }
+    }
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -76,7 +101,7 @@ class MainActivity : FlutterActivity() {
     private fun handleControlCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "getStatus" -> {
-                result.success(AuraTunnelManager.shared.getStatus().rawValue)
+                result.success(AuraTunnelManager.shared.getStatus(this).rawValue)
             }
 
             "startTunnel" -> {
@@ -506,7 +531,7 @@ class MainActivity : FlutterActivity() {
                     pending?.error("START_FAILED", e.message ?: "Failed to start VPN service", null)
                 }
             } else {
-                AuraTunnelManager.shared.updateStatus(AuraTunnelStatus.DISCONNECTED)
+                AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
                 pending?.error("START_FAILED", "VPN permission denied by user", null)
             }
         }

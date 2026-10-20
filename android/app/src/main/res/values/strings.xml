@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Theja\'s Aura</string>
+    <string name="qs_tile_label">Aura Firewall</string>
+    <string name="qs_tile_subtitle_protected">Protected</string>
+    <string name="qs_tile_subtitle_off">Off</string>
+    <string name="qs_tile_subtitle_connecting">Connecting…</string>
+    <string name="qs_tile_subtitle_disconnecting">Disconnecting…</string>
+    <string name="qs_tile_subtitle_setup_needed">Tap to set up</string>
+</resources>

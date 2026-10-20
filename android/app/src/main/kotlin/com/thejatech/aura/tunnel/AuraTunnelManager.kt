@@ -4,57 +4,134 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import com.thejatech.aura.model.AuraTunnelStatus
+import com.thejatech.aura.service.AuraTileService
 import com.thejatech.aura.service.AuraVpnService
+import com.thejatech.aura.storage.AuraPreferences
 
-class AuraTunnelManager private constructor() {
+class AuraTunnelManager internal constructor() {
 
-    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mainHandler by lazy {
+        try {
+            Handler(Looper.getMainLooper())
+        } catch (_: Throwable) {
+            null
+        }
+    }
     private var currentStatus: AuraTunnelStatus = AuraTunnelStatus.DISCONNECTED
+    private var lastTransitionTime: Long = 0L
+    private val DEBOUNCE_MS = 600L
 
     var onStatusChanged: ((AuraTunnelStatus) -> Unit)? = null
         set(value) {
             field = value
             value?.let { cb ->
-                mainHandler.post { cb(currentStatus) }
+                val status = getStatus()
+                val handler = mainHandler
+                if (handler != null) {
+                    handler.post { cb(status) }
+                } else {
+                    cb(status)
+                }
             }
         }
 
-    fun getStatus(): AuraTunnelStatus = synchronized(this) { currentStatus }
+    /**
+     * Returns true if a connect or disconnect transition is currently active or within debounce window.
+     */
+    fun isTransitioning(): Boolean = synchronized(this) {
+        val now = System.currentTimeMillis()
+        (currentStatus == AuraTunnelStatus.CONNECTING ||
+         currentStatus == AuraTunnelStatus.DISCONNECTING ||
+         (now - lastTransitionTime) < DEBOUNCE_MS)
+    }
 
-    fun updateStatus(newStatus: AuraTunnelStatus) {
-        synchronized(this) {
-            if (currentStatus == newStatus) return
-            currentStatus = newStatus
+    /**
+     * Returns the reconciled status of the tunnel.
+     * If context is provided, reconciles in-memory status against actual running service state.
+     */
+    fun getStatus(context: Context? = null): AuraTunnelStatus = synchronized(this) {
+        if (context != null) {
+            reconcileState()
         }
-        mainHandler.post {
-            onStatusChanged?.invoke(newStatus)
+        currentStatus
+    }
+
+    private fun reconcileState() {
+        val isServiceActive = AuraVpnService.isServiceActive
+        if (isServiceActive && currentStatus != AuraTunnelStatus.CONNECTED && currentStatus != AuraTunnelStatus.DISCONNECTING) {
+            currentStatus = AuraTunnelStatus.CONNECTED
+        } else if (!isServiceActive && currentStatus == AuraTunnelStatus.CONNECTED) {
+            currentStatus = AuraTunnelStatus.DISCONNECTED
         }
     }
 
+    fun updateStatus(context: Context? = null, newStatus: AuraTunnelStatus) {
+        synchronized(this) {
+            if (currentStatus == newStatus) return
+            currentStatus = newStatus
+            lastTransitionTime = System.currentTimeMillis()
+        }
+        val handler = mainHandler
+        if (handler != null) {
+            handler.post { onStatusChanged?.invoke(newStatus) }
+        } else {
+            onStatusChanged?.invoke(newStatus)
+        }
+        if (context != null) {
+            AuraTileService.requestTileUpdate(context)
+        }
+    }
+
+    // Overload for backward compatibility with existing calls without context
+    fun updateStatus(newStatus: AuraTunnelStatus) {
+        updateStatus(null, newStatus)
+    }
+
     fun startTunnel(context: Context) {
-        updateStatus(AuraTunnelStatus.CONNECTING)
+        synchronized(this) {
+            if (currentStatus == AuraTunnelStatus.CONNECTED || currentStatus == AuraTunnelStatus.CONNECTING) {
+                return
+            }
+            lastTransitionTime = System.currentTimeMillis()
+        }
+
+        // Persist desired state
+        AuraPreferences.setFirewallDesired(context, true)
+        updateStatus(context, AuraTunnelStatus.CONNECTING)
+
         val intent = Intent(context, AuraVpnService::class.java).apply {
             action = AuraVpnService.ACTION_START
         }
         try {
             ContextCompat.startForegroundService(context, intent)
         } catch (e: Exception) {
-            updateStatus(AuraTunnelStatus.DISCONNECTED)
+            updateStatus(context, AuraTunnelStatus.DISCONNECTED)
             throw e
         }
     }
 
     fun stopTunnel(context: Context) {
-        updateStatus(AuraTunnelStatus.DISCONNECTING)
+        synchronized(this) {
+            if (currentStatus == AuraTunnelStatus.DISCONNECTED || currentStatus == AuraTunnelStatus.DISCONNECTING) {
+                return
+            }
+            lastTransitionTime = System.currentTimeMillis()
+        }
+
+        // Persist desired state
+        AuraPreferences.setFirewallDesired(context, false)
+        updateStatus(context, AuraTunnelStatus.DISCONNECTING)
+
         val intent = Intent(context, AuraVpnService::class.java).apply {
             action = AuraVpnService.ACTION_STOP
         }
         try {
             context.startService(intent)
         } catch (_: Exception) {
-            updateStatus(AuraTunnelStatus.DISCONNECTED)
+            updateStatus(context, AuraTunnelStatus.DISCONNECTED)
         }
     }
 

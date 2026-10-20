@@ -47,6 +47,17 @@
                 android:value="Local on-device DNS firewall protecting privacy and security"/>
         </service>
 
+        <service
+            android:name="com.thejatech.aura.service.AuraTileService"
+            android:label="@string/qs_tile_label"
+            android:icon="@drawable/ic_qs_firewall"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name="com.thejatech.aura.receiver.BootReceiver"
             android:exported="false">
