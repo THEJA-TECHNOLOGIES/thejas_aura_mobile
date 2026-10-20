@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/app_utils.dart';
 import 'package:theja_aura/features/activity/presentation/pages/activity_page.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
@@ -21,23 +22,21 @@ class StatisticsSection extends StatelessWidget {
               Expanded(
                 child: StatisticsCard(
                   subtitle: 'Blocked Today',
-                  value: blockedToday != null ? '$blockedToday' : '—',
+                  value: blockedToday,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: StatisticsCard(
                   subtitle: 'This Week',
-                  value: blockedThisWeek != null ? '$blockedThisWeek' : '—',
+                  value: blockedThisWeek,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: StatisticsCard(
                   subtitle: 'All Time',
-                  value: totalBlockedDomains != null
-                      ? '$totalBlockedDomains'
-                      : '—',
+                  value: totalBlockedDomains,
                 ),
               ),
             ],
@@ -50,7 +49,7 @@ class StatisticsSection extends StatelessWidget {
 
 class StatisticsCard extends StatelessWidget {
   const new({super.key, required this.subtitle, required this.value});
-  final String value;
+  final int? value;
   final String subtitle;
   @override
   Widget build(BuildContext context) {
@@ -75,7 +74,7 @@ class StatisticsCard extends StatelessWidget {
         child: Column(
           children: [
             Text(
-              value,
+              formatNumber(value ?? 0),
               style: typo.titleLarge.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
             ),
