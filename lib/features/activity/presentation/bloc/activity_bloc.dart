@@ -20,6 +20,7 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
   final IBlocklistRepository _blocklistRepository;
   int _activeRequestId = 0;
   Timer? _searchDebounceTimer;
+  bool _isLoadMoreInFlight = false;
 
   ActivityBloc(this._repository, this._blocklistRepository)
     : super(const ActivityState()) {
@@ -168,13 +169,16 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
   }
 
   Future<void> _onLoadMoreRequested(Emitter<ActivityState> emit) async {
-    if (!state.hasMore ||
+    if (_isLoadMoreInFlight ||
+        !state.hasMore ||
+        state.isLoading ||
         state.isLoadingMore ||
         state.nextCursorTimestamp == null ||
         state.nextCursorId == null) {
       return;
     }
 
+    _isLoadMoreInFlight = true;
     final int requestId = _activeRequestId;
     emit(state.copyWith(isLoadingMore: true));
 
@@ -196,9 +200,13 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
 
       final effectiveMap = _computeEffectiveBlockedForRecords(result.records);
 
+      final existingIds = state.records.map((r) => r.id).toSet();
+      final newRecords =
+          result.records.where((r) => !existingIds.contains(r.id)).toList();
+
       emit(
         state.copyWith(
-          records: [...state.records, ...result.records],
+          records: [...state.records, ...newRecords],
           effectiveBlockedState: {
             ...state.effectiveBlockedState,
             ...effectiveMap,
@@ -212,6 +220,8 @@ class ActivityBloc extends Bloc<ActivityEvent, ActivityState> {
     } catch (_) {
       if (requestId != _activeRequestId) return;
       emit(state.copyWith(isLoadingMore: false));
+    } finally {
+      _isLoadMoreInFlight = false;
     }
   }
 

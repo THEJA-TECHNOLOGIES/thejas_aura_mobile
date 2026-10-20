@@ -220,13 +220,17 @@ class _CategoryDomainSheetState extends State<CategoryDomainSheet> {
                           controller: scrollController,
                           thumbVisibility: true,
                           trackVisibility: true,
+                          interactive: true,
                           thickness: 8.0,
                           child: ListView.separated(
                             controller: scrollController,
                             itemCount: filteredDomains.length,
                             separatorBuilder: (context, index) =>
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                             itemBuilder: (context, index) {
+                              if (index < 0 || index >= filteredDomains.length) {
+                                return const SizedBox.shrink();
+                              }
                               final domain = filteredDomains[index];
                               final isDomainEnabled = !state
                                   .disabledDefaultDomains

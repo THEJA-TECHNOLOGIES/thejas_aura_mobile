@@ -39,6 +39,7 @@ class _ActivityPageState extends State<ActivityPage>
     with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  bool _isLoadMoreRequested = false;
 
   @override
   void initState() {
@@ -68,12 +69,17 @@ class _ActivityPageState extends State<ActivityPage>
   void _onScroll() {
     final bloc = context.read<ActivityBloc>();
     if (!_scrollController.hasClients) return;
-    final maxScroll = _scrollController.position.maxScrollExtent;
-    final currentScroll = _scrollController.position.pixels;
+    if (_isLoadMoreRequested) return;
+
+    final position = _scrollController.position;
+    final maxScroll = position.maxScrollExtent;
+    final currentScroll = position.pixels;
+
     if (currentScroll >= maxScroll - 200 &&
         bloc.state.hasMore &&
         !bloc.state.isLoading &&
         !bloc.state.isLoadingMore) {
+      _isLoadMoreRequested = true;
       bloc.add(const ActivityEvent.loadMoreRequested());
     }
   }
@@ -106,6 +112,9 @@ class _ActivityPageState extends State<ActivityPage>
 
     return BlocConsumer<ActivityBloc, ActivityState>(
       listener: (context, state) {
+        if (!state.isLoadingMore) {
+          _isLoadMoreRequested = false;
+        }
         if (state.actionError != null) {
           showErrorToast(message: state.actionError!);
           context.read<ActivityBloc>().add(
@@ -328,16 +337,24 @@ class _ActivityPageState extends State<ActivityPage>
         thickness: 8.0,
         thumbVisibility: true,
         trackVisibility: true,
+        interactive: true,
         child: ListView.separated(
           controller: _scrollController,
           itemCount: state.records.length + (state.hasMore ? 1 : 0),
-          separatorBuilder: (context, index) => SizedBox(height: 6),
+          separatorBuilder: (context, index) => const SizedBox(height: 6),
           itemBuilder: (context, index) {
-            if (index == state.records.length) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              );
+            if (index < 0) {
+              return const SizedBox.shrink();
+            }
+
+            if (index >= state.records.length) {
+              if (state.hasMore && index == state.records.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                );
+              }
+              return const SizedBox.shrink();
             }
 
             final record = state.records[index];
