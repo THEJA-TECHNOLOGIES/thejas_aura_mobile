@@ -50,9 +50,22 @@ class AuraTileService : TileService() {
         }
     }
 
+    private var isListening = false
+    private val statusListener: (AuraTunnelStatus) -> Unit = { _ ->
+        updateTileState()
+    }
+
     override fun onStartListening() {
         super.onStartListening()
+        isListening = true
+        AuraTunnelManager.shared.addStatusListener(statusListener)
         updateTileState()
+    }
+
+    override fun onStopListening() {
+        isListening = false
+        AuraTunnelManager.shared.removeStatusListener(statusListener)
+        super.onStopListening()
     }
 
     override fun onClick() {
@@ -107,6 +120,7 @@ class AuraTileService : TileService() {
     }
 
     private fun updateTileState() {
+        if (!isListening) return
         val tile = qsTile ?: return
         val isVpnPrepared = VpnService.prepare(this) == null
         val currentStatus = AuraTunnelManager.shared.getStatus(this)

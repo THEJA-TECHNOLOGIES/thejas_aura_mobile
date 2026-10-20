@@ -35,6 +35,35 @@ class AuraTunnelManagerTest {
     }
 
     @Test
+    fun testMultipleListeners_ReceiveStatusUpdates() {
+        var listener1Status: AuraTunnelStatus? = null
+        var listener2Status: AuraTunnelStatus? = null
+
+        val listener1: (AuraTunnelStatus) -> Unit = { listener1Status = it }
+        val listener2: (AuraTunnelStatus) -> Unit = { listener2Status = it }
+
+        manager.addStatusListener(listener1)
+        manager.addStatusListener(listener2)
+
+        // Initial replay on registration
+        assertEquals(AuraTunnelStatus.DISCONNECTED, listener1Status)
+        assertEquals(AuraTunnelStatus.DISCONNECTED, listener2Status)
+
+        // Update status
+        manager.updateStatus(null, AuraTunnelStatus.CONNECTED)
+        assertEquals(AuraTunnelStatus.CONNECTED, listener1Status)
+        assertEquals(AuraTunnelStatus.CONNECTED, listener2Status)
+
+        // Remove listener 1
+        manager.removeStatusListener(listener1)
+        manager.updateStatus(null, AuraTunnelStatus.DISCONNECTED)
+
+        // listener 1 should remain CONNECTED, listener 2 should be DISCONNECTED
+        assertEquals(AuraTunnelStatus.CONNECTED, listener1Status)
+        assertEquals(AuraTunnelStatus.DISCONNECTED, listener2Status)
+    }
+
+    @Test
     fun testIsTransitioning_DuringConnectingAndDisconnecting() {
         manager.updateStatus(null, AuraTunnelStatus.CONNECTING)
         assertTrue(manager.isTransitioning())

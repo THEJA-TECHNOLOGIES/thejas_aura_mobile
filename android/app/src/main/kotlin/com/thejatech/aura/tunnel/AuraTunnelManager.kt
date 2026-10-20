@@ -4,12 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import com.thejatech.aura.model.AuraTunnelStatus
 import com.thejatech.aura.service.AuraTileService
 import com.thejatech.aura.service.AuraVpnService
 import com.thejatech.aura.storage.AuraPreferences
+import java.util.concurrent.CopyOnWriteArrayList
 
 class AuraTunnelManager internal constructor() {
 
@@ -23,20 +23,31 @@ class AuraTunnelManager internal constructor() {
     private var currentStatus: AuraTunnelStatus = AuraTunnelStatus.DISCONNECTED
     private var lastTransitionTime: Long = 0L
     private val DEBOUNCE_MS = 600L
+    private val statusListeners = CopyOnWriteArrayList<(AuraTunnelStatus) -> Unit>()
 
     var onStatusChanged: ((AuraTunnelStatus) -> Unit)? = null
         set(value) {
+            field?.let { removeStatusListener(it) }
             field = value
-            value?.let { cb ->
-                val status = getStatus()
-                val handler = mainHandler
-                if (handler != null) {
-                    handler.post { cb(status) }
-                } else {
-                    cb(status)
-                }
-            }
+            value?.let { addStatusListener(it) }
         }
+
+    fun addStatusListener(listener: (AuraTunnelStatus) -> Unit) {
+        if (!statusListeners.contains(listener)) {
+            statusListeners.add(listener)
+        }
+        val status = getStatus()
+        val handler = mainHandler
+        if (handler != null) {
+            handler.post { listener(status) }
+        } else {
+            listener(status)
+        }
+    }
+
+    fun removeStatusListener(listener: (AuraTunnelStatus) -> Unit) {
+        statusListeners.remove(listener)
+    }
 
     /**
      * Returns true if a connect or disconnect transition is currently active or within debounce window.
@@ -75,10 +86,12 @@ class AuraTunnelManager internal constructor() {
             lastTransitionTime = System.currentTimeMillis()
         }
         val handler = mainHandler
-        if (handler != null) {
-            handler.post { onStatusChanged?.invoke(newStatus) }
-        } else {
-            onStatusChanged?.invoke(newStatus)
+        for (listener in statusListeners) {
+            if (handler != null) {
+                handler.post { listener(newStatus) }
+            } else {
+                listener(newStatus)
+            }
         }
         if (context != null) {
             AuraTileService.requestTileUpdate(context)

@@ -182,10 +182,17 @@ class AuraVpnService : VpnService() {
 
         builder.setBlocking(true)
 
-        val pfd = builder.establish()
+        val pfd = try {
+            builder.establish()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to establish VPN interface", e)
+            null
+        }
         if (pfd == null) {
             isServiceActive = false
+            AuraPreferences.setFirewallDesired(this, false)
             AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
+            stopForegroundCompat()
             stopSelf()
             return
         }
