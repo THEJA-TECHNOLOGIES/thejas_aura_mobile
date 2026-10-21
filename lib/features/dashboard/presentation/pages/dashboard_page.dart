@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/sized_context.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/block_list_sync_indicator.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/cta_buttons.dart';
@@ -58,6 +59,16 @@ class _DashboardPageState extends State<DashboardPage>
               IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Refresh',
+                style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                    states,
+                  ) {
+                    if (states.contains(WidgetState.focused)) {
+                      return context.appColors.primary;
+                    }
+                    return context.appColors.surfaceRaised; // Default color
+                  }),
+                ),
                 onPressed: () {
                   context.read<DashboardBloc>().add(
                     const DashboardEvent.started(),
@@ -67,32 +78,37 @@ class _DashboardPageState extends State<DashboardPage>
             ],
           ),
           body: !context.isMobile
-              ? Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 16,
-                        ),
-                        child: FirewallController(),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
+              ? SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          StatisticsSection(),
-                          SizedBox(height: 22),
-                          CTAButtons(),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              // vertical: 16,
+                            ),
+                            child: FirewallController(),
+                          ),
+                          Flexible(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                BlockListSyncIndicator(),
+                                StatisticsSection(),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                  ],
+
+                      SizedBox(height: 18),
+                      CTAButtons(useRow: true),
+                    ],
+                  ),
                 )
               : SingleChildScrollView(
                   child: Column(
@@ -102,7 +118,6 @@ class _DashboardPageState extends State<DashboardPage>
                       FirewallController(),
                       const SizedBox(height: 18),
                       BlockListSyncIndicator(),
-                      SizedBox(height: 18),
                       StatisticsSection(),
                       const SizedBox(height: 18),
                       CTAButtons(),

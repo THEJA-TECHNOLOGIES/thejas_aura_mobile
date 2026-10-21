@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/app_button.dart';
+import 'package:theja_aura/core/utils/sized_context.dart';
 import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_sync_repository.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_sync_cubit.dart';
 
@@ -21,7 +22,7 @@ class BlockListSyncIndicator extends StatelessWidget {
         if (state.isLoading) {
           return Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-            margin: const EdgeInsets.symmetric(horizontal: 16),
+            margin: EdgeInsets.only(left: 16, right: 16, bottom: 18),
             decoration: BoxDecoration(
               color: colors.surfaceRaised,
               borderRadius: BorderRadius.circular(18),
