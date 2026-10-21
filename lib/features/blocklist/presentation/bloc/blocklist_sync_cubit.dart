@@ -16,6 +16,7 @@ class BlocklistSyncCubit extends Cubit<BlocklistSyncState> {
 
   BlocklistSyncCubit(this._repository) : super(const BlocklistSyncState()) {
     _subscription = _repository.statusStream.listen((status) {
+      if (isClosed) return;
       emit(
         state.copyWith(
           state: status.state,
@@ -23,7 +24,9 @@ class BlocklistSyncCubit extends Cubit<BlocklistSyncState> {
           progress: status.progress,
           installedRelease: status.installedRelease ?? state.installedRelease,
           latestManifest: _repository.latestManifest ?? state.latestManifest,
-          errorMessage: status.error,
+          errorMessage: status.error != null
+              ? _formatErrorMessage(status.error)
+              : null,
         ),
       );
     });
@@ -34,6 +37,7 @@ class BlocklistSyncCubit extends Cubit<BlocklistSyncState> {
 
   Future<void> _initCurrentRelease() async {
     final release = await _repository.getInstalledRelease();
+    if (isClosed) return;
     if (release != null) {
       emit(state.copyWith(installedRelease: release));
     }
@@ -41,25 +45,65 @@ class BlocklistSyncCubit extends Cubit<BlocklistSyncState> {
 
   /// Initiates synchronization against backend.
   Future<SyncResult> sync({bool force = false}) async {
-    final result = await _repository.sync(force: force);
-    if (result.isSuccess) {
+    if (!state.isLoading) {
       emit(
         state.copyWith(
-          state: result.isUpdated ? SyncState.updated : SyncState.upToDate,
-          isCategoryEndpointsMissing: result.isCategoryEndpointsMissing,
-          installedRelease: result.installedRelease ?? state.installedRelease,
-        ),
-      );
-    } else {
-      emit(
-        state.copyWith(
-          state: SyncState.failed,
-          errorMessage: result.error,
-          installedRelease: result.installedRelease ?? state.installedRelease,
+          state: SyncState.checkingForUpdates,
+          errorMessage: null,
         ),
       );
     }
-    return result;
+
+    try {
+      final result = await _repository.sync(force: force);
+      if (isClosed) return result;
+
+      if (result.isSuccess) {
+        emit(
+          state.copyWith(
+            state: result.isUpdated ? SyncState.updated : SyncState.upToDate,
+            isCategoryEndpointsMissing: result.isCategoryEndpointsMissing,
+            installedRelease: result.installedRelease ?? state.installedRelease,
+            errorMessage: null,
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            state: SyncState.failed,
+            errorMessage: _formatErrorMessage(result.error),
+            installedRelease: result.installedRelease ?? state.installedRelease,
+          ),
+        );
+      }
+      return result;
+    } catch (e) {
+      if (!isClosed) {
+        emit(
+          state.copyWith(
+            state: SyncState.failed,
+            errorMessage: _formatErrorMessage(e.toString()),
+          ),
+        );
+      }
+      rethrow;
+    }
+  }
+
+  String _formatErrorMessage(String? error) {
+    if (error == null || error.trim().isEmpty) {
+      return 'Failed to synchronize block lists. Please check your network connection and try again.';
+    }
+    var msg = error.trim();
+    if (msg.startsWith('Exception: ')) {
+      msg = msg.substring('Exception: '.length).trim();
+    }
+    if (msg.startsWith('BlocklistApiException: ')) {
+      msg = msg.substring('BlocklistApiException: '.length).trim();
+    }
+    return msg.isNotEmpty
+        ? msg
+        : 'Failed to synchronize block lists. Please check your network connection and try again.';
   }
 
   @override

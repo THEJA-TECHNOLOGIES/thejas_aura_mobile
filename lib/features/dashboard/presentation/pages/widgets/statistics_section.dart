@@ -67,7 +67,7 @@ class StatisticsCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
         decoration: BoxDecoration(
-          color: colors.card,
+          color: colors.surfaceRaised,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: colors.border),
         ),

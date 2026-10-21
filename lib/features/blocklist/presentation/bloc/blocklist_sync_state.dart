@@ -26,6 +26,8 @@ abstract class BlocklistSyncState with _$BlocklistSyncState {
       state == SyncState.validating ||
       state == SyncState.installing;
 
+  bool get isLoading => isSyncing;
+
   bool get isUpToDate => state == SyncState.upToDate;
   bool get isUpdated => state == SyncState.updated;
   bool get hasFailed => state == SyncState.failed;
