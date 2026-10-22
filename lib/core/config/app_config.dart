@@ -13,7 +13,7 @@ class AppConfig {
 
   AppConfig({
     required this.apiBaseUrl,
-    this.requestTimeout = const Duration(seconds: 15),
+    this.requestTimeout = const Duration(minutes: 15),
   });
 
   /// Factory to initialize [AppConfig] from environment sources.
