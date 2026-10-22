@@ -17,6 +17,7 @@ class BlocklistSyncCubit extends Cubit<BlocklistSyncState> {
 
   BlocklistSyncCubit(this._repository) : super(const BlocklistSyncState()) {
     _subscription = _repository.statusStream.listen((status) {
+      if (isClosed) return;
       emit(
         state.copyWith(
           state: status.state,
@@ -35,6 +36,7 @@ class BlocklistSyncCubit extends Cubit<BlocklistSyncState> {
 
   Future<void> _initCurrentRelease() async {
     final release = await _repository.getInstalledRelease();
+    if (isClosed) return;
     if (release != null) {
       emit(state.copyWith(installedRelease: release));
     }
@@ -42,25 +44,40 @@ class BlocklistSyncCubit extends Cubit<BlocklistSyncState> {
 
   /// Initiates synchronization against backend.
   Future<SyncResult> sync({bool force = false}) async {
-    final result = await _repository.sync(force: force);
-    if (result.isSuccess) {
-      emit(
-        state.copyWith(
-          state: result.isUpdated ? SyncState.updated : SyncState.upToDate,
-          isCategoryEndpointsMissing: result.isCategoryEndpointsMissing,
-          installedRelease: result.installedRelease ?? state.installedRelease,
-        ),
-      );
-    } else {
+    try {
+      final result = await _repository.sync(force: force);
+      if (isClosed) return result;
+      if (result.isSuccess) {
+        emit(
+          state.copyWith(
+            state: result.isUpdated ? SyncState.updated : SyncState.upToDate,
+            isCategoryEndpointsMissing: result.isCategoryEndpointsMissing,
+            installedRelease: result.installedRelease ?? state.installedRelease,
+            errorMessage: null,
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            state: SyncState.failed,
+            errorMessage: result.error,
+            installedRelease: result.installedRelease ?? state.installedRelease,
+          ),
+        );
+      }
+      return result;
+    } catch (e) {
+      if (isClosed) {
+        return SyncResult.failure(error: e.toString());
+      }
       emit(
         state.copyWith(
           state: SyncState.failed,
-          errorMessage: result.error,
-          installedRelease: result.installedRelease ?? state.installedRelease,
+          errorMessage: e.toString(),
         ),
       );
+      return SyncResult.failure(error: e.toString());
     }
-    return result;
   }
 
   @override

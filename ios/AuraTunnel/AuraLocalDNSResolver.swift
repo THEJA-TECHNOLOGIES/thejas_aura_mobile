@@ -63,14 +63,16 @@ public final class AuraLocalDNSResolver {
         guard sock >= 0 else {
             let err = errno
             os_log(.error, log: Self.log, "Failed to create UDP socket: errno %{public}d", err)
+            AuraDiagnostics.log(tag: "DNSResolver", message: "Failed to create UDP socket: errno \(err)")
             let nsErr = NSError(domain: NSPOSIXErrorDomain, code: Int(err), userInfo: [NSLocalizedDescriptionKey: "Failed to create UDP socket: \(err)"])
             onFatalError?(nsErr)
             return false
         }
 
-        // Enable SO_REUSEADDR
+        // Enable SO_REUSEADDR and SO_REUSEPORT to prevent EADDRINUSE on rapid restarts
         var reuse: Int32 = 1
         setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &reuse, socklen_t(MemoryLayout<Int32>.size))
 
         // Set non-blocking
         let flags = fcntl(sock, F_GETFL, 0)
@@ -90,15 +92,19 @@ public final class AuraLocalDNSResolver {
 
         guard bindResult == 0 else {
             let bindErr = errno
-            os_log(.error, log: Self.log, "Failed to bind UDP socket to 127.0.0.1:53: errno %{public}d (%{public}s)", bindErr, strerror(bindErr))
+            let errDesc = String(cString: strerror(bindErr))
+            os_log(.error, log: Self.log, "Failed to bind UDP socket to 127.0.0.1:53: errno %{public}d (%{public}s)", bindErr, errDesc)
+            AuraDiagnostics.log(tag: "DNSResolver", message: "FATAL: Failed to bind UDP socket to 127.0.0.1:53: errno \(bindErr) (\(errDesc))")
             close(sock)
-            let nsErr = NSError(domain: NSPOSIXErrorDomain, code: Int(bindErr), userInfo: [NSLocalizedDescriptionKey: "Failed to bind 127.0.0.1:53: \(bindErr)"])
+            let nsErr = NSError(domain: NSPOSIXErrorDomain, code: Int(bindErr), userInfo: [NSLocalizedDescriptionKey: "Failed to bind 127.0.0.1:53: \(bindErr) (\(errDesc))"])
             onFatalError?(nsErr)
             return false
         }
 
         serverSocket = sock
         isRunning = true
+
+        AuraDiagnostics.log(tag: "DNSResolver", message: "Successfully bound UDP socket fd=\(sock) to 127.0.0.1:53")
 
         let source = DispatchSource.makeReadSource(fileDescriptor: sock, queue: queue)
         source.setEventHandler { [weak self] in

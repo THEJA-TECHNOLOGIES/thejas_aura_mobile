@@ -85,6 +85,7 @@ public final class AuraTunnelManager: NSObject {
     }
 
     private var targetManager: NETunnelProviderManager?
+    private let knownConnections = NSHashTable<NEVPNConnection>.weakObjects()
     public var onStatusChanged: ((Status) -> Void)?
 
     override private init() {
@@ -102,16 +103,20 @@ public final class AuraTunnelManager: NSObject {
     }
 
     @objc private func handleVPNStatusChanged(_ notification: Notification) {
-        if let notifiedConnection = notification.object as? NEVPNConnection,
-           let targetConnection = targetManager?.connection,
-           notifiedConnection !== targetConnection {
-            return
-        }
-        guard let connection = (notification.object as? NEVPNConnection) ?? targetManager?.connection else { return }
-        let rawStatus = connection.status
+        guard let notifiedConnection = notification.object as? NEVPNConnection else { return }
+
+        let isTracked = knownConnections.contains(notifiedConnection) || (targetManager?.connection === notifiedConnection)
+        let rawStatus = notifiedConnection.status
         let status = Status.from(vpnStatus: rawStatus)
-        os_log(.info, log: Self.log, "[NEVPNStatusDidChange] status=%{public}@ (raw=%{public}ld)", status.rawValue, rawStatus.rawValue)
+
+        os_log(.info, log: Self.log, "[NEVPNStatusDidChange] status=%{public}@ (raw=%{public}ld) isTracked=%{public}d", status.rawValue, rawStatus.rawValue, isTracked ? 1 : 0)
+        AuraDiagnostics.log(
+            tag: "AuraTunnelManager",
+            message: "handleVPNStatusChanged: status=\(status.rawValue) (raw=\(rawStatus.rawValue)) isTracked=\(isTracked)"
+        )
+
         onStatusChanged?(status)
+        AuraDiagnostics.flushNewLogsToConsole()
     }
 
     /// Ensures the given manager has the expected NETunnelProviderProtocol and bundle identifier.
@@ -167,6 +172,7 @@ public final class AuraTunnelManager: NSObject {
                     Status.from(vpnStatus: existing.connection.status).rawValue
                 )
                 self?.targetManager = existing
+                self?.knownConnections.add(existing.connection)
                 completion(.success(existing))
                 return
             }
@@ -175,6 +181,7 @@ public final class AuraTunnelManager: NSObject {
             let newManager = NETunnelProviderManager()
             self?.applyConfiguration(to: newManager)
             self?.targetManager = newManager
+            self?.knownConnections.add(newManager.connection)
             completion(.success(newManager))
         }
     }
@@ -201,16 +208,22 @@ public final class AuraTunnelManager: NSObject {
     /// 4. Reload saved configuration from preferences
     /// 5. Call startVPNTunnel() and observe status transitions
     public func startTunnel(completion: @escaping (Result<Void, AuraTunnelError>) -> Void) {
-        os_log(.info, log: Self.log, "[startTunnel] Beginning tunnel startup sequence...")
+        let actId = UUID().uuidString.prefix(6)
+        os_log(.info, log: Self.log, "[startTunnel] Beginning tunnel startup sequence [\(actId)]...")
+        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] sequence initiated")
+        AuraDiagnostics.flushNewLogsToConsole()
+
         getManager { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success(let manager):
+                self.knownConnections.add(manager.connection)
                 // Step 2: Ensure protocol configuration and isEnabled are set
                 self.applyConfiguration(to: manager)
 
                 // Step 3: Save to preferences
                 os_log(.info, log: Self.log, "[saveToPreferences] Saving configuration...")
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] calling saveToPreferences...")
                 manager.saveToPreferences { saveError in
                     if let saveError = saveError {
                         let nsError = saveError as NSError
@@ -222,11 +235,14 @@ public final class AuraTunnelManager: NSObject {
                             nsError.code,
                             nsError.localizedDescription
                         )
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] saveToPreferences FAILED: \(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.failure(AuraTunnelError(stage: "saveToPreferences", error: saveError)))
                         return
                     }
 
                     os_log(.info, log: Self.log, "[saveToPreferences] SUCCEEDED — reloading configuration from preferences...")
+                    AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] saveToPreferences SUCCEEDED, reloading...")
 
                     // Step 4: Reload before starting
                     manager.loadFromPreferences { reloadError in
@@ -240,10 +256,13 @@ public final class AuraTunnelManager: NSObject {
                                 nsError.code,
                                 nsError.localizedDescription
                             )
+                            AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] loadFromPreferences FAILED: \(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
+                            AuraDiagnostics.flushNewLogsToConsole()
                             completion(.failure(AuraTunnelError(stage: "loadFromPreferences", error: reloadError)))
                             return
                         }
 
+                        self.knownConnections.add(manager.connection)
                         let proto = manager.protocolConfiguration as? NETunnelProviderProtocol
                         let statusBefore = manager.connection.status
                         os_log(
@@ -254,6 +273,10 @@ public final class AuraTunnelManager: NSObject {
                             manager.isEnabled ? 1 : 0,
                             Status.from(vpnStatus: statusBefore).rawValue,
                             statusBefore.rawValue
+                        )
+                        AuraDiagnostics.log(
+                            tag: "AuraTunnelManager",
+                            message: "startTunnel [\(actId)] loadFromPreferences SUCCEEDED — bundleId=\(proto?.providerBundleIdentifier ?? "nil") statusBefore=\(Status.from(vpnStatus: statusBefore).rawValue)(\(statusBefore.rawValue)), calling startVPNTunnel()..."
                         )
 
                         // Step 5: Start the VPN tunnel
@@ -267,6 +290,7 @@ public final class AuraTunnelManager: NSObject {
                                 Status.from(vpnStatus: statusAfter).rawValue,
                                 statusAfter.rawValue
                             )
+                            AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] startVPNTunnel SUCCEEDED — statusAfter=\(Status.from(vpnStatus: statusAfter).rawValue)(\(statusAfter.rawValue))")
                             completion(.success(()))
                         } catch {
                             let nsError = error as NSError
@@ -278,11 +302,15 @@ public final class AuraTunnelManager: NSObject {
                                 nsError.code,
                                 nsError.localizedDescription
                             )
+                            AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] startVPNTunnel THREW synchronously: \(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
                             completion(.failure(AuraTunnelError(stage: "startVPNTunnel", error: error)))
                         }
+                        AuraDiagnostics.flushNewLogsToConsole()
                     }
                 }
             case .failure(let error):
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] getManager FAILED: \(error.underlyingDescription)")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.failure(error))
             }
         }
@@ -291,9 +319,12 @@ public final class AuraTunnelManager: NSObject {
     /// Stops the local firewall tunnel.
     public func stopTunnel(completion: @escaping (Result<Void, AuraTunnelError>) -> Void) {
         os_log(.info, log: Self.log, "[stopTunnel] Requesting tunnel stop...")
-        getManager { result in
+        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "stopTunnel requested by app")
+        AuraDiagnostics.flushNewLogsToConsole()
+        getManager { [weak self] result in
             switch result {
             case .success(let manager):
+                self?.knownConnections.add(manager.connection)
                 let statusBefore = manager.connection.status
                 os_log(
                     .info,
@@ -302,17 +333,21 @@ public final class AuraTunnelManager: NSObject {
                     Status.from(vpnStatus: statusBefore).rawValue,
                     statusBefore.rawValue
                 )
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "Calling stopVPNTunnel() from status=\(Status.from(vpnStatus: statusBefore).rawValue)")
                 manager.connection.stopVPNTunnel()
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.success(()))
             case .failure(let error):
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "stopTunnel getManager failed: \(error.underlyingDescription)")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.failure(error))
             }
         }
     }
 
     /// Signals a currently connected tunnel to reload its rules from the App Group storage.
-    /// Always resolves a fresh manager to ensure no stale manager reference is used.
     public func notifyRulesUpdated(completion: @escaping (Result<Bool, AuraTunnelError>) -> Void) {
+        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated entered")
         let sendIPC: (NETunnelProviderManager) -> Void = { manager in
             guard let session = manager.connection as? NETunnelProviderSession else {
                 os_log(
@@ -320,6 +355,8 @@ public final class AuraTunnelManager: NSObject {
                     log: Self.log,
                     "[sendProviderMessage] Connection is not a NETunnelProviderSession; skipping live reload IPC"
                 )
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: connection is NOT NETunnelProviderSession")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.success(false))
                 return
             }
@@ -333,12 +370,15 @@ public final class AuraTunnelManager: NSObject {
                     Status.from(vpnStatus: currentStatus).rawValue,
                     currentStatus.rawValue
                 )
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: tunnel status is \(Status.from(vpnStatus: currentStatus).rawValue) (not .connected) — skipping live IPC")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.success(false))
                 return
             }
 
             let message = Data("reload_rules".utf8)
             os_log(.info, log: Self.log, "[sendProviderMessage] Sending 'reload_rules' IPC to connected extension...")
+            AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: sending 'reload_rules' IPC...")
             do {
                 try session.sendProviderMessage(message) { responseData in
                     if let responseData = responseData, responseData == Data([1]) {
@@ -347,6 +387,8 @@ public final class AuraTunnelManager: NSObject {
                             log: Self.log,
                             "[sendProviderMessage] Extension successfully acknowledged and applied 'reload_rules'."
                         )
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: extension acknowledged reload_rules")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.success(true))
                     } else if let responseData = responseData {
                         os_log(
@@ -355,6 +397,8 @@ public final class AuraTunnelManager: NSObject {
                             "[sendProviderMessage] Extension rejected 'reload_rules' with response: %{public}@",
                             responseData as NSData
                         )
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: extension rejected reload_rules: \(responseData as NSData)")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.failure(AuraTunnelError(
                             stage: "sendProviderMessage",
                             code: -2,
@@ -366,6 +410,8 @@ public final class AuraTunnelManager: NSObject {
                             log: Self.log,
                             "[sendProviderMessage] Extension returned nil response for 'reload_rules'."
                         )
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: extension returned nil response")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.failure(AuraTunnelError(
                             stage: "sendProviderMessage",
                             code: -1,
@@ -383,26 +429,39 @@ public final class AuraTunnelManager: NSObject {
                     nsError.code,
                     nsError.localizedDescription
                 )
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: sendProviderMessage THREW: \(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.failure(AuraTunnelError(stage: "sendProviderMessage", error: error)))
             }
         }
 
-        getManager { result in
-            switch result {
-            case .success(let manager):
-                sendIPC(manager)
-            case .failure(let error):
-                os_log(.info, log: Self.log, "[sendProviderMessage] Could not load manager (%{public}@); skipping live reload IPC", error.underlyingDescription)
-                completion(.success(false))
+        if let existing = targetManager {
+            sendIPC(existing)
+        } else {
+            getManager { result in
+                switch result {
+                case .success(let manager):
+                    sendIPC(manager)
+                case .failure(let error):
+                    os_log(.info, log: Self.log, "[sendProviderMessage] Could not load manager (%{public}@); skipping live reload IPC", error.underlyingDescription)
+                    AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyRulesUpdated: getManager failed: \(error.underlyingDescription)")
+                    AuraDiagnostics.flushNewLogsToConsole()
+                    completion(.success(false))
+                }
             }
         }
     }
 
     /// Signals a currently connected tunnel to reload its category preferences from App Group storage.
     public func notifyCategoriesUpdated(completion: @escaping (Result<Bool, AuraTunnelError>) -> Void) {
+        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated entered")
+        // Ensure compact binary index is compiled in Runner before dispatching reload to extension
+        AuraCategoryStore.ensureCompactIndexExists()
         let sendIPC: (NETunnelProviderManager) -> Void = { manager in
             guard let session = manager.connection as? NETunnelProviderSession else {
                 os_log(.info, log: Self.log, "[sendProviderMessage] Connection is not a NETunnelProviderSession; skipping live reload_categories IPC")
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: connection is NOT NETunnelProviderSession")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.success(false))
                 return
             }
@@ -410,46 +469,67 @@ public final class AuraTunnelManager: NSObject {
             let currentStatus = session.status
             guard currentStatus == .connected else {
                 os_log(.info, log: Self.log, "[sendProviderMessage] Tunnel status is %{public}@, not .connected; skipping live reload_categories IPC", Status.from(vpnStatus: currentStatus).rawValue)
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: tunnel status is \(Status.from(vpnStatus: currentStatus).rawValue) (not .connected) — skipping live IPC")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.success(false))
                 return
             }
 
             let message = Data("reload_categories".utf8)
             os_log(.info, log: Self.log, "[sendProviderMessage] Sending 'reload_categories' IPC to connected extension...")
+            AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: sending 'reload_categories' IPC...")
             do {
                 try session.sendProviderMessage(message) { responseData in
                     if let responseData = responseData, responseData == Data([1]) {
                         os_log(.info, log: Self.log, "[sendProviderMessage] Extension acknowledged 'reload_categories'.")
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: extension acknowledged reload_categories")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.success(true))
                     } else if let responseData = responseData {
                         os_log(.error, log: Self.log, "[sendProviderMessage] Extension rejected 'reload_categories' with response: %{public}@", responseData as NSData)
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: extension rejected reload_categories: \(responseData as NSData)")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.failure(AuraTunnelError(stage: "sendProviderMessage", code: -2, description: "Extension failed to reload categories")))
                     } else {
                         os_log(.error, log: Self.log, "[sendProviderMessage] Extension returned nil response for 'reload_categories'.")
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: extension returned nil response")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.failure(AuraTunnelError(stage: "sendProviderMessage", code: -1, description: "Extension returned nil response to reload_categories message")))
                     }
                 }
             } catch {
+                let nsError = error as NSError
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: sendProviderMessage THREW: \(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.failure(AuraTunnelError(stage: "sendProviderMessage", error: error)))
             }
         }
 
-        getManager { result in
-            switch result {
-            case .success(let manager):
-                sendIPC(manager)
-            case .failure(let error):
-                os_log(.info, log: Self.log, "[sendProviderMessage] Could not load manager (%{public}@); skipping live reload_categories IPC", error.underlyingDescription)
-                completion(.success(false))
+        if let existing = targetManager {
+            sendIPC(existing)
+        } else {
+            getManager { result in
+                switch result {
+                case .success(let manager):
+                    sendIPC(manager)
+                case .failure(let error):
+                    os_log(.info, log: Self.log, "[sendProviderMessage] Could not load manager (%{public}@); skipping live reload_categories IPC", error.underlyingDescription)
+                    AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyCategoriesUpdated: getManager failed: \(error.underlyingDescription)")
+                    AuraDiagnostics.flushNewLogsToConsole()
+                    completion(.success(false))
+                }
             }
         }
     }
 
     /// Signals a currently connected tunnel to reload its default domain overrides from App Group storage.
     public func notifyDefaultOverridesUpdated(completion: @escaping (Result<Bool, AuraTunnelError>) -> Void) {
+        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated entered")
         let sendIPC: (NETunnelProviderManager) -> Void = { manager in
             guard let session = manager.connection as? NETunnelProviderSession else {
                 os_log(.info, log: Self.log, "[sendProviderMessage] Connection is not a NETunnelProviderSession; skipping live reload_default_overrides IPC")
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: connection is NOT NETunnelProviderSession")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.success(false))
                 return
             }
@@ -457,16 +537,21 @@ public final class AuraTunnelManager: NSObject {
             let currentStatus = session.status
             guard currentStatus == .connected else {
                 os_log(.info, log: Self.log, "[sendProviderMessage] Tunnel status is %{public}@, not .connected; skipping live reload_default_overrides IPC", Status.from(vpnStatus: currentStatus).rawValue)
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: status is \(Status.from(vpnStatus: currentStatus).rawValue) (not .connected)")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.success(false))
                 return
             }
 
             let message = Data("reload_default_overrides".utf8)
             os_log(.info, log: Self.log, "[sendProviderMessage] Sending 'reload_default_overrides' IPC to connected extension...")
+            AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: sending 'reload_default_overrides' IPC...")
             do {
                 try session.sendProviderMessage(message) { responseData in
                     if let responseData = responseData, responseData == Data([1]) {
                         os_log(.info, log: Self.log, "[sendProviderMessage] Extension acknowledged 'reload_default_overrides'.")
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: extension acknowledged reload_default_overrides")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.success(true))
                     } else if let responseData = responseData {
                         os_log(
@@ -475,24 +560,37 @@ public final class AuraTunnelManager: NSObject {
                             "[sendProviderMessage] Extension rejected 'reload_default_overrides' with response: %{public}@",
                             responseData as NSData
                         )
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: extension rejected: \(responseData as NSData)")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.failure(AuraTunnelError(stage: "sendProviderMessage", code: -2, description: "Extension failed to reload default domain overrides")))
                     } else {
                         os_log(.error, log: Self.log, "[sendProviderMessage] Extension returned nil response for 'reload_default_overrides'.")
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: extension returned nil response")
+                        AuraDiagnostics.flushNewLogsToConsole()
                         completion(.failure(AuraTunnelError(stage: "sendProviderMessage", code: -1, description: "Extension returned nil response to reload_default_overrides message")))
                     }
                 }
             } catch {
+                let nsError = error as NSError
+                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: sendProviderMessage THREW: \(nsError.domain) code=\(nsError.code) \(nsError.localizedDescription)")
+                AuraDiagnostics.flushNewLogsToConsole()
                 completion(.failure(AuraTunnelError(stage: "sendProviderMessage", error: error)))
             }
         }
 
-        getManager { result in
-            switch result {
-            case .success(let manager):
-                sendIPC(manager)
-            case .failure(let error):
-                os_log(.info, log: Self.log, "[sendProviderMessage] Could not load manager (%{public}@); skipping live reload IPC", error.underlyingDescription)
-                completion(.success(false))
+        if let existing = targetManager {
+            sendIPC(existing)
+        } else {
+            getManager { result in
+                switch result {
+                case .success(let manager):
+                    sendIPC(manager)
+                case .failure(let error):
+                    os_log(.info, log: Self.log, "[sendProviderMessage] Could not load manager (%{public}@); skipping live reload IPC", error.underlyingDescription)
+                    AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyDefaultOverridesUpdated: getManager failed: \(error.underlyingDescription)")
+                    AuraDiagnostics.flushNewLogsToConsole()
+                    completion(.success(false))
+                }
             }
         }
     }

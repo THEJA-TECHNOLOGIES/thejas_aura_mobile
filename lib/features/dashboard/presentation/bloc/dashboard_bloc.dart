@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 
@@ -49,6 +50,17 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     emit(state.copyWith(status: status, isTogglingTunnel: false));
+    if (status == TunnelStatus.disconnected || status == TunnelStatus.connecting) {
+      try {
+        final diag = await _repository.getTunnelDiagnostics();
+        if (diag.isNotEmpty) {
+          debugPrint('==================================================');
+          debugPrint('AURA CROSS-PROCESS DIAGNOSTICS:');
+          debugPrint(diag);
+          debugPrint('==================================================');
+        }
+      } catch (_) {}
+    }
     await _fetchStats(emit);
   }
 

@@ -10,4 +10,6 @@ abstract class IDashboardRepository {
   Future<void> startTunnel();
   Future<void> stopTunnel();
   Future<DashboardStats> getDashboardStats();
+  Future<String> getTunnelDiagnostics();
+  Future<bool> clearTunnelDiagnostics();
 }

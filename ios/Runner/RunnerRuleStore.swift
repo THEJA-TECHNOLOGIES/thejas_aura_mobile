@@ -386,8 +386,7 @@ public final class RunnerRuleStore {
 
     public static func toggleDefaultDomain(domain rawDomain: String, isEnabled: Bool) -> Result<Set<String>, AuraRuleManagementError> {
         let normalized = AuraDNSEngine.normalizeDomain(rawDomain)
-        let bundled = AuraCategoryStore.allBundledDomains()
-        guard bundled.contains(normalized) else {
+        guard AuraCategoryStore.containsBundledDomain(normalized) else {
             return .failure(.notInBundledCategories(normalized))
         }
 

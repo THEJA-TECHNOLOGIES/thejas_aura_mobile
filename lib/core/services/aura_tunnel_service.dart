@@ -516,4 +516,28 @@ class AuraTunnelService {
       );
     }
   }
+
+  /// Retrieves the cross-process diagnostic log recorded in the App Group container.
+  Future<String> getDiagnostics() async {
+    try {
+      final String? logs = await _controlChannel.invokeMethod<String>(
+        'getDiagnostics',
+      );
+      return logs ?? '';
+    } catch (e) {
+      return 'Failed to fetch diagnostics: $e';
+    }
+  }
+
+  /// Clears the cross-process diagnostic log recorded in the App Group container.
+  Future<bool> clearDiagnostics() async {
+    try {
+      final bool? res = await _controlChannel.invokeMethod<bool>(
+        'clearDiagnostics',
+      );
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

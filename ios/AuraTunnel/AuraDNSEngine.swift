@@ -117,7 +117,8 @@ public final class AuraDNSEngine {
     }
 
     private var rules: [String: Rule] = [:]
-    private var categories: [String: Set<String>] = [:]
+    private var compactIndex: AuraCompactCategoryIndex? = nil
+    private var legacyCategories: [String: Set<String>] = [:]
     private var categoryPreferences: [String: Bool] = [:]
     private var disabledDefaultDomains: Set<String> = []
     private let lock = NSLock()
@@ -166,11 +167,23 @@ public final class AuraDNSEngine {
         }
     }
 
+    /// Sets or replaces default category domain compact index. Thread-safe.
+    public func setCompactIndex(_ newIndex: AuraCompactCategoryIndex?) {
+        lock.lock()
+        defer { lock.unlock() }
+        compactIndex = newIndex
+    }
+
     /// Sets or replaces default category domain lists (e.g. "Ads", "Trackers", "Analytics"). Thread-safe.
     public func setCategories(_ newCategories: [String: Set<String>]) {
         lock.lock()
         defer { lock.unlock() }
-        categories = newCategories
+        legacyCategories = newCategories
+        if newCategories.isEmpty {
+            compactIndex = nil
+        } else {
+            compactIndex = AuraCompactCategoryIndex(from: newCategories)
+        }
     }
 
     /// Sets or replaces category enable/disable preferences. Thread-safe.
@@ -245,7 +258,8 @@ public final class AuraDNSEngine {
 
         lock.lock()
         let currentRules = self.rules
-        let currentCategories = self.categories
+        let currentCompactIndex = self.compactIndex
+        let currentLegacyCategories = self.legacyCategories
         let currentPrefs = self.categoryPreferences
         let currentDisabledDefaultDomains = self.disabledDefaultDomains
         lock.unlock()
@@ -278,18 +292,37 @@ public final class AuraDNSEngine {
         var allMatchingCategories = Set<String>()
         var firstCategoryMatchedDomain: String? = nil
 
-        for (catName, domainSet) in currentCategories {
-            let isEnabled = isCategoryEnabled(catName: catName, prefs: currentPrefs)
+        if let index = currentCompactIndex, index.count > 0 {
             for candidate in candidates {
-                if domainSet.contains(candidate) {
-                    allMatchingCategories.insert(catName)
-                    if isEnabled && !currentDisabledDefaultDomains.contains(candidate) {
-                        matchingEnabledCategories.insert(catName)
-                        if firstCategoryMatchedDomain == nil {
-                            firstCategoryMatchedDomain = candidate
+                let h = AuraCompactCategoryIndex.fnv1a64(candidate)
+                if let mask = index.matchingCategoryMask(for: h) {
+                    let catNames = index.categories(for: mask)
+                    for catName in catNames {
+                        allMatchingCategories.insert(catName)
+                        let isEnabled = isCategoryEnabled(catName: catName, prefs: currentPrefs)
+                        if isEnabled && !currentDisabledDefaultDomains.contains(candidate) {
+                            matchingEnabledCategories.insert(catName)
+                            if firstCategoryMatchedDomain == nil {
+                                firstCategoryMatchedDomain = candidate
+                            }
                         }
                     }
-                    break
+                }
+            }
+        } else if !currentLegacyCategories.isEmpty {
+            for (catName, domainSet) in currentLegacyCategories {
+                let isEnabled = isCategoryEnabled(catName: catName, prefs: currentPrefs)
+                for candidate in candidates {
+                    if domainSet.contains(candidate) {
+                        allMatchingCategories.insert(catName)
+                        if isEnabled && !currentDisabledDefaultDomains.contains(candidate) {
+                            matchingEnabledCategories.insert(catName)
+                            if firstCategoryMatchedDomain == nil {
+                                firstCategoryMatchedDomain = candidate
+                            }
+                        }
+                        break
+                    }
                 }
             }
         }

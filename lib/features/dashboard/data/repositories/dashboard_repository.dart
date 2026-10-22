@@ -60,4 +60,10 @@ class DashboardRepository implements IDashboardRepository {
       uniqueDomainsTotal: results[2].uniqueDomainsTotal,
     );
   }
+
+  @override
+  Future<String> getTunnelDiagnostics() => _tunnelService.getDiagnostics();
+
+  @override
+  Future<bool> clearTunnelDiagnostics() => _tunnelService.clearDiagnostics();
 }

@@ -12,6 +12,7 @@ import os.log
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         RunnerRuleStore.cleanupStaging()
+        AuraCategoryStore.ensureCompactIndexExists()
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
@@ -403,6 +404,8 @@ import os.log
                 let etag = args["etag"] as? String
                 let checksum = args["checksum"] as? String
 
+                AuraDiagnostics.log(tag: "AppDelegate", message: "installBlocklistRelease invoked: version=\(version) files=\(files.count) domainCount=\(domainCount)")
+
                 do {
                     var installRes = try RunnerRuleStore.installBlocklistRelease(
                         version: version,
@@ -416,15 +419,18 @@ import os.log
                         switch reloadResult {
                         case .success(let reloaded):
                             installRes["reloaded"] = reloaded
+                            AuraDiagnostics.log(tag: "AppDelegate", message: "installBlocklistRelease completed: reloaded=\(reloaded)")
                             result(installRes)
                         case .failure(let error):
                             os_log(.error, log: Self.log, "[MethodChannel] Release installed but firewall reload failed: %{public}@", error.underlyingDescription)
+                            AuraDiagnostics.log(tag: "AppDelegate", message: "installBlocklistRelease firewall reload failed: \(error.underlyingDescription)")
                             installRes["reloaded"] = false
                             installRes["reloadError"] = error.errorDescription ?? error.underlyingDescription
                             result(installRes)
                         }
                     }
                 } catch {
+                    AuraDiagnostics.log(tag: "AppDelegate", message: "installBlocklistRelease failed: \(error.localizedDescription)")
                     result(FlutterError(code: "INSTALL_RELEASE_FAILED", message: error.localizedDescription, details: nil))
                 }
 
@@ -450,6 +456,14 @@ import os.log
                 }
                 let domains = RunnerRuleStore.loadCategoryDomains(category: category)
                 result(domains)
+
+            case "getDiagnostics":
+                let logs = AuraDiagnostics.readAllLogs()
+                result(logs)
+
+            case "clearDiagnostics":
+                AuraDiagnostics.clear()
+                result(true)
 
             default:
                 os_log(.default, log: Self.log, "[MethodChannel] Unhandled method: %{public}@", call.method)
