@@ -1,17 +1,18 @@
 import 'dart:async';
 
 import 'package:injectable/injectable.dart';
+import 'package:theja_aura/core/config/app_config.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 
 import '../../domain/models/blocklist_manifest.dart';
 import '../../domain/models/installed_release_meta.dart';
 import '../../domain/repositories/i_blocklist_sync_repository.dart';
+import '../../domain/services/blocklist_sync_error_formatter.dart';
 import '../../domain/services/blocklist_validator.dart';
 import '../datasources/blocklist_api_client.dart';
 
 @LazySingleton(as: IBlocklistSyncRepository)
 class BlocklistSyncRepository implements IBlocklistSyncRepository {
-
   final IBlocklistApiClient _apiClient;
   final AuraTunnelService _tunnelService;
 
@@ -114,9 +115,10 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
       }
 
       // 3. Determine files to download based on the actual manifest
-      _emit(BlocklistSyncStatus.downloading(0.1, currentRelease));
+      _emit(BlocklistSyncStatus.downloading(0.05, currentRelease));
 
-      final filesToDownload = <String, String>{}; // destinationFileName -> urlOrPath
+      final filesToDownload =
+          <String, String>{}; // destinationFileName -> urlOrPath
       final installedCategories = <String>[];
 
       // 3.1. Process category-specific endpoints in manifest.categories dynamically
@@ -127,7 +129,8 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
           final meta = entry.value;
 
           // Prefer domain-per-line list, fallback to hosts format
-          final url = meta.domainsUrl ??
+          final url =
+              meta.domainsUrl ??
               meta.files['domains'] ??
               meta.hostsUrl ??
               meta.files['hosts'];
@@ -178,6 +181,8 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
       final categoryDomainCounts = <String, int>{};
       int totalDomainsValidated = 0;
       int completed = 0;
+      int fileIndex = 0;
+      final totalFiles = filesToDownload.length;
       bool allChecksumsVerified = false;
 
       for (final entry in filesToDownload.entries) {
@@ -196,19 +201,42 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
           }
         }
 
-        final downloadRes = await _apiClient.downloadFile(
-          urlOrPath: url,
-          expectedChecksum: expectedChecksum,
+        final downloadProgress = 0.05 + (0.80 * (fileIndex / totalFiles));
+        _emit(
+          BlocklistSyncStatus.downloading(downloadProgress, currentRelease),
         );
 
-        _emit(BlocklistSyncStatus.validating(currentRelease));
+        // Bounded retry for transient file download failures
+        DownloadedFileResult? downloadRes;
+        for (var attempt = 1; attempt <= 2; attempt++) {
+          try {
+            downloadRes = await _apiClient.downloadFile(
+              urlOrPath: url,
+              expectedChecksum: expectedChecksum,
+            );
+            break;
+          } catch (e) {
+            if (attempt == 2 ||
+                e is ChecksumMismatchException ||
+                e is SecurityException ||
+                e is FormatException) {
+              rethrow;
+            }
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
+
+        final validateProgress =
+            0.05 + (0.80 * ((fileIndex + 0.5) / totalFiles));
+        _emit(BlocklistSyncStatus.validating(validateProgress, currentRelease));
 
         // Validate content (allow empty for valid header-only category files)
-        final isCategoryFile = fileName.endsWith('.txt') &&
+        final isCategoryFile =
+            fileName.endsWith('.txt') &&
             fileName != 'domains.txt' &&
             fileName != 'hosts.txt';
         final validation = BlocklistValidator.validate(
-          downloadRes.content,
+          downloadRes!.content,
           allowEmpty: isCategoryFile,
         );
         if (!validation.isValid) {
@@ -226,12 +254,15 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
         totalDomainsValidated += validation.validDomainCount;
 
         completed++;
-        final progress = 0.2 + (0.6 * (completed / filesToDownload.length));
-        _emit(BlocklistSyncStatus.downloading(progress, currentRelease));
+        fileIndex++;
+        final completedProgress = 0.05 + (0.80 * (completed / totalFiles));
+        _emit(
+          BlocklistSyncStatus.downloading(completedProgress, currentRelease),
+        );
       }
 
       // 5. Install the release atomically via native bridge
-      _emit(BlocklistSyncStatus.installing(currentRelease));
+      _emit(BlocklistSyncStatus.installing(0.90, currentRelease));
 
       final installResult = await _tunnelService.installBlocklistRelease(
         version: manifest.version,
@@ -261,7 +292,7 @@ class BlocklistSyncRepository implements IBlocklistSyncRepository {
       );
 
       _installedRelease = newRelease;
-      _emit(BlocklistSyncStatus.updated(newRelease));
+      _emit(BlocklistSyncStatus.updated(newRelease, 1.0));
 
       return SyncResult.success(
         version: newRelease.version,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/sized_context.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/block_list_sync_indicator.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/cta_buttons.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/firewall_controller.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/statistics_section.dart';
@@ -100,7 +101,7 @@ class _DashboardPageState extends State<DashboardPage>
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    // BlockListSyncIndicator(),
+                                    BlockListSyncIndicator(),
                                     StatisticsSection(),
                                   ],
                                 ),
@@ -122,7 +123,7 @@ class _DashboardPageState extends State<DashboardPage>
                       SizedBox(height: 22),
                       FirewallController(),
                       const SizedBox(height: 18),
-                      // BlockListSyncIndicator(),
+                      BlockListSyncIndicator(),
                       StatisticsSection(),
                       const SizedBox(height: 18),
                       CTAButtons(),

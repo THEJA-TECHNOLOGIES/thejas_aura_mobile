@@ -49,19 +49,49 @@ class BlocklistSyncStatus {
     installedRelease: installed,
   );
 
-  factory BlocklistSyncStatus.validating([InstalledReleaseMeta? installed]) =>
-      BlocklistSyncStatus(
-        state: SyncState.validating,
-        message: 'Validating domain entries and checksums...',
-        installedRelease: installed,
-      );
+  factory BlocklistSyncStatus.validating([
+    Object? progressOrInstalled,
+    InstalledReleaseMeta? installed,
+  ]) {
+    double? progress;
+    InstalledReleaseMeta? release = installed;
+    if (progressOrInstalled is double) {
+      progress = progressOrInstalled;
+    } else if (progressOrInstalled is num) {
+      progress = progressOrInstalled.toDouble();
+    } else if (progressOrInstalled is InstalledReleaseMeta) {
+      release = progressOrInstalled;
+    }
+    return BlocklistSyncStatus(
+      state: SyncState.validating,
+      progress: progress,
+      message: progress != null
+          ? 'Validating domain entries (${(progress * 100).toInt()}%)...'
+          : 'Validating domain entries and checksums...',
+      installedRelease: release,
+    );
+  }
 
-  factory BlocklistSyncStatus.installing([InstalledReleaseMeta? installed]) =>
-      BlocklistSyncStatus(
-        state: SyncState.installing,
-        message: 'Installing release to firewall...',
-        installedRelease: installed,
-      );
+  factory BlocklistSyncStatus.installing([
+    Object? progressOrInstalled,
+    InstalledReleaseMeta? installed,
+  ]) {
+    double? progress = 0.90;
+    InstalledReleaseMeta? release = installed;
+    if (progressOrInstalled is double) {
+      progress = progressOrInstalled;
+    } else if (progressOrInstalled is num) {
+      progress = progressOrInstalled.toDouble();
+    } else if (progressOrInstalled is InstalledReleaseMeta) {
+      release = progressOrInstalled;
+    }
+    return BlocklistSyncStatus(
+      state: SyncState.installing,
+      progress: progress,
+      message: 'Installing release to firewall...',
+      installedRelease: release,
+    );
+  }
 
   factory BlocklistSyncStatus.upToDate(InstalledReleaseMeta installed) =>
       BlocklistSyncStatus(
@@ -70,9 +100,13 @@ class BlocklistSyncStatus {
         installedRelease: installed,
       );
 
-  factory BlocklistSyncStatus.updated(InstalledReleaseMeta installed) =>
+  factory BlocklistSyncStatus.updated(
+    InstalledReleaseMeta installed, [
+    double? progress,
+  ]) =>
       BlocklistSyncStatus(
         state: SyncState.updated,
+        progress: progress ?? 1.0,
         message: 'Successfully installed release ${installed.version}',
         installedRelease: installed,
       );
@@ -80,12 +114,14 @@ class BlocklistSyncStatus {
   factory BlocklistSyncStatus.failed(
     String error, [
     InstalledReleaseMeta? installed,
-  ]) => BlocklistSyncStatus(
-    state: SyncState.failed,
-    error: error,
-    message: 'Blocklist sync failed: $error',
-    installedRelease: installed,
-  );
+  ]) =>
+      BlocklistSyncStatus(
+        state: SyncState.failed,
+        progress: null,
+        error: error,
+        message: 'Blocklist sync failed: $error',
+        installedRelease: installed,
+      );
 }
 
 class SyncResult {

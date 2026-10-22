@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -87,7 +89,7 @@ class BlocklistApiClient implements IBlocklistApiClient {
     try {
       final response = await _client
           .get(manifestUri, headers: headers)
-          .timeout(_config.requestTimeout);
+          .timeout(_config.manifestTimeout);
 
       if (response.statusCode == 304) {
         return null;
@@ -101,6 +103,16 @@ class BlocklistApiClient implements IBlocklistApiClient {
       throw BlocklistApiException(
         'Failed to fetch manifest from $manifestUri',
         statusCode: response.statusCode,
+      );
+    } on TimeoutException catch (e) {
+      throw BlocklistApiException(
+        'Connection timed out while fetching manifest',
+        cause: e,
+      );
+    } on SocketException catch (e) {
+      throw BlocklistApiException(
+        'Network connection failed: ${e.message}',
+        cause: e,
       );
     } on FormatException catch (e) {
       throw BlocklistApiException(
@@ -134,7 +146,7 @@ class BlocklistApiClient implements IBlocklistApiClient {
     try {
       final response = await _client
           .get(targetUri, headers: headers)
-          .timeout(_config.requestTimeout);
+          .timeout(_config.downloadTimeout);
 
       if (response.statusCode == 304) {
         return DownloadedFileResult(
@@ -177,6 +189,16 @@ class BlocklistApiClient implements IBlocklistApiClient {
       throw BlocklistApiException(
         'Failed to download blocklist file from $targetUri',
         statusCode: response.statusCode,
+      );
+    } on TimeoutException catch (e) {
+      throw BlocklistApiException(
+        'Connection timed out while downloading blocklist file',
+        cause: e,
+      );
+    } on SocketException catch (e) {
+      throw BlocklistApiException(
+        'Network connection failed: ${e.message}',
+        cause: e,
       );
     } on BlocklistApiException {
       rethrow;

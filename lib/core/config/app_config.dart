@@ -10,10 +10,14 @@ class AppConfig {
 
   final Uri apiBaseUrl;
   final Duration requestTimeout;
+  final Duration manifestTimeout;
+  final Duration downloadTimeout;
 
   AppConfig({
     required this.apiBaseUrl,
-    this.requestTimeout = const Duration(minutes: 15),
+    this.requestTimeout = const Duration(seconds: 30),
+    this.manifestTimeout = const Duration(seconds: 15),
+    this.downloadTimeout = const Duration(seconds: 60),
   });
 
   /// Factory to initialize [AppConfig] from environment sources.
