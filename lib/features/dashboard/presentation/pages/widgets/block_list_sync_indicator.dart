@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/app_button.dart';
-import 'package:theja_aura/core/utils/sized_context.dart';
 import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_sync_repository.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_sync_cubit.dart';
 
@@ -47,59 +46,63 @@ class BlockListSyncIndicator extends StatelessWidget {
         if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
           return Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-            margin: const EdgeInsets.symmetric(horizontal: 16),
+            margin: EdgeInsets.only(left: 16, right: 16, bottom: 18),
             decoration: BoxDecoration(
-              color: colors.surfaceRaised,
+              color: colors.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: colors.error.withValues(alpha: 0.3)),
+              border: Border.all(color: colors.error),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 8,
+            child: Row(
+              crossAxisAlignment: .center,
+              mainAxisAlignment: .center,
+              spacing: 6,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.error_outline_rounded,
-                      color: colors.error,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
+                Icon(
+                  Icons.error_outline_rounded,
+                  color: colors.error,
+                  size: 20,
+                ),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         "Block list sync failed",
-                        style: typo.titleMedium.copyWith(color: colors.error),
+                        style: typo.titleMedium.copyWith(
+                          color: colors.textPrimary,
+                          height: 1,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        state.errorMessage!,
+                        style: typo.bodyMedium.copyWith(
+                          color: colors.textSecondary,
+                          height: 1.5,
+                        ),
+                        maxLines: 1,
+                        overflow: .ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-                Text(
-                  state.errorMessage!,
-                  style: typo.bodySmall.copyWith(color: colors.textSecondary),
-                ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: AppButton(
-                    key: const Key('block_list_sync_retry_button'),
-                    text: "Retry",
-                    color: colors.primary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 8,
+                TextButton.icon(
+                  onPressed: state.isLoading
+                      ? null
+                      : () {
+                          final targetCubit =
+                              cubit ?? context.read<BlocklistSyncCubit>();
+                          targetCubit.sync().catchError((e) {
+                            return SyncResult.failure(error: e.toString());
+                          });
+                        },
+                  icon: Icon(Icons.refresh, color: colors.error),
+                  label: Text(
+                    "Retry",
+                    style: typo.titleMedium.copyWith(
+                      color: colors.error,
+                      height: 1,
                     ),
-                    borderRadius: 12,
-                    isLoading: state.isLoading,
-                    onPressed: state.isLoading
-                        ? null
-                        : () {
-                            final targetCubit =
-                                cubit ?? context.read<BlocklistSyncCubit>();
-                            targetCubit.sync().catchError((e) {
-                              return SyncResult.failure(error: e.toString());
-                            });
-                          },
                   ),
                 ),
               ],

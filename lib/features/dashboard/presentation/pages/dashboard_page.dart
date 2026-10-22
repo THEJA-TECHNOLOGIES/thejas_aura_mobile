@@ -78,36 +78,42 @@ class _DashboardPageState extends State<DashboardPage>
             ],
           ),
           body: !context.isMobile
-              ? SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              ? Align(
+                  alignment: .topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 1200),
+                    child: SingleChildScrollView(
+                      child: Column(
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              // vertical: 16,
-                            ),
-                            child: FirewallController(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  // vertical: 16,
+                                ),
+                                child: FirewallController(),
+                              ),
+                              Flexible(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    BlockListSyncIndicator(),
+                                    StatisticsSection(),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          Flexible(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                BlockListSyncIndicator(),
-                                StatisticsSection(),
-                              ],
-                            ),
-                          ),
+
+                          SizedBox(height: 18),
+                          CTAButtons(useRow: true),
                         ],
                       ),
-
-                      SizedBox(height: 18),
-                      CTAButtons(useRow: true),
-                    ],
+                    ),
                   ),
                 )
               : SingleChildScrollView(
