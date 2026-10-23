@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:theja_aura/core/services/aura_tunnel_service.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
 
 part 'dashboard_state.freezed.dart';
 
@@ -13,6 +14,7 @@ abstract class DashboardState with _$DashboardState {
     int? blockedToday,
     int? blockedThisWeek,
     int? totalBlockedDomains,
+    @Default([]) List<IndividualBar> chartData,
     String? statsError,
     String? errorMessage,
   }) = _DashboardState;

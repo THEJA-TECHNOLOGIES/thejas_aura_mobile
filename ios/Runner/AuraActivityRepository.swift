@@ -562,6 +562,45 @@ public final class AuraActivityRepository {
         return results
     }
 
+    public func getDailyBlockedActivity(startTime: Int64, endTime: Int64) throws -> [[String: Any]] {
+        try ensureOpen()
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let db = db else { throw AuraRepositoryError.databaseNotFound }
+
+        let sql = """
+        SELECT 
+            strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch', 'localtime') AS day,
+            COUNT(*) AS blocked_count
+        FROM dns_activity
+        WHERE outcome = 'blocked' AND timestamp >= ? AND timestamp <= ?
+        GROUP BY day
+        ORDER BY day ASC;
+        """
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let preparedStmt = statement else {
+            let errMsg = String(cString: sqlite3_errmsg(db))
+            throw AuraRepositoryError.queryFailed(errMsg)
+        }
+        defer { sqlite3_finalize(preparedStmt) }
+
+        sqlite3_bind_int64(preparedStmt, 1, startTime)
+        sqlite3_bind_int64(preparedStmt, 2, endTime)
+
+        var results: [[String: Any]] = []
+        while sqlite3_step(preparedStmt) == SQLITE_ROW {
+            if let dayCStr = sqlite3_column_text(preparedStmt, 0) {
+                let day = String(cString: dayCStr)
+                let count = sqlite3_column_int64(preparedStmt, 1)
+                results.append(["day": day, "count": count])
+            }
+        }
+        return results
+    }
+
     // MARK: - Helper
 
     private func ensureOpen() throws {

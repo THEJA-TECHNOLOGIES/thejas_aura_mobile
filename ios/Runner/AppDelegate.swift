@@ -593,6 +593,27 @@ import os.log
                     }
                 }
 
+            case "getDailyBlockedActivity":
+                let startTime = (args?["startTime"] as? NSNumber)?.int64Value ?? 0
+                let endTime = (args?["endTime"] as? NSNumber)?.int64Value ?? Int64(Date().timeIntervalSince1970 * 1000)
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let daily = try activityRepository.getDailyBlockedActivity(startTime: startTime, endTime: endTime)
+                        DispatchQueue.main.async {
+                            result(daily)
+                        }
+                    } catch let err as AuraRepositoryError {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: err.errorCode, message: err.localizedDescription, details: nil))
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: "QUERY_FAILED", message: error.localizedDescription, details: nil))
+                        }
+                    }
+                }
+
             default:
                 result(FlutterMethodNotImplemented)
             }

@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
+
 class DashboardStats {
   final int blockedToday;
   final int blockedThisWeek;
   final int totalBlockedDomains;
   final int? uniqueBlockedDomains;
   final int? uniqueDomainsTotal;
+  final List<IndividualBar> dailyBlockedActivity;
 
   const DashboardStats({
     required this.blockedToday,
@@ -11,6 +15,7 @@ class DashboardStats {
     required this.totalBlockedDomains,
     this.uniqueBlockedDomains,
     this.uniqueDomainsTotal,
+    this.dailyBlockedActivity = const [],
   });
 
   /// Alias for the all-time persisted activity logs count.
@@ -25,7 +30,8 @@ class DashboardStats {
           blockedThisWeek == other.blockedThisWeek &&
           totalBlockedDomains == other.totalBlockedDomains &&
           uniqueBlockedDomains == other.uniqueBlockedDomains &&
-          uniqueDomainsTotal == other.uniqueDomainsTotal;
+          uniqueDomainsTotal == other.uniqueDomainsTotal &&
+          listEquals(dailyBlockedActivity, other.dailyBlockedActivity);
 
   @override
   int get hashCode => Object.hash(
@@ -34,5 +40,6 @@ class DashboardStats {
         totalBlockedDomains,
         uniqueBlockedDomains,
         uniqueDomainsTotal,
+        Object.hashAll(dailyBlockedActivity),
       );
 }

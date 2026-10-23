@@ -6,6 +6,7 @@ import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 
 import '../../domain/models/dashboard_stats.dart';
 import '../../domain/repositories/i_dashboard_repository.dart';
+import '../../presentation/pages/widgets/bar_chart/individual_bar.dart';
 
 @LazySingleton(as: IDashboardRepository)
 class DashboardRepository implements IDashboardRepository {
@@ -46,18 +47,63 @@ class DashboardRepository implements IDashboardRepository {
     // Passing 0 requests an unbounded all-time query without date restrictions.
     const millisAllTime = 0;
 
+    // 4. Rolling 30 calendar days ending today (inclusive)
+    final startOf30Days = DateTime(
+      startOfToday.year,
+      startOfToday.month,
+      startOfToday.day - 29,
+    );
+    final startOf30DaysMillis = startOf30Days.millisecondsSinceEpoch;
+    final endOfRangeMillis = now.millisecondsSinceEpoch;
+
     final results = await Future.wait([
       _activityService.getDashboardStats(timeWindowMillis: millisToday),
       _activityService.getDashboardStats(timeWindowMillis: millisThisWeek),
       _activityService.getDashboardStats(timeWindowMillis: millisAllTime),
+      _activityService.getDailyBlockedActivity(
+        startTime: startOf30DaysMillis,
+        endTime: endOfRangeMillis,
+      ),
     ]);
 
+    final dailyRawList = results[3] as List<Map<String, dynamic>>;
+    final dailyMap = <String, int>{};
+    for (final entry in dailyRawList) {
+      final day = entry['day'] as String?;
+      final count = (entry['count'] as num?)?.toInt() ?? 0;
+      if (day != null) {
+        dailyMap[day] = count;
+      }
+    }
+
+    final dailySeries = <IndividualBar>[];
+    for (int i = 0; i < 30; i++) {
+      final dayDate = DateTime(
+        startOfToday.year,
+        startOfToday.month,
+        startOfToday.day - (29 - i),
+      );
+      final key =
+          '${dayDate.year.toString().padLeft(4, '0')}-${dayDate.month.toString().padLeft(2, '0')}-${dayDate.day.toString().padLeft(2, '0')}';
+      dailySeries.add(
+        IndividualBar(
+          timestamp: dayDate,
+          blockedCount: dailyMap[key] ?? 0,
+        ),
+      );
+    }
+
+    final statsToday = results[0] as DashboardStatsData;
+    final statsThisWeek = results[1] as DashboardStatsData;
+    final statsAllTime = results[2] as DashboardStatsData;
+
     return DashboardStats(
-      blockedToday: results[0].totalBlocked,
-      blockedThisWeek: results[1].totalBlocked,
-      totalBlockedDomains: results[2].totalQueries,
-      uniqueBlockedDomains: results[2].uniqueBlockedDomains,
-      uniqueDomainsTotal: results[2].uniqueDomainsTotal,
+      blockedToday: statsToday.totalBlocked,
+      blockedThisWeek: statsThisWeek.totalBlocked,
+      totalBlockedDomains: statsAllTime.totalQueries,
+      uniqueBlockedDomains: statsAllTime.uniqueBlockedDomains,
+      uniqueDomainsTotal: statsAllTime.uniqueDomainsTotal,
+      dailyBlockedActivity: dailySeries,
     );
   }
 

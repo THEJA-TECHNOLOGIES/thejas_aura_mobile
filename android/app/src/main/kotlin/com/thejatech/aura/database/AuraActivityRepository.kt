@@ -256,6 +256,30 @@ class AuraActivityRepository(private val context: Context) {
         return results
     }
 
+    fun getDailyBlockedActivity(startTime: Long, endTime: Long): List<Map<String, Any>> {
+        val sql = """
+            SELECT 
+                strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch', 'localtime') AS day,
+                COUNT(*) AS blocked_count
+            FROM ${AuraActivityDatabase.TABLE_DNS_ACTIVITY}
+            WHERE outcome = 'blocked' AND timestamp >= ? AND timestamp <= ?
+            GROUP BY day
+            ORDER BY day ASC;
+        """.trimIndent()
+
+        val results = mutableListOf<Map<String, Any>>()
+        val db = dbHelper.readableDatabase
+
+        db.rawQuery(sql, arrayOf(startTime.toString(), endTime.toString())).use { cursor ->
+            while (cursor.moveToNext()) {
+                val day = cursor.getString(0) ?: continue
+                val count = cursor.getLong(1)
+                results.add(mapOf("day" to day, "count" to count))
+            }
+        }
+        return results
+    }
+
     fun checkpointPassive(): Boolean {
         return dbHelper.checkpointPassive()
     }

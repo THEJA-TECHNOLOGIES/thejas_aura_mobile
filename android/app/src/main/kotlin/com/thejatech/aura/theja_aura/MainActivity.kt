@@ -513,6 +513,20 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+            "getDailyBlockedActivity" -> {
+                val startTime = call.argument<Number>("startTime")?.toLong() ?: 0L
+                val endTime = call.argument<Number>("endTime")?.toLong() ?: System.currentTimeMillis()
+
+                backgroundExecutor.execute {
+                    try {
+                        val dailyList = activityRepository.getDailyBlockedActivity(startTime, endTime)
+                        runOnUiThread { result.success(dailyList) }
+                    } catch (e: Exception) {
+                        runOnUiThread { result.error("DAILY_ACTIVITY_FAILED", e.message, null) }
+                    }
+                }
+            }
+
             else -> result.notImplemented()
         }
     }

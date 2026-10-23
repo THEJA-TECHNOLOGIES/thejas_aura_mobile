@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/sized_context.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/bar_chart.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/block_list_sync_indicator.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/cta_buttons.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/firewall_controller.dart';
@@ -99,7 +100,14 @@ class _DashboardPageState extends State<DashboardPage>
                                   children: [
                                     BlockListSyncIndicator(),
                                     StatisticsSection(),
-                                    Expanded(child: AppBarChart()),
+                                    Expanded(
+                                      child: BlocSelector<DashboardBloc, DashboardState, List<IndividualBar>>(
+                                        selector: (s) => s.chartData,
+                                        builder: (context, chartData) {
+                                          return AppBarChart(data: chartData);
+                                        },
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),

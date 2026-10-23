@@ -107,6 +107,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
           blockedToday: stats.blockedToday,
           blockedThisWeek: stats.blockedThisWeek,
           totalBlockedDomains: stats.totalBlockedDomains,
+          chartData: stats.dailyBlockedActivity,
           isLoadingStats: false,
         ),
       );

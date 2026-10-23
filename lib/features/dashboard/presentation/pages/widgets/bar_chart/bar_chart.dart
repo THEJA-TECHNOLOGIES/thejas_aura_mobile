@@ -6,7 +6,9 @@ import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
 
 class AppBarChart extends StatefulWidget {
-  const AppBarChart({super.key});
+  final List<IndividualBar>? data;
+
+  const AppBarChart({super.key, this.data});
 
   @override
   State<AppBarChart> createState() => _AppBarChartState();
@@ -19,12 +21,7 @@ class _AppBarChartState extends State<AppBarChart> {
   bool _isBarNavigationActive = false;
   int _selectedBarIndex = 0;
 
-  // Illustrative data; replace with repository data later.
-  final List<IndividualBar> _data = [
-    IndividualBar(timestamp: DateTime(2026, 8, 1), blockedCount: 125),
-    IndividualBar(timestamp: DateTime(2026, 8, 12), blockedCount: 187),
-    IndividualBar(timestamp: DateTime(2026, 8, 23), blockedCount: 92),
-  ];
+  List<IndividualBar> get _data => widget.data ?? const [];
 
   @override
   void initState() {
@@ -133,24 +130,28 @@ class _AppBarChartState extends State<AppBarChart> {
 
           if (key == LogicalKeyboardKey.arrowLeft) {
             if (event is KeyDownEvent || event is KeyRepeatEvent) {
-              setState(() {
-                _selectedBarIndex = (_selectedBarIndex - 1).clamp(
-                  0,
-                  _data.length - 1,
-                );
-              });
+              if (_data.isNotEmpty) {
+                setState(() {
+                  _selectedBarIndex = (_selectedBarIndex - 1).clamp(
+                    0,
+                    _data.length - 1,
+                  );
+                });
+              }
             }
             return KeyEventResult.handled;
           }
 
           if (key == LogicalKeyboardKey.arrowRight) {
             if (event is KeyDownEvent || event is KeyRepeatEvent) {
-              setState(() {
-                _selectedBarIndex = (_selectedBarIndex + 1).clamp(
-                  0,
-                  _data.length - 1,
-                );
-              });
+              if (_data.isNotEmpty) {
+                setState(() {
+                  _selectedBarIndex = (_selectedBarIndex + 1).clamp(
+                    0,
+                    _data.length - 1,
+                  );
+                });
+              }
             }
             return KeyEventResult.handled;
           }
@@ -181,98 +182,125 @@ class _AppBarChartState extends State<AppBarChart> {
             ),
           ),
           alignment: Alignment.center,
-          child: BarChart(
-            BarChartData(
-              minY: 0,
-              maxY: maxY,
-              gridData: FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              titlesData: FlTitlesData(
-                show: true,
-                topTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 32,
-                    interval: 1,
-                    getTitlesWidget: (value, meta) {
-                      final index = value.toInt();
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              BarChart(
+                BarChartData(
+                  minY: 0,
+                  maxY: maxY,
+                  gridData: FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        interval: 1,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
 
-                      if (value != index.toDouble() ||
-                          index < 0 ||
-                          index >= _data.length) {
-                        return const SizedBox.shrink();
-                      }
+                          if (value != index.toDouble() ||
+                              index < 0 ||
+                              index >= _data.length) {
+                            return const SizedBox.shrink();
+                          }
 
-                      return SideTitleWidget(
-                        meta: meta,
-                        child: Text(
-                          DateFormat('dd MMM').format(_data[index].timestamp),
-                          style: typo.bodySmall.copyWith(
-                            color: colors.textSecondary,
-                            fontSize: 10,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              barTouchData: BarTouchData(
-                enabled: true,
-                handleBuiltInTouches: true,
+                          final interval = _data.length > 7
+                              ? (_data.length / 6).ceil()
+                              : 1;
+                          final isVisible =
+                              (index % interval == 0) ||
+                              (index == _data.length - 1);
+                          if (isVisible &&
+                              index != _data.length - 1 &&
+                              (_data.length - 1 - index) < 3) {
+                            return const SizedBox.shrink();
+                          }
+                          if (!isVisible) {
+                            return const SizedBox.shrink();
+                          }
 
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                    if (group.x < 0 || group.x >= _data.length) {
-                      return null;
-                    }
-
-                    final item = _data[group.x];
-
-                    return BarTooltipItem(
-                      '${DateFormat('dd MMM:').format(item.timestamp)} ${item.blockedCount} blocked',
-                      const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 10,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              barGroups: List.generate(_data.length, (index) {
-                final item = _data[index];
-                final isSelected =
-                    _isBarNavigationActive && index == _selectedBarIndex;
-
-                return BarChartGroupData(
-                  x: index,
-                  showingTooltipIndicators: isSelected ? [0] : [],
-                  barRods: [
-                    BarChartRodData(
-                      toY: item.blockedCount.toDouble(),
-                      color: isSelected
-                          ? colors.primary
-                          : colors.primary.withValues(alpha: 0.75),
-                      width: isSelected ? 24 : 20,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8),
+                          return SideTitleWidget(
+                            meta: meta,
+                            child: Text(
+                              DateFormat('dd MMM')
+                                  .format(_data[index].timestamp),
+                              style: typo.bodySmall.copyWith(
+                                color: colors.textSecondary,
+                                fontSize: 10,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ],
-                );
-              }),
-            ),
-            duration: const Duration(milliseconds: 180),
+                  ),
+                  barTouchData: BarTouchData(
+                    enabled: true,
+                    handleBuiltInTouches: true,
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        if (group.x < 0 || group.x >= _data.length) {
+                          return null;
+                        }
+
+                        final item = _data[group.x];
+
+                        return BarTooltipItem(
+                          '${DateFormat('dd MMM:').format(item.timestamp)} ${item.blockedCount} blocked',
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  barGroups: List.generate(_data.length, (index) {
+                    final item = _data[index];
+                    final isSelected =
+                        _isBarNavigationActive && index == _selectedBarIndex;
+
+                    return BarChartGroupData(
+                      x: index,
+                      showingTooltipIndicators: isSelected ? [0] : [],
+                      barRods: [
+                        BarChartRodData(
+                          toY: item.blockedCount.toDouble(),
+                          color: isSelected
+                              ? colors.primary
+                              : colors.primary200,
+                          width: isSelected ? 34.0 : 30.0,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+                duration: const Duration(milliseconds: 180),
+              ),
+              if (_data.isEmpty || maxCount == 0)
+                Text(
+                  'No blocked activity in the last 30 days',
+                  style: typo.bodySmall.copyWith(
+                    color: colors.textSecondary.withValues(alpha: 0.7),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+            ],
           ),
         ),
       ),

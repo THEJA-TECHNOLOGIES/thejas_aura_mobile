@@ -300,4 +300,58 @@ class AuraActivityService {
       return false;
     }
   }
+
+  /// Retrieves aggregated daily blocked counts grouped by local calendar day (YYYY-MM-DD).
+  Future<List<Map<String, dynamic>>> getDailyBlockedActivity({
+    required int startTime,
+    required int endTime,
+  }) async {
+    await initializeDatabase();
+
+    try {
+      final dynamic res = await _activityChannel.invokeMethod<dynamic>(
+        'getDailyBlockedActivity',
+        {
+          'startTime': startTime,
+          'endTime': endTime,
+        },
+      );
+      if (res is List) {
+        return res
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    } catch (_) {
+      // Fallback: If native platform channel method is not mocked or unavailable,
+      // aggregate from paginated blocked records directly.
+      return _fallbackDailyBlockedActivity(startTime, endTime);
+    }
+    return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> _fallbackDailyBlockedActivity(
+    int startTime,
+    int endTime,
+  ) async {
+    try {
+      final paginated = await getActivity(
+        outcome: 'blocked',
+        startTime: startTime,
+        endTime: endTime,
+        limit: 100,
+      );
+      final counts = <String, int>{};
+      for (final r in paginated.records) {
+        final local = r.dateTime;
+        final key =
+            '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+      return counts.entries
+          .map((e) => {'day': e.key, 'count': e.value})
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
 }
