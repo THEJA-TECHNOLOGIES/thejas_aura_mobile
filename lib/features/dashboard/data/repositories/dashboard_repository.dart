@@ -47,13 +47,13 @@ class DashboardRepository implements IDashboardRepository {
     // Passing 0 requests an unbounded all-time query without date restrictions.
     const millisAllTime = 0;
 
-    // 4. Rolling 30 calendar days ending today (inclusive)
-    final startOf30Days = DateTime(
+    // 4. Rolling 7 calendar days ending today (inclusive)
+    final startOf7Days = DateTime(
       startOfToday.year,
       startOfToday.month,
-      startOfToday.day - 29,
+      startOfToday.day - 6,
     );
-    final startOf30DaysMillis = startOf30Days.millisecondsSinceEpoch;
+    final startOf7DaysMillis = startOf7Days.millisecondsSinceEpoch;
     final endOfRangeMillis = now.millisecondsSinceEpoch;
 
     final results = await Future.wait([
@@ -61,7 +61,7 @@ class DashboardRepository implements IDashboardRepository {
       _activityService.getDashboardStats(timeWindowMillis: millisThisWeek),
       _activityService.getDashboardStats(timeWindowMillis: millisAllTime),
       _activityService.getDailyBlockedActivity(
-        startTime: startOf30DaysMillis,
+        startTime: startOf7DaysMillis,
         endTime: endOfRangeMillis,
       ),
     ]);
@@ -77,11 +77,11 @@ class DashboardRepository implements IDashboardRepository {
     }
 
     final dailySeries = <IndividualBar>[];
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 7; i++) {
       final dayDate = DateTime(
         startOfToday.year,
         startOfToday.month,
-        startOfToday.day - (29 - i),
+        startOfToday.day - (6 - i),
       );
       final key =
           '${dayDate.year.toString().padLeft(4, '0')}-${dayDate.month.toString().padLeft(2, '0')}-${dayDate.day.toString().padLeft(2, '0')}';

@@ -187,6 +187,7 @@ class _AppBarChartState extends State<AppBarChart> {
             children: [
               BarChart(
                 BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
                   minY: 0,
                   maxY: maxY,
                   gridData: FlGridData(show: false),
@@ -222,7 +223,8 @@ class _AppBarChartState extends State<AppBarChart> {
                           final isVisible =
                               (index % interval == 0) ||
                               (index == _data.length - 1);
-                          if (isVisible &&
+                          if (_data.length > 7 &&
+                              isVisible &&
                               index != _data.length - 1 &&
                               (_data.length - 1 - index) < 3) {
                             return const SizedBox.shrink();
@@ -272,16 +274,29 @@ class _AppBarChartState extends State<AppBarChart> {
                     final item = _data[index];
                     final isSelected =
                         _isBarNavigationActive && index == _selectedBarIndex;
+                    final isZero = item.blockedCount == 0;
 
+                    // Subtle baseline marker height for zero-count dates (1.8% of maxY).
+                    // This produces a consistent ~3-5px visual tick on the baseline at any scale.
+                    final zeroMarkerY = maxY * 0.018;
+
+                    final double rodY = isZero
+                        ? zeroMarkerY
+                        : (item.blockedCount.toDouble() < zeroMarkerY * 1.5
+                              ? zeroMarkerY * 1.5
+                              : item.blockedCount.toDouble());
+                    final Color rodColor = isZero
+                        ? (isSelected
+                              ? colors.primary
+                              : colors.textSecondary.withValues(alpha: 0.25))
+                        : (isSelected ? colors.primary : colors.primary200);
                     return BarChartGroupData(
                       x: index,
                       showingTooltipIndicators: isSelected ? [0] : [],
                       barRods: [
                         BarChartRodData(
-                          toY: item.blockedCount.toDouble(),
-                          color: isSelected
-                              ? colors.primary
-                              : colors.primary200,
+                          toY: rodY,
+                          color: rodColor,
                           width: isSelected ? 34.0 : 30.0,
                           borderRadius: BorderRadius.circular(6),
                         ),
@@ -293,7 +308,7 @@ class _AppBarChartState extends State<AppBarChart> {
               ),
               if (_data.isEmpty || maxCount == 0)
                 Text(
-                  'No blocked activity in the last 30 days',
+                  'No blocked activity in the last 7 days',
                   style: typo.bodySmall.copyWith(
                     color: colors.textSecondary.withValues(alpha: 0.7),
                     fontSize: 12,
