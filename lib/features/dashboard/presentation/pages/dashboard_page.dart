@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/sized_context.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/bar_chart.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/block_list_sync_indicator.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/cta_buttons.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/firewall_controller.dart';
@@ -82,12 +83,11 @@ class _DashboardPageState extends State<DashboardPage>
                   alignment: .topCenter,
                   child: ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: 1200),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -103,16 +103,16 @@ class _DashboardPageState extends State<DashboardPage>
                                   children: [
                                     BlockListSyncIndicator(),
                                     StatisticsSection(),
+                                    AppBarChart(),
                                   ],
                                 ),
                               ),
                             ],
                           ),
-
-                          SizedBox(height: 18),
-                          CTAButtons(useRow: true),
-                        ],
-                      ),
+                        ),
+                        SizedBox(height: 18),
+                        CTAButtons(useRow: true),
+                      ],
                     ),
                   ),
                 )

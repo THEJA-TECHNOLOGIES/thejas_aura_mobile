@@ -252,16 +252,9 @@ class _PowerHeroState extends State<PowerHero> with TickerProviderStateMixin {
     const dur = Duration(milliseconds: 300);
 
     return Focus(
-      autofocus:
-          PlatformChecker.isAndroid() ||
-              PlatformChecker.isIOS() ||
-              PlatformChecker.isMacOS()
-          ? false
-          : true,
+      autofocus: PlatformChecker.isAndroidTV ? true : false,
       onFocusChange: (bool hasFocus) {
-        if (PlatformChecker.isAndroid() ||
-            PlatformChecker.isIOS() ||
-            PlatformChecker.isMacOS()) {
+        if (!PlatformChecker.isAndroidTV) {
           return;
         }
         setState(() {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/features/activity/domain/repositories/i_activity_repository.dart';
 import 'package:theja_aura/features/activity/presentation/bloc/activity_bloc.dart';
 import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_sync_repository.dart';
@@ -25,7 +26,7 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
 void main() async {
   // 1. Initialize Flutter bindings
   WidgetsFlutterBinding.ensureInitialized();
-
+  await PlatformChecker.initialize();
   // 2. Load environment configuration & 3. Configure dependencies
   await configureDependencies();
 
@@ -38,10 +39,12 @@ void main() async {
 
   // 5. Start manifest synchronization immediately
   final syncCubit = getIt<BlocklistSyncCubit>();
-  unawaited(syncCubit.sync().catchError((error) {
-    debugPrint('Startup blocklist sync notice: $error');
-    return SyncResult.failure(error: error.toString());
-  }));
+  unawaited(
+    syncCubit.sync().catchError((error) {
+      debugPrint('Startup blocklist sync notice: $error');
+      return SyncResult.failure(error: error.toString());
+    }),
+  );
 
   // 6. Allow application UI to render without waiting for the network download
   // 7. Expose synchronization status through existing state-management architecture
@@ -49,7 +52,8 @@ void main() async {
     MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => getIt<DashboardBloc>()..add(const DashboardEvent.started()),
+          create: (_) =>
+              getIt<DashboardBloc>()..add(const DashboardEvent.started()),
         ),
         BlocProvider(create: (_) => getIt<ActivityBloc>()),
         BlocProvider(create: (_) => getIt<BlocklistBloc>()),
@@ -102,7 +106,7 @@ class _AuraAppState extends State<AuraApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: PlatformChecker.isAndroidTV ? .light : ThemeMode.system,
       builder: (context, child) {
         return child ?? const Text('child');
       },

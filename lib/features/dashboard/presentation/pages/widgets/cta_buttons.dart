@@ -121,6 +121,7 @@ class _CtaButtonsState extends State<CtaButtons> {
 
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+        margin: .only(bottom: widget.useRow ? 18 : 0),
         decoration: BoxDecoration(
           color: colors.surfaceRaised,
           borderRadius: BorderRadius.circular(22),
