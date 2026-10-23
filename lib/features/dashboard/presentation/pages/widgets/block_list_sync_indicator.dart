@@ -24,7 +24,7 @@ class BlockListSyncIndicator extends StatelessWidget {
           content = Container(
             key: const ValueKey('blocklist_sync_loading'),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-            margin: const EdgeInsets.only(left: 16, right: 16, bottom: 18),
+            margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
             decoration: BoxDecoration(
               color: colors.surfaceRaised,
               borderRadius: BorderRadius.circular(18),

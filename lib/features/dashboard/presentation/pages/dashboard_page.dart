@@ -90,20 +90,16 @@ class _DashboardPageState extends State<DashboardPage>
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  // vertical: 16,
-                                ),
+                                padding: const EdgeInsets.only(left: 16),
                                 child: FirewallController(),
                               ),
                               Flexible(
                                 child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     BlockListSyncIndicator(),
                                     StatisticsSection(),
-                                    AppBarChart(),
+                                    Expanded(child: AppBarChart()),
                                   ],
                                 ),
                               ),
