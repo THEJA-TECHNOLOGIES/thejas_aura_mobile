@@ -117,7 +117,7 @@ class BlockListSyncIndicator extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        state.errorMessage!,
+                        state.errorMessage ?? "Failed to sync",
                         style: typo.bodyMedium.copyWith(
                           color: colors.textSecondary,
                           height: 1.5,
@@ -138,6 +138,26 @@ class BlockListSyncIndicator extends StatelessWidget {
                             return SyncResult.failure(error: e.toString());
                           });
                         },
+
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      states,
+                    ) {
+                      if (states.contains(WidgetState.focused)) {
+                        return colors.error.withValues(alpha: 0.1);
+                      }
+                      return null;
+                    }),
+
+                    side: WidgetStateProperty.resolveWith<BorderSide?>((
+                      states,
+                    ) {
+                      if (states.contains(WidgetState.focused)) {
+                        return BorderSide(color: colors.error);
+                      }
+                      return null;
+                    }),
+                  ),
                   icon: Icon(Icons.refresh, color: colors.error),
                   label: Text(
                     "Retry",

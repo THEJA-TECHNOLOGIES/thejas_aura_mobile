@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
-import 'package:theja_aura/core/utils/sized_context.dart';
+import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/bar_chart.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/block_list_sync_indicator.dart';
@@ -59,16 +59,28 @@ class _DashboardPageState extends State<DashboardPage>
             centerTitle: false,
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
+                icon: const Icon(Icons.settings),
+                tooltip: 'Settings',
                 style: ButtonStyle(
+                  iconColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                    if (states.contains(WidgetState.focused)) {
+                      return context.appColors.white;
+                    }
+                    return null;
+                  }),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: .circular(12),
+                      side: BorderSide(color: context.appColors.border),
+                    ),
+                  ),
                   backgroundColor: WidgetStateProperty.resolveWith<Color?>((
                     states,
                   ) {
                     if (states.contains(WidgetState.focused)) {
                       return context.appColors.primary;
                     }
-                    return context.appColors.surfaceRaised; // Default color
+                    return context.appColors.surfaceRaised;
                   }),
                 ),
                 onPressed: () {
@@ -79,7 +91,7 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             ],
           ),
-          body: !context.isMobile
+          body: PlatformChecker.isAndroidTV
               ? Align(
                   alignment: .topCenter,
                   child: ConstrainedBox(
@@ -101,12 +113,19 @@ class _DashboardPageState extends State<DashboardPage>
                                     BlockListSyncIndicator(),
                                     StatisticsSection(),
                                     Expanded(
-                                      child: BlocSelector<DashboardBloc, DashboardState, List<IndividualBar>>(
-                                        selector: (s) => s.chartData,
-                                        builder: (context, chartData) {
-                                          return AppBarChart(data: chartData);
-                                        },
-                                      ),
+                                      child:
+                                          BlocSelector<
+                                            DashboardBloc,
+                                            DashboardState,
+                                            List<IndividualBar>
+                                          >(
+                                            selector: (s) => s.chartData,
+                                            builder: (context, chartData) {
+                                              return AppBarChart(
+                                                data: chartData,
+                                              );
+                                            },
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -126,11 +145,25 @@ class _DashboardPageState extends State<DashboardPage>
                     children: [
                       SizedBox(height: 22),
                       FirewallController(),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       BlockListSyncIndicator(),
                       StatisticsSection(),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       CTAButtons(),
+                      SizedBox(
+                        height: 260,
+                        child:
+                            BlocSelector<
+                              DashboardBloc,
+                              DashboardState,
+                              List<IndividualBar>
+                            >(
+                              selector: (s) => s.chartData,
+                              builder: (context, chartData) {
+                                return AppBarChart(data: chartData);
+                              },
+                            ),
+                      ),
                       const SizedBox(height: 24),
                     ],
                   ),

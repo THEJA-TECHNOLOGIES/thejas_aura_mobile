@@ -225,7 +225,7 @@ class _ActivityPageState extends State<ActivityPage>
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (state.errorMessage != null) {
+    if (state.errorMessage == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -351,7 +351,9 @@ class _ActivityPageState extends State<ActivityPage>
               if (state.hasMore && index == state.records.length) {
                 return const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 );
               }
               return const SizedBox.shrink();

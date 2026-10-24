@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
 
 class AppBarChart extends StatefulWidget {
@@ -289,7 +290,11 @@ class _AppBarChartState extends State<AppBarChart> {
                         ? (isSelected
                               ? colors.primary
                               : colors.textSecondary.withValues(alpha: 0.25))
-                        : (isSelected ? colors.primary : colors.primary200);
+                        : (PlatformChecker.isAndroidTV
+                              ? isSelected
+                                    ? colors.primary
+                                    : colors.primary200
+                              : colors.primary);
                     return BarChartGroupData(
                       x: index,
                       showingTooltipIndicators: isSelected ? [0] : [],
