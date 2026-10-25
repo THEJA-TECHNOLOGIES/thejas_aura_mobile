@@ -207,7 +207,6 @@ class _ActivityPageState extends State<ActivityPage>
   Widget build(BuildContext context) {
     final isLogs = widget.isLogsMode;
     final screenTitle = isLogs ? 'Logs' : 'Live Activity';
-    final colors = context.appColors;
 
     return BlocConsumer<ActivityBloc, ActivityState>(
       listener: (context, state) {
@@ -300,39 +299,10 @@ class _ActivityPageState extends State<ActivityPage>
                     ),
 
                   if (!isLogs)
-                    Container(
-                      padding: .all(4),
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.segmentBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: colors.border, width: 1),
-                      ),
-                      child: Row(
-                        spacing: 6,
-                        children: [
-                          FilterWidget(
-                            onTap: () => _onOutcomeChanged('all'),
-                            isSelected: state.selectedOutcome == 'all',
-                            label: 'All',
-                          ),
-
-                          FilterWidget(
-                            onTap: () => _onOutcomeChanged('allowed'),
-                            isSelected: state.selectedOutcome == 'allowed',
-                            label: 'Allowed',
-                          ),
-
-                          FilterWidget(
-                            onTap: () => _onOutcomeChanged('blocked'),
-                            isSelected: state.selectedOutcome == 'blocked',
-                            label: 'Blocked',
-                          ),
-                        ],
-                      ),
+                    _ActivityFilterBar(
+                      key: const ValueKey('activity_outcome_filter_bar'),
+                      selectedOutcome: state.selectedOutcome,
+                      onOutcomeChanged: _onOutcomeChanged,
                     ),
 
                   Expanded(child: _buildContent(context, state)),
@@ -590,6 +560,15 @@ class _ActivityRecordCardState extends State<_ActivityRecordCard>
       return KeyEventResult.handled;
     }
 
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      if (key == LogicalKeyboardKey.arrowUp) {
+        final moved = node.focusInDirection(TraversalDirection.up);
+        if (moved) return KeyEventResult.handled;
+        final prev = node.previousFocus();
+        return prev ? KeyEventResult.handled : KeyEventResult.ignored;
+      }
+    }
+
     return KeyEventResult.ignored;
   }
 
@@ -602,24 +581,12 @@ class _ActivityRecordCardState extends State<_ActivityRecordCard>
     final record = widget.record;
 
     Widget cardContent = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      margin: EdgeInsets.symmetric(horizontal: isTv && _isFocused ? 20 : 16),
       decoration: BoxDecoration(
         color: isTv && _isFocused ? colors.surfaceRaised : colors.segmentBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isTv && _isFocused ? colors.primary : colors.border,
-          width: isTv && _isFocused ? 2 : 1,
-        ),
-        boxShadow: isTv && _isFocused
-            ? [
-                BoxShadow(
-                  color: colors.primary.withValues(alpha: 0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
+        border: Border.all(color: colors.border, width: 1),
       ),
       child: Row(
         spacing: 8,
@@ -649,8 +616,9 @@ class _ActivityRecordCardState extends State<_ActivityRecordCard>
                     Text(
                       '${!widget.isBlocked ? "Allowed" : "Blocked"} • ',
                       style: typo.bodySmall.copyWith(
-                        color:
-                            !widget.isBlocked ? colors.primary : colors.error,
+                        color: !widget.isBlocked
+                            ? colors.primary
+                            : colors.error,
                         fontSize: 11,
                       ),
                     ),
@@ -664,10 +632,7 @@ class _ActivityRecordCardState extends State<_ActivityRecordCard>
                       ),
                     ],
                     Text(
-                      formatTimestamp(
-                        record.dateTime,
-                        locale: "en_short",
-                      ),
+                      formatTimestamp(record.dateTime, locale: "en_short"),
                       style: typo.bodySmall.copyWith(
                         color: colors.textSecondary,
                         fontSize: 11,
@@ -727,10 +692,7 @@ class _ActivityRecordCardState extends State<_ActivityRecordCard>
         canRequestFocus: true,
         onFocusChange: _handleFocusChange,
         onKeyEvent: _handleKeyEvent,
-        child: GestureDetector(
-          onTap: widget.onToggle,
-          child: cardContent,
-        ),
+        child: GestureDetector(onTap: widget.onToggle, child: cardContent),
       );
     }
 
@@ -738,17 +700,192 @@ class _ActivityRecordCardState extends State<_ActivityRecordCard>
   }
 }
 
+class _ActivityFilterBar extends StatefulWidget {
+  final String selectedOutcome;
+  final ValueChanged<String> onOutcomeChanged;
+
+  const _ActivityFilterBar({
+    super.key,
+    required this.selectedOutcome,
+    required this.onOutcomeChanged,
+  });
+
+  @override
+  State<_ActivityFilterBar> createState() => _ActivityFilterBarState();
+}
+
+class _ActivityFilterBarState extends State<_ActivityFilterBar> {
+  late final FocusNode _focusNode;
+  bool _isFocused = false;
+  late int _focusedIndex;
+
+  static const _options = [
+    (outcome: 'all', label: 'All', key: ValueKey('activity_filter_all')),
+    (
+      outcome: 'allowed',
+      label: 'Allowed',
+      key: ValueKey('activity_filter_allowed'),
+    ),
+    (
+      outcome: 'blocked',
+      label: 'Blocked',
+      key: ValueKey('activity_filter_blocked'),
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _focusedIndex = _indexForOutcome(widget.selectedOutcome);
+    _focusNode = FocusNode(debugLabel: 'ActivityOutcomeFilter');
+  }
+
+  @override
+  void didUpdateWidget(_ActivityFilterBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isFocused && oldWidget.selectedOutcome != widget.selectedOutcome) {
+      _focusedIndex = _indexForOutcome(widget.selectedOutcome);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  int _indexForOutcome(String outcome) {
+    final idx = _options.indexWhere((o) => o.outcome == outcome);
+    return idx >= 0 ? idx : 0;
+  }
+
+  void _handleFocusChange(bool hasFocus) {
+    if (_isFocused != hasFocus) {
+      setState(() {
+        _isFocused = hasFocus;
+        if (hasFocus) {
+          _focusedIndex = _indexForOutcome(widget.selectedOutcome);
+        }
+      });
+    }
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (!PlatformChecker.isAndroidTV) {
+      return KeyEventResult.ignored;
+    }
+
+    final key = event.logicalKey;
+    final isActivationKey =
+        key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.gameButtonA;
+
+    if (isActivationKey) {
+      if (event is KeyDownEvent) {
+        widget.onOutcomeChanged(_options[_focusedIndex].outcome);
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      if (key == LogicalKeyboardKey.arrowRight) {
+        if (_focusedIndex < _options.length - 1) {
+          setState(() {
+            _focusedIndex++;
+          });
+        }
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowLeft) {
+        if (_focusedIndex > 0) {
+          setState(() {
+            _focusedIndex--;
+          });
+        }
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowDown) {
+        final moved = node.focusInDirection(TraversalDirection.down);
+        if (moved) return KeyEventResult.handled;
+        final next = node.nextFocus();
+        return next ? KeyEventResult.handled : KeyEventResult.ignored;
+      }
+      if (key == LogicalKeyboardKey.arrowUp) {
+        final moved = node.focusInDirection(TraversalDirection.up);
+        if (moved) return KeyEventResult.handled;
+        final prev = node.previousFocus();
+        return prev ? KeyEventResult.handled : KeyEventResult.ignored;
+      }
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final isTv = PlatformChecker.isAndroidTV;
+
+    Widget content = Container(
+      padding: const EdgeInsets.all(4),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.segmentBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border, width: 1),
+      ),
+      child: Row(
+        spacing: 6,
+        children: [
+          for (var i = 0; i < _options.length; i++)
+            FilterWidget(
+              key: _options[i].key,
+              onTap: () {
+                if (isTv) {
+                  _focusNode.requestFocus();
+                  setState(() {
+                    _focusedIndex = i;
+                  });
+                }
+                widget.onOutcomeChanged(_options[i].outcome);
+              },
+              isSelected: widget.selectedOutcome == _options[i].outcome,
+              isFocused: isTv && _isFocused && _focusedIndex == i,
+              label: _options[i].label,
+            ),
+        ],
+      ),
+    );
+
+    if (isTv) {
+      content = Focus(
+        focusNode: _focusNode,
+        canRequestFocus: true,
+        onFocusChange: _handleFocusChange,
+        onKeyEvent: _handleKeyEvent,
+        child: content,
+      );
+    }
+
+    return content;
+  }
+}
+
 class FilterWidget extends StatelessWidget {
-  const new({
+  final bool isSelected;
+  final bool isFocused;
+  final void Function()? onTap;
+  final String label;
+
+  const FilterWidget({
     super.key,
     required this.onTap,
     required this.isSelected,
     required this.label,
+    this.isFocused = false,
   });
-
-  final bool isSelected;
-  final void Function()? onTap;
-  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -761,24 +898,22 @@ class FilterWidget extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? colors.surfaceRaised : Colors.transparent,
+            color: isFocused
+                ? colors.surfaceRaised
+                : (isSelected ? colors.surfaceRaised : Colors.transparent),
             borderRadius: BorderRadius.circular(12),
-            boxShadow: !isSelected
-                ? []
-                : [
-                    BoxShadow(
-                      color: colors.shadowSegment,
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
+            border: isFocused
+                ? Border.all(color: colors.primary, width: 2)
+                : null,
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: typo.titleMedium.copyWith(
-              color: isSelected ? colors.textPrimary : colors.textSecondary,
-              fontWeight: .w700,
+              color: isFocused
+                  ? colors.primary
+                  : (isSelected ? colors.textPrimary : colors.textSecondary),
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
