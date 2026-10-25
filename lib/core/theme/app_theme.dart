@@ -104,6 +104,28 @@ class AppTheme {
         thickness: 1,
         space: 1,
       ),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          iconColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            if (states.contains(WidgetState.focused)) {
+              return colors.white;
+            }
+            return null;
+          }),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: .circular(12),
+              side: BorderSide(color: colors.border),
+            ),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+            if (states.contains(WidgetState.focused)) {
+              return colors.primary;
+            }
+            return colors.surfaceRaised;
+          }),
+        ),
+      ),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

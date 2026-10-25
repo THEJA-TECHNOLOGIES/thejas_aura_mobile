@@ -61,28 +61,6 @@ class _DashboardPageState extends State<DashboardPage>
               IconButton(
                 icon: const Icon(Icons.settings),
                 tooltip: 'Settings',
-                style: ButtonStyle(
-                  iconColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                    if (states.contains(WidgetState.focused)) {
-                      return context.appColors.white;
-                    }
-                    return null;
-                  }),
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: .circular(12),
-                      side: BorderSide(color: context.appColors.border),
-                    ),
-                  ),
-                  backgroundColor: WidgetStateProperty.resolveWith<Color?>((
-                    states,
-                  ) {
-                    if (states.contains(WidgetState.focused)) {
-                      return context.appColors.primary;
-                    }
-                    return context.appColors.surfaceRaised;
-                  }),
-                ),
                 onPressed: () {
                   context.read<DashboardBloc>().add(
                     const DashboardEvent.started(),
