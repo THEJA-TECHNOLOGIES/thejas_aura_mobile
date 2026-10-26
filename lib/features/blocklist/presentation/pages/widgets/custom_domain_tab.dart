@@ -1,7 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:theja_aura/core/services/aura_tunnel_service.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/app_button.dart';
+import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.dart';
 import 'package:theja_aura/features/blocklist/presentation/pages/blocklist_util.dart';
 
@@ -37,12 +40,13 @@ class CustomDomainTab extends StatelessWidget {
                     style: const TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton.icon(
+                  AppButton(
+                    text: 'Retry',
+                    color: colors.primary,
+                    icon: const Icon(Icons.refresh, size: 18),
                     onPressed: () => context.read<BlocklistBloc>().add(
                       const BlocklistEvent.customRulesRefreshRequested(),
                     ),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
                   ),
                 ],
               ),
@@ -86,70 +90,174 @@ class CustomDomainTab extends StatelessWidget {
             separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final rule = state.customRules[index];
-              // ignore: unused_local_variable
-              final isBlocked = rule.isBlocked;
-              final isEnabled = rule.isEnabled;
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.segmentBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: colors.border, width: 1),
-                ),
-                child: Row(
-                  spacing: 8,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: .start,
-                        children: [
-                          Text(
-                            rule.domain,
-                            style: typo.titleMedium.copyWith(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '• ${!isEnabled ? "Allowed" : "Blocked"}',
-                            style: typo.bodySmall.copyWith(
-                              color: isEnabled
-                                  ? colors.primary
-                                  : colors.textSecondary,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch(
-                      inactiveThumbColor: colors.textTertiary,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      inactiveTrackColor: colors.trackOff,
-                      value: isEnabled,
-                      onChanged: (val) => context.read<BlocklistBloc>().add(
-                        BlocklistEvent.customRuleToggled(rule),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => handleDeleteRule(rule, context),
-                      child: Icon(
-                        CupertinoIcons.delete,
-                        color: colors.textSecondary,
-                        size: 24,
-                      ),
-                    ),
-                  ],
-                ),
-              );
+              return _CustomRuleCard(key: ValueKey(rule.id), rule: rule);
             },
           ),
         );
       },
+    );
+  }
+}
+
+class _CustomRuleCard extends StatefulWidget {
+  final AuraRuleItem rule;
+
+  const _CustomRuleCard({super.key, required this.rule});
+
+  @override
+  State<_CustomRuleCard> createState() => _CustomRuleCardState();
+}
+
+class _CustomRuleCardState extends State<_CustomRuleCard> {
+  bool _isCardFocused = false;
+  bool _isDeleteFocused = false;
+
+  void _handleToggle() {
+    context.read<BlocklistBloc>().add(
+      BlocklistEvent.customRuleToggled(widget.rule),
+    );
+  }
+
+  void _handleDelete() {
+    handleDeleteRule(widget.rule, context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final typo = context.appTypography;
+    final isTv = PlatformChecker.isAndroidTV;
+    final rule = widget.rule;
+    final isEnabled = rule.isEnabled;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isTv && _isCardFocused ? colors.surfaceRaised : colors.segmentBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border, width: 1),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(16),
+              ),
+              child: InkWell(
+                focusColor: Colors.transparent,
+
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(16),
+                ),
+                onFocusChange: (focused) {
+                  setState(() => _isCardFocused = focused);
+                  if (focused && isTv) {
+                    Scrollable.ensureVisible(
+                      context,
+                      alignment: 0.5,
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                },
+                onTap: _handleToggle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              rule.domain,
+                              style: typo.titleMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '• ${!isEnabled ? "Allowed" : "Blocked"}',
+                              style: typo.bodySmall.copyWith(
+                                color: isEnabled
+                                    ? colors.primary
+                                    : colors.textSecondary,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ExcludeFocus(
+                        excluding: isTv,
+                        child: IgnorePointer(
+                          ignoring: isTv,
+                          child: Switch(
+                            inactiveThumbColor: colors.textTertiary,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                            inactiveTrackColor: colors.trackOff,
+                            value: isEnabled,
+                            onChanged: (val) => _handleToggle(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Material(
+              color: (isTv && _isDeleteFocused)
+                  ? colors.error.withValues(alpha: 0.2)
+                  : Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(
+                  color: (isTv && _isDeleteFocused)
+                      ? colors.error
+                      : Colors.transparent,
+                  width: isTv ? 1 : 0,
+                ),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onFocusChange: (focused) {
+                  setState(() => _isDeleteFocused = focused);
+                  if (focused && isTv) {
+                    Scrollable.ensureVisible(
+                      context,
+                      alignment: 0.5,
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                },
+                onTap: _handleDelete,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(
+                    CupertinoIcons.delete,
+                    color: (isTv && _isDeleteFocused)
+                        ? colors.error
+                        : colors.textSecondary,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

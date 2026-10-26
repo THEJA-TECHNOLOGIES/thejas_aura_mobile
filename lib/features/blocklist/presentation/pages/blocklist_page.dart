@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/app_toast.dart';
+import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/features/blocklist/presentation/pages/blocklist_util.dart';
 import 'package:theja_aura/features/blocklist/presentation/pages/widgets/custom_domain_tab.dart';
 import 'package:theja_aura/features/blocklist/presentation/pages/widgets/default_domain_tab.dart';
@@ -21,7 +22,7 @@ class BlocklistPage extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => BlocklistPage(),
+      builder: (sheetContext) => const BlocklistPage(),
     );
   }
 
@@ -51,6 +52,8 @@ class _BlocklistPageState extends State<BlocklistPage>
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final typo = context.appTypography;
+    final isTv = PlatformChecker.isAndroidTV;
+
     return MultiBlocListener(
       listeners: [
         BlocListener<BlocklistBloc, BlocklistState>(
@@ -78,9 +81,18 @@ class _BlocklistPageState extends State<BlocklistPage>
       child: BlocBuilder<BlocklistBloc, BlocklistState>(
         builder: (context, state) {
           return ClipRRect(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             child: Scaffold(
-              appBar: AppBar(title: const Text('Block lists')),
+              appBar: AppBar(
+                title: const Text('Block lists'),
+                leading: (isTv && Navigator.of(context).canPop())
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).pop(),
+                      )
+                    : null,
+              ),
               body: Column(
                 children: [
                   Container(
@@ -113,12 +125,24 @@ class _BlocklistPageState extends State<BlocklistPage>
                         borderRadius: .circular(12),
                       ),
                       indicatorSize: .tab,
+                      splashBorderRadius: BorderRadius.circular(12),
+                      overlayColor: WidgetStateProperty.resolveWith<Color?>((
+                        states,
+                      ) {
+                        if (states.contains(WidgetState.focused)) {
+                          return colors.surfaceRaised;
+                        }
+                        if (states.contains(WidgetState.hovered)) {
+                          return colors.surfaceRaised;
+                        }
+                        return null;
+                      }),
                     ),
                   ),
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
-                      children: [DefaultDomainTab(), CustomDomainTab()],
+                      children: const [DefaultDomainTab(), CustomDomainTab()],
                     ),
                   ),
                 ],
@@ -131,7 +155,7 @@ class _BlocklistPageState extends State<BlocklistPage>
                     onPressed: () =>
                         handleAddRule(isBlockedDefault: true, context: context),
                     icon: Icon(Icons.add, color: colors.white),
-                    label: Text(
+                    label: const Text(
                       'Add Domain',
                       style: TextStyle(
                         color: Colors.white,
@@ -139,7 +163,16 @@ class _BlocklistPageState extends State<BlocklistPage>
                       ),
                     ),
                     elevation: 0,
+                    focusElevation: 6,
+                    focusColor: colors.primary.withValues(alpha: 0.8),
                     backgroundColor: colors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: isTv ? colors.white : Colors.transparent,
+                        width: isTv ? 2 : 0,
+                      ),
+                    ),
                   );
                 },
               ),
