@@ -44,6 +44,8 @@ import 'package:theja_aura/features/dashboard/domain/repositories/i_dashboard_re
     as _i56;
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart'
     as _i442;
+import 'package:theja_aura/features/settings/presentation/bloc/bloc/theme_bloc.dart'
+    as _i151;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
@@ -78,6 +80,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i119.IBlocklistRepository>(
       () => _i39.BlocklistRepository(gh<_i975.AuraTunnelService>()),
+    );
+    gh.factory<_i151.ThemeBloc>(
+      () => _i151.ThemeBloc(gh<_i558.FlutterSecureStorage>()),
     );
     gh.lazySingleton<_i24.IActivityRepository>(
       () => _i329.ActivityRepository(gh<_i898.AuraActivityService>()),

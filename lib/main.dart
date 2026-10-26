@@ -11,6 +11,7 @@ import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_sy
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_sync_cubit.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import 'package:theja_aura/features/settings/presentation/bloc/bloc/theme_bloc.dart';
 
 import 'core/DI/injection.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
@@ -51,6 +52,9 @@ void main() async {
   runApp(
     MultiBlocProvider(
       providers: [
+        BlocProvider(
+          create: (_) => getIt<ThemeBloc>()..add(const ThemeEvent.load()),
+        ),
         BlocProvider(
           create: (_) =>
               getIt<DashboardBloc>()..add(const DashboardEvent.started()),
@@ -100,15 +104,19 @@ class _AuraAppState extends State<AuraApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      routerConfig: _goRouter,
-      title: "Theja's Aura",
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: PlatformChecker.isAndroidTV ? .light : ThemeMode.system,
-      builder: (context, child) {
-        return child ?? const Text('child');
+    return BlocBuilder<ThemeBloc, ThemeState>(
+      builder: (context, state) {
+        return MaterialApp.router(
+          routerConfig: _goRouter,
+          title: "Theja's Aura",
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: state.themeMode,
+          builder: (context, child) {
+            return child ?? const Text('child');
+          },
+        );
       },
     );
   }

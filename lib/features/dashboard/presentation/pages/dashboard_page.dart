@@ -8,6 +8,7 @@ import 'package:theja_aura/features/dashboard/presentation/pages/widgets/block_l
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/cta_buttons.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/firewall_controller.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/statistics_section.dart';
+import 'package:theja_aura/features/settings/presentation/pages/settings_page.dart';
 
 import '../../../../core/utils/app_toast.dart';
 import '../bloc/dashboard_bloc.dart';
@@ -62,9 +63,7 @@ class _DashboardPageState extends State<DashboardPage>
                 icon: const Icon(Icons.settings),
                 tooltip: 'Settings',
                 onPressed: () {
-                  context.read<DashboardBloc>().add(
-                    const DashboardEvent.started(),
-                  );
+                  SettingsPage.show(context: context);
                 },
               ),
             ],
