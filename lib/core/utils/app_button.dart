@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-class AppButton extends StatelessWidget {
+class AppButton extends StatefulWidget {
   final String text;
   final Color color;
   final VoidCallback? onPressed;
@@ -11,6 +11,7 @@ class AppButton extends StatelessWidget {
   final Widget? icon;
   final BoxBorder? side;
   final bool isLoading;
+  final FocusNode? focusNode;
 
   const AppButton({
     super.key,
@@ -24,38 +25,65 @@ class AppButton extends StatelessWidget {
     this.icon,
     this.side,
     this.isLoading = false,
+    this.focusNode,
   });
 
   @override
+  State<AppButton> createState() => _AppButtonState();
+}
+
+class _AppButtonState extends State<AppButton> {
+  bool _isFocused = false;
+
+  @override
   Widget build(BuildContext context) {
+    final shadow = _isFocused
+        ? [
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.6),
+              blurRadius: 18,
+              offset: const Offset(0, 4),
+            ),
+          ]
+        : [
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.3),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ];
+
     return Container(
-      width: width,
+      width: widget.width,
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(borderRadius),
-        border: side,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.3),
-            blurRadius: 15,
-            offset: Offset(0, 8),
-          ),
-        ],
+        color: widget.color,
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        border: widget.side,
+        boxShadow: shadow,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(borderRadius),
+          focusNode: widget.focusNode,
+          onFocusChange: (focused) {
+            if (_isFocused != focused) {
+              setState(() {
+                _isFocused = focused;
+              });
+            }
+          },
+          onTap: widget.onPressed,
+          borderRadius: BorderRadius.circular(widget.borderRadius),
           child: Padding(
             padding:
-                padding ?? EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                widget.padding ??
+                const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (isLoading)
-                  SizedBox(
+                if (widget.isLoading)
+                  const SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
@@ -64,12 +92,15 @@ class AppButton extends StatelessWidget {
                     ),
                   )
                 else ...[
-                  if (icon != null) ...[icon!, SizedBox(width: 8)],
+                  if (widget.icon != null) ...[
+                    widget.icon!,
+                    const SizedBox(width: 8),
+                  ],
                   Text(
-                    text,
+                    widget.text,
                     style:
-                        textStyle ??
-                        TextStyle(
+                        widget.textStyle ??
+                        const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                           fontSize: 18,

@@ -15,8 +15,13 @@ import '../bloc/activity_bloc.dart';
 
 class ActivityPage extends StatefulWidget {
   final bool isLogsMode;
+  final bool isModal;
 
-  const ActivityPage({super.key, this.isLogsMode = false});
+  const ActivityPage({
+    super.key,
+    this.isLogsMode = false,
+    this.isModal = false,
+  });
   static Future<void> show({
     required BuildContext context,
     bool isLogsMode = false,
@@ -30,7 +35,8 @@ class ActivityPage extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => ActivityPage(isLogsMode: isLogsMode),
+      builder: (sheetContext) =>
+          ActivityPage(isLogsMode: isLogsMode, isModal: true),
     );
   }
 
@@ -43,6 +49,7 @@ class _ActivityPageState extends State<ActivityPage>
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   late final FocusNode _searchFocusNode;
+  late final FocusNode _clearSearchFocusNode;
   bool _isLoadMoreRequested = false;
   bool _isSearchEditing = false;
 
@@ -54,6 +61,10 @@ class _ActivityPageState extends State<ActivityPage>
       onKeyEvent: _handleSearchKeyEvent,
     );
     _searchFocusNode.addListener(_onSearchFocusChanged);
+    _clearSearchFocusNode = FocusNode(
+      debugLabel: 'ActivitySearchClearFocusNode',
+      onKeyEvent: _handleClearSearchKeyEvent,
+    );
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
     context.read<ActivityBloc>().add(
@@ -65,6 +76,7 @@ class _ActivityPageState extends State<ActivityPage>
   void dispose() {
     _searchFocusNode.removeListener(_onSearchFocusChanged);
     _searchFocusNode.dispose();
+    _clearSearchFocusNode.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _scrollController.dispose();
     _searchController.dispose();
@@ -135,6 +147,11 @@ class _ActivityPageState extends State<ActivityPage>
           return prev ? KeyEventResult.handled : KeyEventResult.ignored;
         }
         if (key == LogicalKeyboardKey.arrowRight) {
+          final bloc = context.read<ActivityBloc>();
+          if (bloc.state.searchQuery.isNotEmpty) {
+            _clearSearchFocusNode.requestFocus();
+            return KeyEventResult.handled;
+          }
           final moved = node.focusInDirection(TraversalDirection.right);
           return moved ? KeyEventResult.handled : KeyEventResult.ignored;
         }
@@ -154,6 +171,57 @@ class _ActivityPageState extends State<ActivityPage>
       }
 
       return KeyEventResult.ignored;
+    }
+  }
+
+  KeyEventResult _handleClearSearchKeyEvent(FocusNode node, KeyEvent event) {
+    if (!PlatformChecker.isAndroidTV) {
+      return KeyEventResult.ignored;
+    }
+
+    final key = event.logicalKey;
+    final isActivationKey =
+        key == LogicalKeyboardKey.select ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter ||
+        key == LogicalKeyboardKey.gameButtonA;
+
+    if (isActivationKey) {
+      if (event is KeyDownEvent) {
+        _onClearSearchPressed();
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      if (key == LogicalKeyboardKey.arrowLeft) {
+        _searchFocusNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowDown) {
+        final moved = node.focusInDirection(TraversalDirection.down);
+        if (moved) return KeyEventResult.handled;
+        final next = node.nextFocus();
+        return next ? KeyEventResult.handled : KeyEventResult.ignored;
+      }
+      if (key == LogicalKeyboardKey.arrowUp) {
+        final moved = node.focusInDirection(TraversalDirection.up);
+        if (moved) return KeyEventResult.handled;
+        final prev = node.previousFocus();
+        return prev ? KeyEventResult.handled : KeyEventResult.ignored;
+      }
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  void _onClearSearchPressed() {
+    _searchController.clear();
+    context.read<ActivityBloc>().add(
+      const ActivityEvent.searchQueryChanged(''),
+    );
+    if (PlatformChecker.isAndroidTV) {
+      _searchFocusNode.requestFocus();
     }
   }
 
@@ -236,6 +304,16 @@ class _ActivityPageState extends State<ActivityPage>
             child: Scaffold(
               appBar: AppBar(
                 title: Text(screenTitle),
+                leading:
+                    (isTv && (widget.isModal || Navigator.of(context).canPop()))
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Close',
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                      )
+                    : null,
                 actions: [
                   IconButton(
                     icon: const Icon(Icons.refresh),
@@ -273,18 +351,9 @@ class _ActivityPageState extends State<ActivityPage>
                           prefixIcon: const Icon(Icons.search, size: 20),
                           suffixIcon: state.searchQuery.isNotEmpty
                               ? IconButton(
+                                  focusNode: _clearSearchFocusNode,
                                   icon: const Icon(Icons.clear, size: 18),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    context.read<ActivityBloc>().add(
-                                      const ActivityEvent.searchQueryChanged(
-                                        '',
-                                      ),
-                                    );
-                                    if (isTv) {
-                                      _searchFocusNode.requestFocus();
-                                    }
-                                  },
+                                  onPressed: _onClearSearchPressed,
                                 )
                               : null,
                           isDense: true,
@@ -416,6 +485,40 @@ class _ActivityPageState extends State<ActivityPage>
                 const SizedBox(height: 16),
                 OutlinedButton(
                   onPressed: _clearFilters,
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      states,
+                    ) {
+                      if (states.contains(WidgetState.focused)) {
+                        return colors.primary;
+                      }
+                      return Colors.transparent;
+                    }),
+                    foregroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      states,
+                    ) {
+                      if (states.contains(WidgetState.focused)) {
+                        return colors.white;
+                      }
+                      return colors.primary;
+                    }),
+                    side: WidgetStateProperty.resolveWith<BorderSide?>((
+                      states,
+                    ) {
+                      if (states.contains(WidgetState.focused)) {
+                        return BorderSide(color: colors.primary, width: 2);
+                      }
+                      return BorderSide(color: colors.primary, width: 2);
+                    }),
+                    padding: const WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    ),
+                    shape: WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                    ),
+                  ),
                   child: const Text('Clear Filters'),
                 ),
               ],
