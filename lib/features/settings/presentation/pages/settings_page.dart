@@ -8,6 +8,7 @@ import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/theme/app_typography.dart';
 import 'package:theja_aura/features/activity/presentation/pages/activity_page.dart';
 import 'package:theja_aura/features/settings/presentation/bloc/bloc/theme_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -37,6 +38,13 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     _loadPackageInfo();
     super.initState();
+  }
+
+  Future<void> _launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
+      throw Exception('Could not launch $url');
+    }
   }
 
   Future<void> _loadPackageInfo() async {
@@ -325,7 +333,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       SizedBox(height: 12),
                       _title(typo, colors, "ABOUT"),
                       SizedBox(height: 4),
-
                       Container(
                         decoration: BoxDecoration(
                           color: colors.segmentBg,
@@ -359,7 +366,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                             Divider(),
                             InkWell(
-                              onTap: () {},
+                              onTap: () => _launchURL("https://aura.theja.in"),
                               focusColor: Colors.transparent,
                               borderRadius: .circular(12),
                               child: Padding(
@@ -386,7 +393,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                             Divider(),
                             InkWell(
-                              onTap: () {},
+                              onTap: () => _launchURL("https://aura.theja.in"),
                               focusColor: Colors.transparent,
                               borderRadius: .circular(12),
                               child: Padding(
@@ -413,7 +420,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                             Divider(),
                             InkWell(
-                              onTap: () {},
+                              onTap: () => _launchURL("https://aura.theja.in"),
                               focusColor: Colors.transparent,
                               borderRadius: .circular(12),
                               child: Padding(
