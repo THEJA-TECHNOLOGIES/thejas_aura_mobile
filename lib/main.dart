@@ -11,7 +11,7 @@ import 'package:theja_aura/features/blocklist/domain/repositories/i_blocklist_sy
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.dart';
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_sync_cubit.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
-import 'package:theja_aura/features/settings/presentation/bloc/bloc/theme_bloc.dart';
+import 'package:theja_aura/features/settings/presentation/bloc/settings_bloc.dart';
 
 import 'core/DI/injection.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
@@ -53,7 +53,7 @@ void main() async {
     MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => getIt<ThemeBloc>()..add(const ThemeEvent.load()),
+          create: (_) => getIt<SettingsBloc>()..add(const SettingsEvent.load()),
         ),
         BlocProvider(
           create: (_) =>
@@ -104,7 +104,7 @@ class _AuraAppState extends State<AuraApp> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ThemeBloc, ThemeState>(
+    return BlocBuilder<SettingsBloc, SettingsState>(
       builder: (context, state) {
         return MaterialApp.router(
           routerConfig: _goRouter,

@@ -88,28 +88,63 @@ class AuraVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                AuraPreferences.setSystemAlwaysOn(this, isAlwaysOn)
+                AuraPreferences.setSystemLockdown(this, isLockdownEnabled)
+            } catch (_: Throwable) {}
+        }
+
         if (intent == null) {
             // Restarted by system via START_STICKY
-            if (!AuraPreferences.isFirewallDesired(this)) {
-                Log.i(TAG, "START_STICKY restart detected, but firewall desired state is OFF. Stopping.")
+            if (!AuraPreferences.isAutoRecoveryPermitted(this) || !AuraPreferences.isAutoRestartEnabled(this)) {
+                Log.i(TAG, "START_STICKY restart detected, but policy does not permit recovery (mode=${AuraPreferences.getPolicyMode(this)}). Stopping.")
                 stopForegroundCompat()
                 stopSelf()
                 return START_NOT_STICKY
             }
         }
 
-        val action = intent?.action ?: ACTION_START
+        val rawAction = intent?.action
+        val action = when (rawAction) {
+            null -> ACTION_START
+            VpnService.SERVICE_INTERFACE -> {
+                // System started service via Always-on VPN
+                Log.i(TAG, "VPN service started by system via Always-on VPN")
+                var lockdown = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try { lockdown = isLockdownEnabled } catch (_: Throwable) {}
+                }
+
+                if (!AuraPreferences.isAutoRecoveryPermitted(this)) {
+                    if (lockdown) {
+                        Log.w(TAG, "Always-on VPN Lockdown is active in system settings; starting VPN to prevent full device network loss.")
+                        ACTION_START
+                    } else {
+                        Log.i(TAG, "Always-on VPN started service, but user policy is ${AuraPreferences.getPolicyMode(this)}. Stopping.")
+                        stopForegroundCompat()
+                        stopSelf()
+                        return START_NOT_STICKY
+                    }
+                } else {
+                    AuraPreferences.setPolicyEnabled(this)
+                    ACTION_START
+                }
+            }
+            else -> rawAction
+        }
 
         if (action == ACTION_START) {
             val prepareIntent = VpnService.prepare(this)
             if (prepareIntent != null) {
                 Log.w(TAG, "Cannot start VPN without user consent")
-                AuraPreferences.setFirewallDesired(this, false)
+                AuraPreferences.setPolicyManuallyDisabled(this)
                 AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
                 stopForegroundCompat()
                 stopSelf()
                 return START_NOT_STICKY
             }
+            AuraPreferences.setPolicyEnabled(this)
         }
 
         when (action) {
@@ -143,9 +178,15 @@ class AuraVpnService : VpnService() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
-        // 1. Prune 30-day retention
-        val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
-        activityDatabase.pruneRetention(thirtyDaysAgo)
+        // 1. Prune retention according to configured user preference (7 or 30 days, default 30)
+        try {
+            val retentionDays = AuraPreferences.getRetentionDays(this)
+            val retentionCutoff = System.currentTimeMillis() - (retentionDays.toLong() * 24 * 60 * 60 * 1000)
+            val pruned = activityDatabase.pruneRetention(retentionCutoff)
+            Log.i(TAG, "Startup retention prune completed: deleted $pruned records older than $retentionDays days")
+        } catch (e: Exception) {
+            Log.e(TAG, "Startup retention prune failed", e)
+        }
 
         // 2. Start activity writer
         activityWriter.start()
@@ -279,6 +320,8 @@ class AuraVpnService : VpnService() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
+                AuraPreferences.setSystemAlwaysOn(this, isAlwaysOn)
+                AuraPreferences.setSystemLockdown(this, isLockdownEnabled)
                 if (isLockdownEnabled) {
                     Log.w(TAG, "VPN Lockdown is enabled in Android Settings. Stopping VPN will disrupt network connectivity.")
                 }
@@ -315,7 +358,7 @@ class AuraVpnService : VpnService() {
     override fun onRevoke() {
         super.onRevoke()
         Log.w(TAG, "VPN permission revoked by system or another VPN")
-        AuraPreferences.setFirewallDesired(this, false)
+        AuraPreferences.setPolicyManuallyDisabled(this)
         stopVpn()
     }
 
@@ -383,6 +426,85 @@ class AuraVpnService : VpnService() {
                 inputStream.close()
                 outputStream.close()
             } catch (_: Exception) {}
+        }
+
+        // Check if packet processing loop terminated unexpectedly while firewall was still desired
+        if (isRunning.get() && AuraPreferences.isAutoRecoveryPermitted(this)) {
+            Log.w(TAG, "Packet processing loop terminated unexpectedly while auto-recovery is permitted; attempting tunnel recovery")
+            handleUnexpectedDisconnection()
+        } else if (isRunning.get()) {
+            Log.i(TAG, "Packet processing loop ended while recovery is not permitted (mode=${AuraPreferences.getPolicyMode(this)}). Stopping service.")
+            stopVpn()
+        }
+    }
+
+    private fun handleUnexpectedDisconnection() {
+        if (!isRunning.get() || !AuraPreferences.isAutoRecoveryPermitted(this) || !AuraPreferences.isAutoRestartEnabled(this)) {
+            Log.i(TAG, "Unexpected disconnection: policy does not permit recovery (mode=${AuraPreferences.getPolicyMode(this)}, autoRestart=${AuraPreferences.isAutoRestartEnabled(this)}). Stopping service.")
+            stopVpn()
+            return
+        }
+
+        try {
+            vpnInterface?.close()
+        } catch (_: Exception) {}
+        vpnInterface = null
+
+        // Check VPN preparation/consent
+        if (VpnService.prepare(this) != null) {
+            Log.w(TAG, "Cannot recover VPN: user consent is no longer valid")
+            AuraPreferences.setPolicyManuallyDisabled(this)
+            stopVpn()
+            return
+        }
+
+        // Ensure forward executor is alive
+        if (forwardExecutor == null || forwardExecutor?.isShutdown == true) {
+            forwardExecutor = Executors.newFixedThreadPool(4) { r ->
+                Thread(r, "aura-dns-forwarder-recovered").apply { isDaemon = true }
+            }
+        }
+
+        // Re-establish interface
+        val builder = Builder()
+            .setSession("Theja Aura")
+            .setMtu(1500)
+            .addAddress("10.255.255.2", 30)
+            .addDnsServer("10.255.255.1")
+            .addRoute("10.255.255.1", 32)
+
+        try {
+            builder.addAddress("fd00::2", 126)
+            builder.addDnsServer("fd00::1")
+            builder.addRoute("fd00::1", 128)
+        } catch (_: Exception) {}
+
+        try {
+            builder.addDisallowedApplication(packageName)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to addDisallowedApplication: $packageName", e)
+        }
+        builder.setBlocking(true)
+
+        val newPfd = try {
+            builder.establish()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to re-establish VPN interface during recovery", e)
+            null
+        }
+
+        if (newPfd == null) {
+            Log.e(TAG, "Tunnel recovery failed: unable to establish TUN interface")
+            stopVpn()
+            return
+        }
+
+        vpnInterface = newPfd
+        AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.CONNECTED)
+
+        // Spawn new worker thread to resume processing
+        workerThread = Thread({ processPackets(newPfd) }, "aura-vpn-worker-recovered").apply {
+            start()
         }
     }
 

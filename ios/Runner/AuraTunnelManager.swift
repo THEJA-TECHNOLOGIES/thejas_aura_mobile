@@ -119,8 +119,74 @@ public final class AuraTunnelManager: NSObject {
         AuraDiagnostics.flushNewLogsToConsole()
     }
 
+    // MARK: - Authoritative Policy Persistence
+
+    public static let sharedAppGroupIdentifier = "group.com.thejatech.aura"
+    public static let keyPolicyMode = "vpn_policy_mode"
+    public static let keyPauseExpiryUtcMillis = "vpn_pause_expiry_utc_millis"
+
+    public static let policyEnabled = "enabled"
+    public static let policyPaused = "paused"
+    public static let policyManuallyDisabled = "manually_disabled"
+
+    public func getPolicyMode() -> String {
+        let defaults = UserDefaults(suiteName: Self.sharedAppGroupIdentifier)
+        return defaults?.string(forKey: Self.keyPolicyMode) ?? Self.policyManuallyDisabled
+    }
+
+    public func getPauseExpiryMillis() -> Int64 {
+        let defaults = UserDefaults(suiteName: Self.sharedAppGroupIdentifier)
+        return defaults?.object(forKey: Self.keyPauseExpiryUtcMillis) as? Int64 ?? 0
+    }
+
+    public func isAutoRecoveryPermitted() -> Bool {
+        let mode = getPolicyMode()
+        switch mode {
+        case Self.policyManuallyDisabled:
+            return false
+        case Self.policyPaused:
+            let expiry = getPauseExpiryMillis()
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            return now >= expiry
+        case Self.policyEnabled:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public func setPolicyEnabled() {
+        let defaults = UserDefaults(suiteName: Self.sharedAppGroupIdentifier)
+        defaults?.set(Self.policyEnabled, forKey: Self.keyPolicyMode)
+        defaults?.set(0, forKey: Self.keyPauseExpiryUtcMillis)
+    }
+
+    public func setPolicyPaused(expiryUtcMillis: Int64) {
+        let defaults = UserDefaults(suiteName: Self.sharedAppGroupIdentifier)
+        defaults?.set(Self.policyPaused, forKey: Self.keyPolicyMode)
+        defaults?.set(expiryUtcMillis, forKey: Self.keyPauseExpiryUtcMillis)
+    }
+
+    public func setPolicyManuallyDisabled() {
+        let defaults = UserDefaults(suiteName: Self.sharedAppGroupIdentifier)
+        defaults?.set(Self.policyManuallyDisabled, forKey: Self.keyPolicyMode)
+        defaults?.set(0, forKey: Self.keyPauseExpiryUtcMillis)
+    }
+
+    public func pauseTunnel(durationMinutes: Int, completion: @escaping (Result<Void, AuraTunnelError>) -> Void) {
+        let expiry = Int64(Date().timeIntervalSince1970 * 1000) + Int64(durationMinutes * 60 * 1000)
+        setPolicyPaused(expiryUtcMillis: expiry)
+        stopTunnel(completion: completion)
+    }
+
+    public func shutdownTunnel(completion: @escaping (Result<Void, AuraTunnelError>) -> Void) {
+        setPolicyManuallyDisabled()
+        stopTunnel(completion: completion)
+    }
+
     /// Ensures the given manager has the expected NETunnelProviderProtocol and bundle identifier.
-    private func applyConfiguration(to manager: NETunnelProviderManager) {
+    private func applyConfiguration(to manager: NETunnelProviderManager, enableOnDemand: Bool? = nil) {
+        let shouldEnableOnDemand = enableOnDemand ?? isAutoRecoveryPermitted()
         let tunnelProtocol = (manager.protocolConfiguration as? NETunnelProviderProtocol) ?? NETunnelProviderProtocol()
         tunnelProtocol.providerBundleIdentifier = AuraTunnelManager.tunnelBundleIdentifier
         tunnelProtocol.serverAddress = "127.0.0.1"
@@ -128,12 +194,23 @@ public final class AuraTunnelManager: NSObject {
         manager.localizedDescription = "Theja's Aura Local Firewall"
         manager.isEnabled = true
 
+        if shouldEnableOnDemand {
+            let rule = NEOnDemandRuleConnect()
+            rule.interfaceTypeMatch = .any
+            manager.onDemandRules = [rule]
+            manager.isOnDemandEnabled = true
+        } else {
+            manager.onDemandRules = []
+            manager.isOnDemandEnabled = false
+        }
+
         os_log(
             .info,
             log: Self.log,
-            "[configureManager] providerBundleIdentifier=%{public}@ isEnabled=%{public}d serverAddress=%{public}@",
+            "[configureManager] providerBundleIdentifier=%{public}@ isEnabled=%{public}d isOnDemand=%{public}d serverAddress=%{public}@",
             tunnelProtocol.providerBundleIdentifier ?? "nil",
             manager.isEnabled ? 1 : 0,
+            manager.isOnDemandEnabled ? 1 : 0,
             tunnelProtocol.serverAddress ?? "nil"
         )
     }
@@ -218,8 +295,17 @@ public final class AuraTunnelManager: NSObject {
             switch result {
             case .success(let manager):
                 self.knownConnections.add(manager.connection)
-                // Step 2: Ensure protocol configuration and isEnabled are set
-                self.applyConfiguration(to: manager)
+                self.setPolicyEnabled()
+                if manager.connection.status == .connected {
+                    os_log(.info, log: Self.log, "[startTunnel] Tunnel is already connected; returning success immediately")
+                    AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] already connected; returning success")
+                    AuraDiagnostics.flushNewLogsToConsole()
+                    completion(.success(()))
+                    return
+                }
+
+                // Step 2: Ensure protocol configuration, isEnabled, and OnDemand are set
+                self.applyConfiguration(to: manager, enableOnDemand: true)
 
                 // Step 3: Save to preferences
                 os_log(.info, log: Self.log, "[saveToPreferences] Saving configuration...")
@@ -322,9 +408,10 @@ public final class AuraTunnelManager: NSObject {
         AuraDiagnostics.log(tag: "AuraTunnelManager", message: "stopTunnel requested by app")
         AuraDiagnostics.flushNewLogsToConsole()
         getManager { [weak self] result in
+            guard let self = self else { return }
             switch result {
             case .success(let manager):
-                self?.knownConnections.add(manager.connection)
+                self.knownConnections.add(manager.connection)
                 let statusBefore = manager.connection.status
                 os_log(
                     .info,
@@ -333,10 +420,21 @@ public final class AuraTunnelManager: NSObject {
                     Status.from(vpnStatus: statusBefore).rawValue,
                     statusBefore.rawValue
                 )
-                AuraDiagnostics.log(tag: "AuraTunnelManager", message: "Calling stopVPNTunnel() from status=\(Status.from(vpnStatus: statusBefore).rawValue)")
-                manager.connection.stopVPNTunnel()
-                AuraDiagnostics.flushNewLogsToConsole()
-                completion(.success(()))
+
+                // Critical: Explicitly disable On Demand and save before calling stopVPNTunnel
+                // to prevent iOS from immediately reconnecting the tunnel.
+                self.applyConfiguration(to: manager, enableOnDemand: false)
+                manager.saveToPreferences { saveError in
+                    if let saveError = saveError {
+                        os_log(.error, log: Self.log, "[stopTunnel] Failed to disable On Demand in preferences: %{public}@", saveError.localizedDescription)
+                    }
+                    if statusBefore != .disconnected {
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "Calling stopVPNTunnel() from status=\(Status.from(vpnStatus: statusBefore).rawValue)")
+                        manager.connection.stopVPNTunnel()
+                    }
+                    AuraDiagnostics.flushNewLogsToConsole()
+                    completion(.success(()))
+                }
             case .failure(let error):
                 AuraDiagnostics.log(tag: "AuraTunnelManager", message: "stopTunnel getManager failed: \(error.underlyingDescription)")
                 AuraDiagnostics.flushNewLogsToConsole()

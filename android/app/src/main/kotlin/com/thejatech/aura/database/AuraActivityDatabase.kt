@@ -117,12 +117,8 @@ class AuraActivityDatabase(private val context: Context) : SQLiteOpenHelper(
     }
 
     fun pruneRetention(cutoffUtcMillis: Long): Int {
-        return try {
-            val db = writableDatabase
-            db.delete(TABLE_DNS_ACTIVITY, "timestamp < ?", arrayOf(cutoffUtcMillis.toString()))
-        } catch (_: Exception) {
-            0
-        }
+        val db = writableDatabase
+        return db.delete(TABLE_DNS_ACTIVITY, "timestamp < ?", arrayOf(cutoffUtcMillis.toString()))
     }
 
     fun checkpointPassive(): Boolean {

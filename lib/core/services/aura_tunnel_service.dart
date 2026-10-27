@@ -25,6 +25,83 @@ enum TunnelStatus {
   }
 }
 
+enum VpnPolicyMode {
+  enabled,
+  paused,
+  manuallyDisabled;
+
+  static VpnPolicyMode fromString(String raw) {
+    switch (raw.toLowerCase()) {
+      case 'paused':
+        return VpnPolicyMode.paused;
+      case 'manually_disabled':
+      case 'manuallydisabled':
+      case 'disabled':
+        return VpnPolicyMode.manuallyDisabled;
+      case 'enabled':
+      default:
+        return VpnPolicyMode.enabled;
+    }
+  }
+
+  String toValue() {
+    switch (this) {
+      case VpnPolicyMode.paused:
+        return 'paused';
+      case VpnPolicyMode.manuallyDisabled:
+        return 'manually_disabled';
+      case VpnPolicyMode.enabled:
+        return 'enabled';
+    }
+  }
+}
+
+/// Authoritative user intent policy for VPN execution and recovery.
+class VpnPolicy {
+  final VpnPolicyMode mode;
+  final int? pauseExpiryUtcMillis;
+  final bool isAutoRecoveryPermitted;
+  final bool isAlwaysOnActive;
+  final bool isLockdownActive;
+
+  const VpnPolicy({
+    this.mode = VpnPolicyMode.manuallyDisabled,
+    this.pauseExpiryUtcMillis,
+    this.isAutoRecoveryPermitted = false,
+    this.isAlwaysOnActive = false,
+    this.isLockdownActive = false,
+  });
+
+  bool get isPaused {
+    if (mode != VpnPolicyMode.paused) return false;
+    final expiry = pauseExpiryUtcMillis;
+    if (expiry == null || expiry <= 0) return false;
+    return DateTime.now().toUtc().millisecondsSinceEpoch < expiry;
+  }
+
+  Duration get remainingPauseDuration {
+    final expiry = pauseExpiryUtcMillis;
+    if (expiry == null || expiry <= 0) return Duration.zero;
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final diff = expiry - now;
+    return diff > 0 ? Duration(milliseconds: diff) : Duration.zero;
+  }
+
+  bool get isManuallyDisabled => mode == VpnPolicyMode.manuallyDisabled;
+
+  bool get isExplicitlyEnabled => mode == VpnPolicyMode.enabled;
+
+  factory VpnPolicy.fromMap(Map<String, dynamic> map) {
+    return VpnPolicy(
+      mode: VpnPolicyMode.fromString(map['mode']?.toString() ?? 'enabled'),
+      pauseExpiryUtcMillis: (map['pauseExpiryUtcMillis'] as num?)?.toInt(),
+      isAutoRecoveryPermitted: map['isAutoRecoveryPermitted'] as bool? ?? false,
+      isAlwaysOnActive: map['isAlwaysOnActive'] as bool? ?? false,
+      isLockdownActive: map['isLockdownActive'] as bool? ?? false,
+    );
+  }
+}
+
 class AuraRuleItem {
   final String id;
   final String domain;
@@ -130,6 +207,91 @@ class AuraTunnelService {
   /// Stops the local firewall tunnel.
   Future<void> stopTunnel() async {
     await _controlChannel.invokeMethod<void>('stopTunnel');
+  }
+
+  /// Retrieves the authoritative persisted VPN policy from the platform.
+  Future<VpnPolicy> getVpnPolicy() async {
+    try {
+      final dynamic raw = await _controlChannel.invokeMethod<dynamic>(
+        'getVpnPolicy',
+      );
+      if (raw is Map) {
+        return VpnPolicy.fromMap(Map<String, dynamic>.from(raw));
+      }
+      return const VpnPolicy();
+    } catch (_) {
+      return const VpnPolicy();
+    }
+  }
+
+  /// Temporarily pauses the VPN tunnel for the specified [duration].
+  /// Disconnects the tunnel, persists an absolute expiry timestamp, and suppresses
+  /// application-managed auto-recovery during the pause window.
+  Future<void> pauseTunnel(Duration duration) async {
+    await _controlChannel.invokeMethod<void>(
+      'pauseTunnel',
+      {'durationMinutes': duration.inMinutes},
+    );
+  }
+
+  /// Performs a permanent manual shutdown ("Turn Off Until I Turn It On").
+  /// Disconnects the tunnel and suppresses auto-recovery across reboots and network changes
+  /// until explicitly re-enabled.
+  Future<void> shutdownTunnel() async {
+    await _controlChannel.invokeMethod<void>('shutdownTunnel');
+  }
+
+  /// Returns true if system-managed Always-on VPN is active on Android.
+  Future<bool> isAlwaysOnActive() async {
+    try {
+      final bool? res = await _controlChannel.invokeMethod<bool>(
+        'isAlwaysOnActive',
+      );
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Returns true if system-managed VPN Lockdown (Block connections without VPN) is active.
+  Future<bool> isLockdownActive() async {
+    try {
+      final bool? res = await _controlChannel.invokeMethod<bool>(
+        'isLockdownActive',
+      );
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Opens the system VPN settings page on platforms that support it (Android).
+  Future<void> openVpnSettings() async {
+    try {
+      await _controlChannel.invokeMethod<void>('openVpnSettings');
+    } catch (_) {}
+  }
+
+  /// Checks if auto-restart (auto-recovery / start-on-boot) is enabled.
+  Future<bool> isAutoRestartEnabled() async {
+    try {
+      final bool? enabled = await _controlChannel.invokeMethod<bool>(
+        'isAutoRestartEnabled',
+      );
+      return enabled ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Persists the auto-restart preference to the platform.
+  Future<void> setAutoRestartEnabled(bool enabled) async {
+    try {
+      await _controlChannel.invokeMethod<void>(
+        'setAutoRestartEnabled',
+        {'enabled': enabled},
+      );
+    } catch (_) {}
   }
 
   // MARK: - Custom Rules Operations

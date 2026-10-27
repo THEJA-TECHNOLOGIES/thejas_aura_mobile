@@ -112,4 +112,20 @@ class DashboardRepository implements IDashboardRepository {
 
   @override
   Future<bool> clearTunnelDiagnostics() => _tunnelService.clearDiagnostics();
+
+  @override
+  Future<VpnPolicy> getVpnPolicy() => _tunnelService.getVpnPolicy();
+
+  @override
+  Future<void> pauseTunnel(Duration duration) =>
+      _tunnelService.pauseTunnel(duration);
+
+  @override
+  Future<void> shutdownTunnel() => _tunnelService.shutdownTunnel();
+
+  @override
+  Future<bool> isAlwaysOnActive() => _tunnelService.isAlwaysOnActive();
+
+  @override
+  Future<void> openVpnSettings() => _tunnelService.openVpnSettings();
 }

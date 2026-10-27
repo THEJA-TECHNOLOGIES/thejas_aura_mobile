@@ -111,8 +111,9 @@ class AuraTunnelManager internal constructor() {
             lastTransitionTime = System.currentTimeMillis()
         }
 
-        // Persist desired state
-        AuraPreferences.setFirewallDesired(context, true)
+        // Cancel any pending pause worker and mark policy enabled
+        com.thejatech.aura.service.VpnPauseWorker.cancelPauseExpiry(context)
+        AuraPreferences.setPolicyEnabled(context)
         updateStatus(context, AuraTunnelStatus.CONNECTING)
 
         val intent = Intent(context, AuraVpnService::class.java).apply {
@@ -124,6 +125,19 @@ class AuraTunnelManager internal constructor() {
             updateStatus(context, AuraTunnelStatus.DISCONNECTED)
             throw e
         }
+    }
+
+    fun pauseTunnel(context: Context, durationMillis: Long) {
+        val expiry = System.currentTimeMillis() + durationMillis
+        AuraPreferences.setPolicyPaused(context, expiry)
+        com.thejatech.aura.service.VpnPauseWorker.schedulePauseExpiry(context, durationMillis)
+        stopTunnel(context)
+    }
+
+    fun shutdownTunnel(context: Context) {
+        AuraPreferences.setPolicyManuallyDisabled(context)
+        com.thejatech.aura.service.VpnPauseWorker.cancelPauseExpiry(context)
+        stopTunnel(context)
     }
 
     fun stopTunnel(context: Context) {

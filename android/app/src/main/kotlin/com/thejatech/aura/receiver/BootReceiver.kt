@@ -12,10 +12,15 @@ class BootReceiver : BroadcastReceiver() {
     companion object {
         /**
          * Evaluates whether the VPN should be automatically started upon boot completion.
-         * Explicit user intent (desired enabled) MUST be true, and VPN consent MUST be present.
+         * Explicit user policy MUST permit recovery, VPN consent MUST be present,
+         * and auto-restart setting MUST be enabled.
          */
-        fun shouldStartOnBoot(isFirewallDesired: Boolean, isVpnPrepared: Boolean): Boolean {
-            return isFirewallDesired && isVpnPrepared
+        fun shouldStartOnBoot(
+            isAutoRecoveryPermitted: Boolean,
+            isVpnPrepared: Boolean,
+            isAutoRestartEnabled: Boolean = true
+        ): Boolean {
+            return isAutoRecoveryPermitted && isVpnPrepared && isAutoRestartEnabled
         }
     }
 
@@ -26,11 +31,27 @@ class BootReceiver : BroadcastReceiver() {
                 com.thejatech.aura.sync.AuraSyncManager.schedulePeriodicSync(context)
             } catch (_: Exception) {}
 
-            // Behavioral requirement 1 & 7: Explicit OFF must remain OFF across device reboot.
-            val isDesired = AuraPreferences.isFirewallDesired(context)
+            // Check authoritative policy
+            val isAutoRecoveryAllowed = AuraPreferences.isAutoRecoveryPermitted(context)
             val isPrepared = VpnService.prepare(context) == null
+            val isAutoRestart = AuraPreferences.isAutoRestartEnabled(context)
+            val policyMode = AuraPreferences.getPolicyMode(context)
 
-            if (shouldStartOnBoot(isFirewallDesired = isDesired, isVpnPrepared = isPrepared)) {
+            if (policyMode == AuraPreferences.POLICY_PAUSED && !isAutoRecoveryAllowed) {
+                // Device rebooted during an active pause: preserve the original expiry timestamp
+                // and reschedule the pause expiry worker for the remaining duration.
+                val remainingMillis = AuraPreferences.getPauseExpiryMillis(context) - System.currentTimeMillis()
+                if (remainingMillis > 0) {
+                    com.thejatech.aura.service.VpnPauseWorker.schedulePauseExpiry(context, remainingMillis)
+                }
+            }
+
+            if (shouldStartOnBoot(
+                    isAutoRecoveryPermitted = isAutoRecoveryAllowed,
+                    isVpnPrepared = isPrepared,
+                    isAutoRestartEnabled = isAutoRestart
+                )
+            ) {
                 try {
                     AuraTunnelManager.shared.startTunnel(context)
                 } catch (_: Exception) {}

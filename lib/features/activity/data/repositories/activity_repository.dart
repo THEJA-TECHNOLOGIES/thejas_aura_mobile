@@ -46,4 +46,22 @@ class ActivityRepository implements IActivityRepository {
       timeWindowMillis: timeWindowMillis,
     );
   }
+
+  @override
+  Future<int> getRetentionPeriodDays() {
+    return _activityService.getRetentionPeriodDays();
+  }
+
+  @override
+  Future<void> setRetentionPeriodDays(int days) {
+    return _activityService.setRetentionPeriodDays(days);
+  }
+
+  @override
+  Future<int> pruneRetention({int? cutoffUtcMillis, int? retentionDays}) {
+    return _activityService.pruneRetention(
+      cutoffUtcMillis: cutoffUtcMillis,
+      retentionDays: retentionDays,
+    );
+  }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Data model representing a recorded DNS activity event.
 class DnsActivityRecord {
@@ -181,8 +182,15 @@ class AuraActivityService {
     'com.thejatech.aura/activity',
   );
 
+  static const String retentionStorageKey = 'activity_log_retention_days';
+  static const int defaultRetentionDays = 30;
+
+  final FlutterSecureStorage _secureStorage;
   Future<bool>? _initializationFuture;
   bool _isDatabaseReady = false;
+
+  AuraActivityService({FlutterSecureStorage? secureStorage})
+      : _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   bool get isDatabaseReady => _isDatabaseReady;
 
@@ -201,9 +209,11 @@ class AuraActivityService {
         );
         if (res is Map && res['ready'] == true) {
           _isDatabaseReady = true;
+          _runStartupPrune();
           return true;
         } else if (res == true) {
           _isDatabaseReady = true;
+          _runStartupPrune();
           return true;
         }
         _isDatabaseReady = false;
@@ -216,6 +226,84 @@ class AuraActivityService {
     }();
 
     return _initializationFuture!;
+  }
+
+  void _runStartupPrune() {
+    // Run automated cleanup respecting the configured period on startup
+    getRetentionPeriodDays().then((days) {
+      final cutoff = DateTime.now().toUtc().millisecondsSinceEpoch -
+          (days * 24 * 60 * 60 * 1000);
+      pruneRetention(cutoffUtcMillis: cutoff, retentionDays: days);
+    }).catchError((_) => 0);
+  }
+
+  /// Retrieves the configured activity log retention period in days (7 or 30).
+  /// Defaults to 30 days if not set or invalid.
+  Future<int> getRetentionPeriodDays() async {
+    try {
+      final val = await _secureStorage.read(key: retentionStorageKey);
+      if (val != null) {
+        final days = int.tryParse(val.trim());
+        if (days == 7 || days == 30) {
+          return days!;
+        }
+      }
+    } catch (_) {}
+    return defaultRetentionDays;
+  }
+
+  /// Updates the configured log retention period (must be 7 or 30 days).
+  /// Persists the choice using [FlutterSecureStorage] and immediately prunes
+  /// database records older than the new period from the native SQLite database.
+  Future<void> setRetentionPeriodDays(int days) async {
+    if (days != 7 && days != 30) {
+      throw ArgumentError.value(
+        days,
+        'days',
+        'Retention period must be either 7 or 30 days.',
+      );
+    }
+
+    // 1. Persist the chosen retention period in secure storage
+    await _secureStorage.write(
+      key: retentionStorageKey,
+      value: days.toString(),
+    );
+
+    // 2. Immediately prune records older than the new retention cutoff
+    await initializeDatabase();
+    final cutoffUtcMillis =
+        DateTime.now().toUtc().millisecondsSinceEpoch -
+        (days * 24 * 60 * 60 * 1000);
+
+    await pruneRetention(
+      cutoffUtcMillis: cutoffUtcMillis,
+      retentionDays: days,
+    );
+  }
+
+  /// Directly prunes activity history records older than [cutoffUtcMillis].
+  /// Returns the number of pruned records.
+  Future<int> pruneRetention({
+    int? cutoffUtcMillis,
+    int? retentionDays,
+  }) async {
+    await initializeDatabase();
+    try {
+      final dynamic res = await _activityChannel.invokeMethod<dynamic>(
+        'pruneRetention',
+        {
+          if (cutoffUtcMillis != null) 'cutoffUtcMillis': cutoffUtcMillis,
+          if (retentionDays != null) 'retentionDays': retentionDays,
+        },
+      );
+      if (res is num) {
+        return res.toInt();
+      }
+      return 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   /// Fetches a cursor-paginated page of activity records with optional filtering.

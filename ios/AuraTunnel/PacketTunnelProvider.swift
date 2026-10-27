@@ -59,9 +59,12 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
         // 2. Open activity database and start asynchronous queue writer
         let dbStart = CFAbsoluteTimeGetCurrent()
         if activityDatabase.open() {
-            // Prune records older than 30-day retention boundary
-            let thirtyDaysAgo = Int64(Date().timeIntervalSince1970 * 1000) - Int64(30 * 24 * 60 * 60 * 1000)
-            activityDatabase.pruneRetention(cutoffUtcMillis: thirtyDaysAgo)
+            // Prune records according to configured user preference (7 or 30 days, default 30)
+            let defaults = UserDefaults(suiteName: "group.com.thejatech.aura")
+            let configuredDays = defaults?.integer(forKey: "log_retention_days") ?? 30
+            let retentionDays: Int64 = (configuredDays == 7 || configuredDays == 30) ? Int64(configuredDays) : 30
+            let retentionCutoff = Int64(Date().timeIntervalSince1970 * 1000) - (retentionDays * 24 * 60 * 60 * 1000)
+            activityDatabase.pruneRetention(cutoffUtcMillis: retentionCutoff)
 
             activityWriter.start()
             resolver.activityWriter = activityWriter

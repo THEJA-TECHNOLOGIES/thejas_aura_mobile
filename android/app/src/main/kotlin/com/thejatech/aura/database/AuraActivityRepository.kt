@@ -280,6 +280,10 @@ class AuraActivityRepository(private val context: Context) {
         return results
     }
 
+    fun pruneRetention(cutoffUtcMillis: Long): Int {
+        return dbHelper.pruneRetention(cutoffUtcMillis)
+    }
+
     fun checkpointPassive(): Boolean {
         return dbHelper.checkpointPassive()
     }

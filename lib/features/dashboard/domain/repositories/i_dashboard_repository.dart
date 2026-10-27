@@ -12,4 +12,9 @@ abstract class IDashboardRepository {
   Future<DashboardStats> getDashboardStats();
   Future<String> getTunnelDiagnostics();
   Future<bool> clearTunnelDiagnostics();
+  Future<VpnPolicy> getVpnPolicy();
+  Future<void> pauseTunnel(Duration duration);
+  Future<void> shutdownTunnel();
+  Future<bool> isAlwaysOnActive();
+  Future<void> openVpnSettings();
 }

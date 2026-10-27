@@ -465,6 +465,71 @@ import os.log
                 AuraDiagnostics.clear()
                 result(true)
 
+            case "pauseTunnel":
+                let args = call.arguments as? [String: Any]
+                let durationMinutes = (args?["durationMinutes"] as? Int) ?? 30
+                AuraTunnelManager.shared.pauseTunnel(durationMinutes: durationMinutes) { res in
+                    DispatchQueue.main.async {
+                        switch res {
+                        case .success:
+                            result(nil)
+                        case .failure(let err):
+                            result(FlutterError(code: "PAUSE_FAILED", message: err.errorDescription, details: nil))
+                        }
+                    }
+                }
+
+            case "shutdownTunnel":
+                AuraTunnelManager.shared.shutdownTunnel { res in
+                    DispatchQueue.main.async {
+                        switch res {
+                        case .success:
+                            result(nil)
+                        case .failure(let err):
+                            result(FlutterError(code: "SHUTDOWN_FAILED", message: err.errorDescription, details: nil))
+                        }
+                    }
+                }
+
+            case "getVpnPolicy":
+                let mode = AuraTunnelManager.shared.getPolicyMode()
+                let expiry = AuraTunnelManager.shared.getPauseExpiryMillis()
+                let isPermitted = AuraTunnelManager.shared.isAutoRecoveryPermitted()
+                result([
+                    "mode": mode,
+                    "pauseExpiryUtcMillis": expiry,
+                    "isAutoRecoveryPermitted": isPermitted,
+                    "isAlwaysOnActive": false,
+                    "isLockdownActive": false
+                ])
+
+            case "isAlwaysOnActive":
+                result(false)
+
+            case "isLockdownActive":
+                result(false)
+
+            case "openVpnSettings":
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url, options: [:]) { success in
+                        result(success)
+                    }
+                } else {
+                    result(false)
+                }
+
+            case "isAutoRestartEnabled":
+                let defaults = UserDefaults(suiteName: AuraActivityRepository.sharedAppGroupIdentifier)
+                let enabled = defaults?.object(forKey: "auto_restart_enabled") as? Bool ?? true
+                result(enabled)
+
+            case "setAutoRestartEnabled":
+                let args = call.arguments as? [String: Any]
+                let enabled = (args?["enabled"] as? Bool) ?? true
+                let defaults = UserDefaults(suiteName: AuraActivityRepository.sharedAppGroupIdentifier)
+                defaults?.set(enabled, forKey: "auto_restart_enabled")
+                result(true)
+
             default:
                 os_log(.default, log: Self.log, "[MethodChannel] Unhandled method: %{public}@", call.method)
                 result(FlutterMethodNotImplemented)
@@ -610,6 +675,39 @@ import os.log
                     } catch {
                         DispatchQueue.main.async {
                             result(FlutterError(code: "QUERY_FAILED", message: error.localizedDescription, details: nil))
+                        }
+                    }
+                }
+
+            case "pruneRetention":
+                let retentionDays = args?["retentionDays"] as? Int
+                if let days = retentionDays, days == 7 || days == 30 {
+                    let defaults = UserDefaults(suiteName: AuraActivityRepository.sharedAppGroupIdentifier)
+                    defaults?.set(days, forKey: "log_retention_days")
+                }
+                let cutoffUtcMillis: Int64
+                if let rawCutoff = (args?["cutoffUtcMillis"] as? NSNumber)?.int64Value {
+                    cutoffUtcMillis = rawCutoff
+                } else {
+                    let defaults = UserDefaults(suiteName: AuraActivityRepository.sharedAppGroupIdentifier)
+                    let days = Int64(defaults?.integer(forKey: "log_retention_days") ?? 30)
+                    let validDays = (days == 7 || days == 30) ? days : 30
+                    cutoffUtcMillis = Int64(Date().timeIntervalSince1970 * 1000) - (validDays * 24 * 60 * 60 * 1000)
+                }
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let deleted = try activityRepository.pruneRetention(cutoffUtcMillis: cutoffUtcMillis)
+                        DispatchQueue.main.async {
+                            result(deleted)
+                        }
+                    } catch let err as AuraRepositoryError {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: err.errorCode, message: err.localizedDescription, details: nil))
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            result(FlutterError(code: "PRUNE_FAILED", message: error.localizedDescription, details: nil))
                         }
                     }
                 }

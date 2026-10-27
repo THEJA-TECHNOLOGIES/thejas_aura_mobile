@@ -128,6 +128,81 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+            "pauseTunnel" -> {
+                val durationMinutes = call.argument<Number>("durationMinutes")?.toLong() ?: 30L
+                val durationMillis = durationMinutes * 60 * 1000L
+                try {
+                    AuraTunnelManager.shared.pauseTunnel(this, durationMillis)
+                    result.success(null)
+                } catch (e: Exception) {
+                    result.error("PAUSE_FAILED", e.message ?: "Failed to pause VPN", null)
+                }
+            }
+
+            "shutdownTunnel" -> {
+                try {
+                    AuraTunnelManager.shared.shutdownTunnel(this)
+                    result.success(null)
+                } catch (e: Exception) {
+                    result.error("SHUTDOWN_FAILED", e.message ?: "Failed to shutdown VPN", null)
+                }
+            }
+
+            "getVpnPolicy" -> {
+                val mode = com.thejatech.aura.storage.AuraPreferences.getPolicyMode(this)
+                val expiry = com.thejatech.aura.storage.AuraPreferences.getPauseExpiryMillis(this)
+                val isPermitted = com.thejatech.aura.storage.AuraPreferences.isAutoRecoveryPermitted(this)
+                val isAlwaysOn = com.thejatech.aura.storage.AuraPreferences.isSystemAlwaysOn(this)
+                val isLockdown = com.thejatech.aura.storage.AuraPreferences.isSystemLockdown(this)
+                result.success(
+                    mapOf(
+                        "mode" to mode,
+                        "pauseExpiryUtcMillis" to expiry,
+                        "isAutoRecoveryPermitted" to isPermitted,
+                        "isAlwaysOnActive" to isAlwaysOn,
+                        "isLockdownActive" to isLockdown
+                    )
+                )
+            }
+
+            "isAlwaysOnActive" -> {
+                result.success(com.thejatech.aura.storage.AuraPreferences.isSystemAlwaysOn(this))
+            }
+
+            "isLockdownActive" -> {
+                result.success(com.thejatech.aura.storage.AuraPreferences.isSystemLockdown(this))
+            }
+
+            "openVpnSettings" -> {
+                try {
+                    val intent = Intent("android.settings.VPN_SETTINGS").apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(intent)
+                    result.success(true)
+                } catch (_: Exception) {
+                    try {
+                        val fallback = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        startActivity(fallback)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("OPEN_SETTINGS_FAILED", e.message, null)
+                    }
+                }
+            }
+
+            "isAutoRestartEnabled" -> {
+                result.success(com.thejatech.aura.storage.AuraPreferences.isAutoRestartEnabled(this))
+            }
+
+            "setAutoRestartEnabled" -> {
+                val enabled = call.argument<Boolean>("enabled") ?: true
+                com.thejatech.aura.storage.AuraPreferences.setAutoRestartEnabled(this, enabled)
+                result.success(true)
+            }
+
             "getRules" -> {
                 backgroundExecutor.execute {
                     val rules = ruleStore.loadRules()
@@ -510,6 +585,24 @@ class MainActivity : FlutterActivity() {
                 backgroundExecutor.execute {
                     val success = activityRepository.checkpointPassive()
                     runOnUiThread { result.success(success) }
+                }
+            }
+
+            "pruneRetention" -> {
+                val retentionDays = call.argument<Int>("retentionDays")
+                if (retentionDays != null && (retentionDays == 7 || retentionDays == 30)) {
+                    com.thejatech.aura.storage.AuraPreferences.setRetentionDays(applicationContext, retentionDays)
+                }
+                val defaultCutoff = System.currentTimeMillis() - ((retentionDays ?: com.thejatech.aura.storage.AuraPreferences.getRetentionDays(applicationContext)).toLong() * 24 * 60 * 60 * 1000)
+                val cutoffUtcMillis = call.argument<Number>("cutoffUtcMillis")?.toLong() ?: defaultCutoff
+
+                backgroundExecutor.execute {
+                    try {
+                        val deleted = activityRepository.pruneRetention(cutoffUtcMillis)
+                        runOnUiThread { result.success(deleted) }
+                    } catch (e: Exception) {
+                        runOnUiThread { result.error("PRUNE_FAILED", e.message, null) }
+                    }
                 }
             }
 

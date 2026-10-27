@@ -601,6 +601,39 @@ public final class AuraActivityRepository {
         return results
     }
 
+    // MARK: - Retention Pruning
+
+    /// Prunes activity history records older than the specified cutoff timestamp.
+    /// Returns the count of deleted rows.
+    @discardableResult
+    public func pruneRetention(cutoffUtcMillis: Int64) throws -> Int {
+        try ensureOpen()
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let db = db else { throw AuraRepositoryError.databaseNotFound }
+
+        var stmt: OpaquePointer?
+        let sql = "DELETE FROM dns_activity WHERE timestamp < ?;"
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let statement = stmt else {
+            let errMsg = String(cString: sqlite3_errmsg(db))
+            throw AuraRepositoryError.queryFailed(errMsg)
+        }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_int64(statement, 1, cutoffUtcMillis)
+
+        if sqlite3_step(statement) == SQLITE_DONE {
+            let changes = Int(sqlite3_changes(db))
+            os_log(.info, log: Self.log, "Retention prune deleted %{public}ld records older than timestamp %{public}lld", changes, cutoffUtcMillis)
+            return changes
+        } else {
+            let errMsg = String(cString: sqlite3_errmsg(db))
+            throw AuraRepositoryError.queryFailed(errMsg)
+        }
+    }
+
     // MARK: - Helper
 
     private func ensureOpen() throws {

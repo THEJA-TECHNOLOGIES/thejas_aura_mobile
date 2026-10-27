@@ -5,9 +5,19 @@ import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/core/utils/sized_context.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/disconnect_confirmation_dialog.dart';
 
 class FirewallController extends StatelessWidget {
   const FirewallController({super.key});
+
+  static String _formatRemaining(Duration duration) {
+    if (duration.inHours > 0) {
+      final mins = duration.inMinutes % 60;
+      return mins > 0 ? '${duration.inHours}h ${mins}m' : '${duration.inHours}h';
+    }
+    final mins = duration.inMinutes;
+    return mins > 0 ? '${mins}m' : '< 1m';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +29,10 @@ class FirewallController extends StatelessWidget {
       selector: (s) => (s.isInitialized, s.isTogglingTunnel, s.status),
       builder: (context, state) {
         final (isInitialized, isTogglingTunnel, status) = state;
+        final bloc = context.read<DashboardBloc>();
+        final policy = bloc.policy;
+        final isPaused = policy.isPaused;
+        final remaining = policy.remainingPauseDuration;
 
         final busy =
             !isInitialized ||
@@ -37,13 +51,17 @@ class FirewallController extends StatelessWidget {
         return PowerHero(
           face: face,
           title: switch (face) {
-            PowerFace.off => 'Protection is off',
+            PowerFace.off => isPaused
+                ? 'Protection is paused'
+                : 'Protection is off',
             PowerFace.connecting =>
               stopping ? 'Stopping protection…' : 'Starting protection…',
             PowerFace.on => "You're protected",
           },
           subtitle: switch (face) {
-            PowerFace.off => 'Tap the button to raise the wall.',
+            PowerFace.off => isPaused
+                ? 'Paused for ${_formatRemaining(remaining)}. Tap to resume.'
+                : 'Tap the button to raise the wall.',
             PowerFace.connecting =>
               stopping
                   ? 'Turning off the local filter.'
@@ -51,15 +69,30 @@ class FirewallController extends StatelessWidget {
             PowerFace.on => 'Blocking trackers and ads across every app.',
           },
           chipText: switch (face) {
-            PowerFace.off => 'Not filtering',
+            PowerFace.off => isPaused ? 'Paused' : 'Not filtering',
             PowerFace.connecting => 'Connecting',
             PowerFace.on => 'Local filtering active',
           },
           onTap: busy
               ? null
-              : () => context.read<DashboardBloc>().add(
-                  const DashboardEvent.tunnelToggled(),
-                ),
+              : () async {
+                  if (status == TunnelStatus.connected) {
+                    final choice = await showDisconnectConfirmationDialog(
+                      context,
+                      isAlwaysOnActive: bloc.policy.isAlwaysOnActive,
+                      isLockdownActive: bloc.policy.isLockdownActive,
+                      onOpenVpnSettings: () => bloc.openVpnSettings(),
+                    );
+                    if (choice == null) return; // Cancelled
+                    if (choice is Duration) {
+                      await bloc.pauseTunnel(choice);
+                    } else if (choice == 'shutdown') {
+                      await bloc.shutdownTunnel();
+                    }
+                  } else {
+                    bloc.add(const DashboardEvent.tunnelToggled());
+                  }
+                },
         );
       },
     );
@@ -263,8 +296,12 @@ class _PowerHeroState extends State<PowerHero> with TickerProviderStateMixin {
       },
       onKeyEvent: (FocusNode node, KeyEvent event) {
         if (event is KeyDownEvent) {
-          final isRemoteSelect = event.logicalKey == LogicalKeyboardKey.select;
-          final isKeyboardEnter = event.logicalKey == LogicalKeyboardKey.enter;
+          final isRemoteSelect =
+              event.logicalKey == LogicalKeyboardKey.select ||
+              event.logicalKey == LogicalKeyboardKey.gameButtonA;
+          final isKeyboardEnter =
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter;
 
           if (isRemoteSelect || isKeyboardEnter) {
             if (widget.onTap != null) {

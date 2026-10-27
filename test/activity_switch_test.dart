@@ -43,6 +43,15 @@ class FakeActivityRepository implements IActivityRepository {
       uniqueDomainsTotal: 0,
     );
   }
+
+  @override
+  Future<int> getRetentionPeriodDays() async => 30;
+
+  @override
+  Future<void> setRetentionPeriodDays(int days) async {}
+
+  @override
+  Future<int> pruneRetention({int? cutoffUtcMillis, int? retentionDays}) async => 0;
 }
 
 class FakeBlocklistRepository implements IBlocklistRepository {

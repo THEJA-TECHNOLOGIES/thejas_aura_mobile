@@ -15,4 +15,10 @@ abstract class IActivityRepository {
   Future<bool> checkpoint();
 
   Future<DashboardStatsData> getDashboardStats({required int timeWindowMillis});
+
+  Future<int> getRetentionPeriodDays();
+
+  Future<void> setRetentionPeriodDays(int days);
+
+  Future<int> pruneRetention({int? cutoffUtcMillis, int? retentionDays});
 }
