@@ -10,7 +10,7 @@ import 'dashboard_event.dart';
 import 'dashboard_state.dart';
 
 export 'package:theja_aura/core/services/aura_tunnel_service.dart'
-    show TunnelStatus;
+    show TunnelStatus, VpnPolicy, VpnPolicyMode;
 
 export 'dashboard_event.dart';
 export 'dashboard_state.dart';
@@ -30,6 +30,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         started: () => _onStarted(emit),
         tunnelStatusUpdated: (status) => _onTunnelStatusUpdated(status, emit),
         tunnelToggled: () => _onTunnelToggled(emit),
+        pauseRequested: (duration) => _onPauseRequested(duration, emit),
+        shutdownRequested: () => _onShutdownRequested(emit),
         statsRefreshRequested: () => _onStatsRefreshRequested(emit),
         appResumed: () => _onAppResumed(emit),
         errorMessageDismissed: () async => _onErrorMessageDismissed(emit),
@@ -47,7 +49,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     if (_policy.mode == VpnPolicyMode.paused) {
       final remaining = _policy.remainingPauseDuration;
       if (remaining == Duration.zero) {
-        // Pause expired while app was closed: attempt automatic reconnection
+        // Pause expired while app was closed: reconcile policy by starting/reloading
         try {
           await _repository.startTunnel();
           _policy = await _repository.getVpnPolicy();
@@ -58,7 +60,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
 
     final currentStatus = await _repository.getTunnelStatus();
-    emit(state.copyWith(status: currentStatus, isInitialized: true));
+    emit(state.copyWith(status: currentStatus, policy: _policy, isInitialized: true));
 
     await _fetchStats(emit);
   }
@@ -68,7 +70,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     _policy = await _repository.getVpnPolicy();
-    emit(state.copyWith(status: status, isTogglingTunnel: false));
+    emit(state.copyWith(status: status, policy: _policy, isTogglingTunnel: false));
     if (status == TunnelStatus.disconnected || status == TunnelStatus.connecting) {
       try {
         final diag = await _repository.getTunnelDiagnostics();
@@ -91,7 +93,12 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     try {
       _cancelPauseTimer();
       if (state.status == TunnelStatus.connected) {
-        await _repository.stopTunnel();
+        if (_policy.isPaused) {
+          // If paused, toggling resumes protection immediately without tearing down the tunnel
+          await _repository.startTunnel();
+        } else {
+          await _repository.stopTunnel();
+        }
       } else {
         await _repository.startTunnel();
       }
@@ -99,13 +106,26 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     } catch (e) {
       emit(state.copyWith(errorMessage: 'Tunnel Action Failed: $e'));
     } finally {
-      emit(state.copyWith(isTogglingTunnel: false));
+      final currentStatus = await _repository.getTunnelStatus();
+      emit(state.copyWith(isTogglingTunnel: false, status: currentStatus, policy: _policy));
       await _fetchStats(emit);
     }
   }
 
   /// Pauses the VPN tunnel for the specified [duration].
   Future<void> pauseTunnel(Duration duration) async {
+    add(DashboardEvent.pauseRequested(duration));
+  }
+
+  /// Performs a permanent manual shutdown ("Turn Off Until I Turn It On").
+  Future<void> shutdownTunnel() async {
+    add(const DashboardEvent.shutdownRequested());
+  }
+
+  Future<void> _onPauseRequested(
+    Duration duration,
+    Emitter<DashboardState> emit,
+  ) async {
     if (!state.isInitialized || state.isTogglingTunnel) return;
     emit(state.copyWith(isTogglingTunnel: true, errorMessage: null));
 
@@ -116,15 +136,15 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     } catch (e) {
       emit(state.copyWith(errorMessage: 'Failed to pause protection: $e'));
     } finally {
-      emit(state.copyWith(isTogglingTunnel: false));
-      // Re-fetch stats and emit state to refresh UI
       final currentStatus = await _repository.getTunnelStatus();
-      emit(state.copyWith(status: currentStatus));
+      emit(state.copyWith(isTogglingTunnel: false, status: currentStatus, policy: _policy));
+      await _fetchStats(emit);
     }
   }
 
-  /// Performs a permanent manual shutdown ("Turn Off Until I Turn It On").
-  Future<void> shutdownTunnel() async {
+  Future<void> _onShutdownRequested(
+    Emitter<DashboardState> emit,
+  ) async {
     if (!state.isInitialized || state.isTogglingTunnel) return;
     emit(state.copyWith(isTogglingTunnel: true, errorMessage: null));
 
@@ -135,9 +155,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     } catch (e) {
       emit(state.copyWith(errorMessage: 'Failed to turn off protection: $e'));
     } finally {
-      emit(state.copyWith(isTogglingTunnel: false));
       final currentStatus = await _repository.getTunnelStatus();
-      emit(state.copyWith(status: currentStatus));
+      emit(state.copyWith(isTogglingTunnel: false, status: currentStatus, policy: _policy));
+      await _fetchStats(emit);
     }
   }
 
@@ -148,11 +168,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
   void _schedulePauseTimer(Duration duration) {
     _cancelPauseTimer();
-    _pauseTimer = Timer(duration, () async {
-      _policy = await _repository.getVpnPolicy();
-      if (_policy.mode == VpnPolicyMode.paused && _policy.remainingPauseDuration == Duration.zero) {
-        add(const DashboardEvent.tunnelToggled());
-      }
+    _pauseTimer = Timer(duration, () {
+      add(const DashboardEvent.appResumed());
     });
   }
 
@@ -163,20 +180,15 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
   Future<void> _onStatsRefreshRequested(Emitter<DashboardState> emit) async {
     _policy = await _repository.getVpnPolicy();
+    emit(state.copyWith(policy: _policy));
     await _fetchStats(emit);
   }
 
   Future<void> _onAppResumed(Emitter<DashboardState> emit) async {
     _policy = await _repository.getVpnPolicy();
-    if (_policy.mode == VpnPolicyMode.paused && _policy.remainingPauseDuration == Duration.zero) {
-      // Pause expired while app was in background: attempt auto-reconnect
-      try {
-        await _repository.startTunnel();
-        _policy = await _repository.getVpnPolicy();
-      } catch (_) {}
-    }
+    // Pause expired while app was in background: native layer handles reconnection automatically
     final currentStatus = await _repository.getTunnelStatus();
-    emit(state.copyWith(status: currentStatus, isInitialized: true));
+    emit(state.copyWith(status: currentStatus, policy: _policy, isInitialized: true));
     await _fetchStats(emit);
   }
 

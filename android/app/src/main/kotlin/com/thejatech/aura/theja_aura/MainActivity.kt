@@ -1,8 +1,12 @@
 package com.thejatech.aura.theja_aura
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
 import android.net.VpnService
+import android.os.Build
+import android.provider.Settings
 import androidx.annotation.NonNull
 import com.thejatech.aura.database.AuraActivityRepository
 import com.thejatech.aura.engine.AuraDomainValidationError
@@ -152,8 +156,31 @@ class MainActivity : FlutterActivity() {
                 val mode = com.thejatech.aura.storage.AuraPreferences.getPolicyMode(this)
                 val expiry = com.thejatech.aura.storage.AuraPreferences.getPauseExpiryMillis(this)
                 val isPermitted = com.thejatech.aura.storage.AuraPreferences.isAutoRecoveryPermitted(this)
-                val isAlwaysOn = com.thejatech.aura.storage.AuraPreferences.isSystemAlwaysOn(this)
-                val isLockdown = com.thejatech.aura.storage.AuraPreferences.isSystemLockdown(this)
+
+                // Check live system state for Always-on VPN and Lockdown
+                var isAlwaysOn = false
+                var isLockdown = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    // Check if our package is the system's always-on VPN
+                    // Use reflection to avoid compile-time dependency on API 24+ method
+                    try {
+                        val method = VpnService::class.java.getMethod("getAlwaysOnVpnPackage", Context::class.java)
+                        val alwaysOnPackage = method.invoke(null, this) as? String
+                        isAlwaysOn = packageName == alwaysOnPackage
+                    } catch (_: Exception) {
+                        isAlwaysOn = false
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                        try {
+                            val method = ConnectivityManager::class.java.getMethod("isVpnLockdownEnabled")
+                            isLockdown = (method.invoke(cm) as? Boolean) == true
+                        } catch (_: Exception) {
+                            isLockdown = false
+                        }
+                    }
+                }
+
                 result.success(
                     mapOf(
                         "mode" to mode,
@@ -166,11 +193,35 @@ class MainActivity : FlutterActivity() {
             }
 
             "isAlwaysOnActive" -> {
-                result.success(com.thejatech.aura.storage.AuraPreferences.isSystemAlwaysOn(this))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    try {
+                        val method = VpnService::class.java.getMethod("getAlwaysOnVpnPackage", Context::class.java)
+                        val alwaysOnPackage = method.invoke(null, this) as? String
+                        result.success(packageName == alwaysOnPackage)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                } else {
+                    result.success(false)
+                }
             }
 
             "isLockdownActive" -> {
-                result.success(com.thejatech.aura.storage.AuraPreferences.isSystemLockdown(this))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                    if (cm != null) {
+                        try {
+                            val method = ConnectivityManager::class.java.getMethod("isVpnLockdownEnabled")
+                            result.success((method.invoke(cm) as? Boolean) == true)
+                        } catch (_: Exception) {
+                            result.success(false)
+                        }
+                    } else {
+                        result.success(false)
+                    }
+                } else {
+                    result.success(false)
+                }
             }
 
             "openVpnSettings" -> {

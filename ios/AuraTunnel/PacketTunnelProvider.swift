@@ -224,6 +224,12 @@ open class PacketTunnelProvider: NEPacketTunnelProvider {
             AuraDiagnostics.log(tag: "PacketTunnel", message: "reload_default_overrides result: count=\(overrides.count)")
             completionHandler?(Data([1]))
 
+        case "reload_policy":
+            os_log(.info, log: Self.log, "handleAppMessage: reloading policy mode from App Group")
+            resolver.reloadPolicyFromAppGroup()
+            AuraDiagnostics.log(tag: "PacketTunnel", message: "reload_policy executed")
+            completionHandler?(Data([1]))
+
         default:
             AuraDiagnostics.log(tag: "PacketTunnel", message: "Unknown handleAppMessage command: '\(command)'")
             completionHandler?(nil)

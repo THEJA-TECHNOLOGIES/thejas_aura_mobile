@@ -38,12 +38,8 @@ class BootReceiver : BroadcastReceiver() {
             val policyMode = AuraPreferences.getPolicyMode(context)
 
             if (policyMode == AuraPreferences.POLICY_PAUSED && !isAutoRecoveryAllowed) {
-                // Device rebooted during an active pause: preserve the original expiry timestamp
-                // and reschedule the pause expiry worker for the remaining duration.
-                val remainingMillis = AuraPreferences.getPauseExpiryMillis(context) - System.currentTimeMillis()
-                if (remainingMillis > 0) {
-                    com.thejatech.aura.service.VpnPauseWorker.schedulePauseExpiry(context, remainingMillis)
-                }
+                // Device rebooted during an active pause: native service handles expiry on next DNS query
+                // No worker scheduling needed - AuraVpnService reconciles pause expiry on every DNS query
             }
 
             if (shouldStartOnBoot(

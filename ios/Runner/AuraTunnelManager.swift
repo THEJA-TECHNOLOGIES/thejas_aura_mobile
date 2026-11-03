@@ -131,7 +131,16 @@ public final class AuraTunnelManager: NSObject {
 
     public func getPolicyMode() -> String {
         let defaults = UserDefaults(suiteName: Self.sharedAppGroupIdentifier)
-        return defaults?.string(forKey: Self.keyPolicyMode) ?? Self.policyManuallyDisabled
+        let mode = defaults?.string(forKey: Self.keyPolicyMode) ?? Self.policyManuallyDisabled
+        if mode == Self.policyPaused {
+            let expiry = getPauseExpiryMillis()
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            if expiry > 0 && now >= expiry {
+                setPolicyEnabled()
+                return Self.policyEnabled
+            }
+        }
+        return mode
     }
 
     public func getPauseExpiryMillis() -> Int64 {
@@ -176,7 +185,20 @@ public final class AuraTunnelManager: NSObject {
     public func pauseTunnel(durationMinutes: Int, completion: @escaping (Result<Void, AuraTunnelError>) -> Void) {
         let expiry = Int64(Date().timeIntervalSince1970 * 1000) + Int64(durationMinutes * 60 * 1000)
         setPolicyPaused(expiryUtcMillis: expiry)
-        stopTunnel(completion: completion)
+        
+        getStatus { [weak self] status in
+            guard let self = self else { return }
+            if status == .connected {
+                // Passthrough architecture: DO NOT STOP TUNNEL!
+                // Notify connected extension to reload policy and enter DNS passthrough mode
+                self.notifyPolicyUpdated { _ in
+                    completion(.success(()))
+                }
+            } else {
+                // Tunnel was not connected; start it
+                self.startTunnel(completion: completion)
+            }
+        }
     }
 
     public func shutdownTunnel(completion: @escaping (Result<Void, AuraTunnelError>) -> Void) {
@@ -186,7 +208,7 @@ public final class AuraTunnelManager: NSObject {
 
     /// Ensures the given manager has the expected NETunnelProviderProtocol and bundle identifier.
     private func applyConfiguration(to manager: NETunnelProviderManager, enableOnDemand: Bool? = nil) {
-        let shouldEnableOnDemand = enableOnDemand ?? isAutoRecoveryPermitted()
+        let shouldEnableOnDemand = enableOnDemand ?? true
         let tunnelProtocol = (manager.protocolConfiguration as? NETunnelProviderProtocol) ?? NETunnelProviderProtocol()
         tunnelProtocol.providerBundleIdentifier = AuraTunnelManager.tunnelBundleIdentifier
         tunnelProtocol.serverAddress = "127.0.0.1"
@@ -297,10 +319,12 @@ public final class AuraTunnelManager: NSObject {
                 self.knownConnections.add(manager.connection)
                 self.setPolicyEnabled()
                 if manager.connection.status == .connected {
-                    os_log(.info, log: Self.log, "[startTunnel] Tunnel is already connected; returning success immediately")
-                    AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] already connected; returning success")
+                    os_log(.info, log: Self.log, "[startTunnel] Tunnel is already connected; notifying policy update and returning success")
+                    AuraDiagnostics.log(tag: "AuraTunnelManager", message: "startTunnel [\(actId)] already connected; notifying policy update")
                     AuraDiagnostics.flushNewLogsToConsole()
-                    completion(.success(()))
+                    self.notifyPolicyUpdated { _ in
+                        completion(.success(()))
+                    }
                     return
                 }
 
@@ -689,6 +713,36 @@ public final class AuraTunnelManager: NSObject {
                     AuraDiagnostics.flushNewLogsToConsole()
                     completion(.success(false))
                 }
+            }
+        }
+    }
+
+    /// Signals a currently connected tunnel to reload its policy mode from the App Group storage.
+    public func notifyPolicyUpdated(completion: ((Result<Bool, AuraTunnelError>) -> Void)? = nil) {
+        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyPolicyUpdated entered")
+        getManager { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success(let manager):
+                guard let session = manager.connection as? NETunnelProviderSession else {
+                    completion?(.success(false))
+                    return
+                }
+                guard session.status == .connected else {
+                    completion?(.success(false))
+                    return
+                }
+                let message = Data("reload_policy".utf8)
+                do {
+                    try session.sendProviderMessage(message) { _ in
+                        AuraDiagnostics.log(tag: "AuraTunnelManager", message: "notifyPolicyUpdated acknowledged")
+                        completion?(.success(true))
+                    }
+                } catch {
+                    completion?(.success(false))
+                }
+            case .failure(let err):
+                completion?(.failure(err))
             }
         }
     }

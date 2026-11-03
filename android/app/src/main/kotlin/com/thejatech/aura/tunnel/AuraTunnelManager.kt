@@ -104,16 +104,22 @@ class AuraTunnelManager internal constructor() {
     }
 
     fun startTunnel(context: Context) {
+        AuraPreferences.setPolicyEnabled(context)
+
+        if (AuraVpnService.isServiceActive) {
+            // Tunnel is already running: notify service to resume active filtering immediately
+            AuraVpnService.reloadPolicy(context)
+            updateStatus(context, AuraTunnelStatus.CONNECTED)
+            return
+        }
+
         synchronized(this) {
-            if (currentStatus == AuraTunnelStatus.CONNECTED || currentStatus == AuraTunnelStatus.CONNECTING) {
+            if (currentStatus == AuraTunnelStatus.CONNECTING) {
                 return
             }
             lastTransitionTime = System.currentTimeMillis()
         }
 
-        // Cancel any pending pause worker and mark policy enabled
-        com.thejatech.aura.service.VpnPauseWorker.cancelPauseExpiry(context)
-        AuraPreferences.setPolicyEnabled(context)
         updateStatus(context, AuraTunnelStatus.CONNECTING)
 
         val intent = Intent(context, AuraVpnService::class.java).apply {
@@ -130,13 +136,20 @@ class AuraTunnelManager internal constructor() {
     fun pauseTunnel(context: Context, durationMillis: Long) {
         val expiry = System.currentTimeMillis() + durationMillis
         AuraPreferences.setPolicyPaused(context, expiry)
-        com.thejatech.aura.service.VpnPauseWorker.schedulePauseExpiry(context, durationMillis)
-        stopTunnel(context)
+
+        if (AuraVpnService.isServiceActive) {
+            // Passthrough architecture: DO NOT STOP TUNNEL!
+            // Notify service to reload policy snapshot and enter DNS passthrough mode
+            AuraVpnService.reloadPolicy(context)
+            updateStatus(context, AuraTunnelStatus.CONNECTED)
+        } else {
+            // Tunnel was not active; start it
+            startTunnel(context)
+        }
     }
 
     fun shutdownTunnel(context: Context) {
         AuraPreferences.setPolicyManuallyDisabled(context)
-        com.thejatech.aura.service.VpnPauseWorker.cancelPauseExpiry(context)
         stopTunnel(context)
     }
 

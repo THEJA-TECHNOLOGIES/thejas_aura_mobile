@@ -80,7 +80,7 @@ object AuraPreferences {
 
     /**
      * Sets the policy to TEMPORARILY PAUSED until [expiryUtcMillis].
-     * Suppresses firewall desired state while pause is active.
+     * In passthrough mode, the tunnel remains active with firewall desired set to true.
      */
     fun setPolicyPaused(context: Context, expiryUtcMillis: Long) {
         try {
@@ -88,9 +88,30 @@ object AuraPreferences {
                 .edit()
                 .putString(KEY_VPN_POLICY_MODE, POLICY_PAUSED)
                 .putLong(KEY_VPN_PAUSE_EXPIRY_UTC_MILLIS, expiryUtcMillis)
-                .putBoolean(KEY_FIREWALL_DESIRED_ENABLED, false)
+                .putBoolean(KEY_FIREWALL_DESIRED_ENABLED, true)
                 .apply()
         } catch (_: Exception) {}
+    }
+
+    /**
+     * Returns a thread-safe policy snapshot, reconciling any expired pause.
+     */
+    fun getPolicySnapshot(context: Context): VpnPolicySnapshot {
+        return try {
+            val prefs = getPreferences(context)
+            val mode = prefs.getString(KEY_VPN_POLICY_MODE, null)
+            val expiry = prefs.getLong(KEY_VPN_PAUSE_EXPIRY_UTC_MILLIS, 0L)
+            val now = System.currentTimeMillis()
+            if (mode == POLICY_PAUSED && expiry > 0L && now >= expiry) {
+                setPolicyEnabled(context)
+                VpnPolicySnapshot(POLICY_ENABLED, 0L)
+            } else {
+                val resolvedMode = mode ?: if (isFirewallDesired(context)) POLICY_ENABLED else POLICY_MANUALLY_DISABLED
+                VpnPolicySnapshot(resolvedMode, expiry)
+            }
+        } catch (_: Exception) {
+            VpnPolicySnapshot(POLICY_MANUALLY_DISABLED, 0L)
+        }
     }
 
     /**
@@ -244,3 +265,20 @@ object AuraPreferences {
         } catch (_: Exception) {}
     }
 }
+
+/**
+ * Immutable thread-safe snapshot of the current VPN policy.
+ */
+data class VpnPolicySnapshot(
+    val mode: String,
+    val pauseExpiryUtcMillis: Long
+) {
+    fun isPaused(now: Long = System.currentTimeMillis()): Boolean {
+        return mode == AuraPreferences.POLICY_PAUSED && now < pauseExpiryUtcMillis
+    }
+
+    fun isExpiredPause(now: Long = System.currentTimeMillis()): Boolean {
+        return mode == AuraPreferences.POLICY_PAUSED && now >= pauseExpiryUtcMillis
+    }
+}
+

@@ -39,8 +39,49 @@ public final class AuraLocalDNSResolver {
     private let queue = DispatchQueue(label: "com.thejatech.aura.dnsresolver", qos: .userInitiated)
     private var isRunning = false
 
+    public struct VpnPolicySnapshot {
+        public let mode: String
+        public let pauseExpiryUtcMillis: Int64
+
+        public init(mode: String, pauseExpiryUtcMillis: Int64) {
+            self.mode = mode
+            self.pauseExpiryUtcMillis = pauseExpiryUtcMillis
+        }
+
+        public func isPaused(now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) -> Bool {
+            return mode == "paused" && now < pauseExpiryUtcMillis
+        }
+
+        public func isExpiredPause(now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) -> Bool {
+            return mode == "paused" && now >= pauseExpiryUtcMillis
+        }
+    }
+
+    private var policyLock = os_unfair_lock_s()
+    private var currentPolicy = VpnPolicySnapshot(mode: "enabled", pauseExpiryUtcMillis: 0)
+
+    public func reloadPolicyFromAppGroup() {
+        let defaults = UserDefaults(suiteName: "group.com.thejatech.aura")
+        let rawMode = defaults?.string(forKey: "vpn_policy_mode") ?? "enabled"
+        let expiry = defaults?.object(forKey: "vpn_pause_expiry_utc_millis") as? Int64 ?? 0
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+
+        os_unfair_lock_lock(&policyLock)
+        if rawMode == "paused" && expiry > 0 && now >= expiry {
+            defaults?.set("enabled", forKey: "vpn_policy_mode")
+            defaults?.set(0, forKey: "vpn_pause_expiry_utc_millis")
+            currentPolicy = VpnPolicySnapshot(mode: "enabled", pauseExpiryUtcMillis: 0)
+        } else {
+            currentPolicy = VpnPolicySnapshot(mode: rawMode, pauseExpiryUtcMillis: expiry)
+        }
+        os_unfair_lock_unlock(&policyLock)
+
+        os_log(.info, log: Self.log, "AuraLocalDNSResolver reloaded policy snapshot: mode=%{public}@ expiry=%{public}lld", currentPolicy.mode, currentPolicy.pauseExpiryUtcMillis)
+    }
+
     public init(engine: AuraDNSEngine) {
         self.engine = engine
+        reloadPolicyFromAppGroup()
     }
 
     public static func queryTypeToString(_ qType: UInt16) -> String {
@@ -163,8 +204,44 @@ public final class AuraLocalDNSResolver {
 
     private func processQuery(requestData: Data, clientAddr: sockaddr_storage, addrLen: socklen_t) {
         if let question = AuraDNSEngine.parseQuestion(data: requestData) {
-            let decision = engine.evaluate(domain: question.name)
             let qTypeStr = Self.queryTypeToString(question.qType)
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+
+            os_unfair_lock_lock(&policyLock)
+            var policy = currentPolicy
+            if policy.isExpiredPause(now: now) {
+                let defaults = UserDefaults(suiteName: "group.com.thejatech.aura")
+                defaults?.set("enabled", forKey: "vpn_policy_mode")
+                defaults?.set(0, forKey: "vpn_pause_expiry_utc_millis")
+                currentPolicy = VpnPolicySnapshot(mode: "enabled", pauseExpiryUtcMillis: 0)
+                policy = currentPolicy
+                os_log(.info, log: Self.log, "Pause expired; reconciled policy to enabled in DNS resolver")
+            }
+            os_unfair_lock_unlock(&policyLock)
+
+            // DNS Passthrough mode when policy is paused
+            if policy.isPaused(now: now) {
+                os_log(
+                    .info,
+                    log: Self.log,
+                    "[PASSTHROUGH] Query %{public}@ bypassed (protection paused, expiry=%{public}lld) -> Forwarding upstream",
+                    question.name,
+                    policy.pauseExpiryUtcMillis
+                )
+                forwardUpstream(
+                    requestData: requestData,
+                    clientAddr: clientAddr,
+                    addrLen: addrLen,
+                    domain: question.name,
+                    queryType: qTypeStr,
+                    decision: nil,
+                    isPassthrough: true
+                )
+                return
+            }
+
+            // Normal DNS filtering when policy is enabled
+            let decision = engine.evaluate(domain: question.name)
 
             if decision.isBlocked {
                 os_log(
@@ -247,7 +324,8 @@ public final class AuraLocalDNSResolver {
         addrLen: socklen_t,
         domain: String?,
         queryType: String,
-        decision: AuraDNSEngine.MatchDecision?
+        decision: AuraDNSEngine.MatchDecision?,
+        isPassthrough: Bool = false
     ) {
         // Run upstream queries concurrently on global worker queue to prevent head-of-line blocking
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -291,7 +369,7 @@ public final class AuraLocalDNSResolver {
                         domain: domain,
                         queryType: queryType,
                         outcome: "allowed",
-                        matchedSource: decision?.matchedSource ?? "none",
+                        matchedSource: isPassthrough ? "passthrough" : (decision?.matchedSource ?? "none"),
                         matchedRuleId: decision?.matchedRule,
                         matchedCategories: decision?.matchedCategories ?? [],
                         reason: nil
@@ -315,7 +393,7 @@ public final class AuraLocalDNSResolver {
                         domain: domain,
                         queryType: queryType,
                         outcome: "failed",
-                        matchedSource: decision?.matchedSource ?? "none",
+                        matchedSource: isPassthrough ? "passthrough" : (decision?.matchedSource ?? "none"),
                         matchedRuleId: decision?.matchedRule,
                         matchedCategories: decision?.matchedCategories ?? [],
                         reason: "Upstream resolution failed or timed out"

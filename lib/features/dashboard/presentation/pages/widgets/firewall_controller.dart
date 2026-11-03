@@ -24,13 +24,12 @@ class FirewallController extends StatelessWidget {
     return BlocSelector<
       DashboardBloc,
       DashboardState,
-      (bool, bool, TunnelStatus)
+      (bool, bool, TunnelStatus, VpnPolicy)
     >(
-      selector: (s) => (s.isInitialized, s.isTogglingTunnel, s.status),
+      selector: (s) => (s.isInitialized, s.isTogglingTunnel, s.status, s.policy),
       builder: (context, state) {
-        final (isInitialized, isTogglingTunnel, status) = state;
+        final (isInitialized, isTogglingTunnel, status, policy) = state;
         final bloc = context.read<DashboardBloc>();
-        final policy = bloc.policy;
         final isPaused = policy.isPaused;
         final remaining = policy.remainingPauseDuration;
 
@@ -42,7 +41,7 @@ class FirewallController extends StatelessWidget {
 
         final face = busy
             ? PowerFace.connecting
-            : status == TunnelStatus.connected
+            : (status == TunnelStatus.connected && !isPaused)
             ? PowerFace.on
             : PowerFace.off;
 
@@ -76,11 +75,11 @@ class FirewallController extends StatelessWidget {
           onTap: busy
               ? null
               : () async {
-                  if (status == TunnelStatus.connected) {
+                  if (status == TunnelStatus.connected && !isPaused) {
                     final choice = await showDisconnectConfirmationDialog(
                       context,
-                      isAlwaysOnActive: bloc.policy.isAlwaysOnActive,
-                      isLockdownActive: bloc.policy.isLockdownActive,
+                      isAlwaysOnActive: policy.isAlwaysOnActive,
+                      isLockdownActive: policy.isLockdownActive,
                       onOpenVpnSettings: () => bloc.openVpnSettings(),
                     );
                     if (choice == null) return; // Cancelled

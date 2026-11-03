@@ -24,6 +24,7 @@ import com.thejatech.aura.packet.IpPacketParser
 import com.thejatech.aura.packet.ParsedDnsPacket
 import com.thejatech.aura.storage.AuraCategoryStore
 import com.thejatech.aura.storage.AuraPreferences
+import com.thejatech.aura.storage.VpnPolicySnapshot
 import com.thejatech.aura.storage.AuraRuleStore
 import com.thejatech.aura.theja_aura.MainActivity
 import com.thejatech.aura.tunnel.AuraTunnelManager
@@ -52,6 +53,16 @@ class AuraVpnService : VpnService() {
         const val ACTION_RELOAD_RULES = "com.thejatech.aura.ACTION_RELOAD_RULES"
         const val ACTION_RELOAD_CATEGORIES = "com.thejatech.aura.ACTION_RELOAD_CATEGORIES"
         const val ACTION_RELOAD_DEFAULT_OVERRIDES = "com.thejatech.aura.ACTION_RELOAD_DEFAULT_OVERRIDES"
+        const val ACTION_RELOAD_POLICY = "com.thejatech.aura.ACTION_RELOAD_POLICY"
+
+        fun reloadPolicy(context: Context) {
+            val intent = Intent(context, AuraVpnService::class.java).apply {
+                action = ACTION_RELOAD_POLICY
+            }
+            try {
+                context.startService(intent)
+            } catch (_: Exception) {}
+        }
 
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "aura_firewall_channel"
@@ -78,8 +89,12 @@ class AuraVpnService : VpnService() {
     private lateinit var activityDatabase: AuraActivityDatabase
     private lateinit var activityWriter: AuraActivityWriter
 
+    @Volatile
+    private var currentPolicy: VpnPolicySnapshot = VpnPolicySnapshot(AuraPreferences.POLICY_ENABLED, 0L)
+
     override fun onCreate() {
         super.onCreate()
+        currentPolicy = AuraPreferences.getPolicySnapshot(this)
         ruleStore = AuraRuleStore(this)
         categoryStore = AuraCategoryStore(this)
         pslValidator = AuraPslValidator.getInstance(this)
@@ -144,7 +159,9 @@ class AuraVpnService : VpnService() {
                 stopSelf()
                 return START_NOT_STICKY
             }
-            AuraPreferences.setPolicyEnabled(this)
+            if (AuraPreferences.getPolicyMode(this) != AuraPreferences.POLICY_PAUSED) {
+                AuraPreferences.setPolicyEnabled(this)
+            }
         }
 
         when (action) {
@@ -153,6 +170,7 @@ class AuraVpnService : VpnService() {
             ACTION_RELOAD_RULES -> reloadRules()
             ACTION_RELOAD_CATEGORIES -> reloadCategories()
             ACTION_RELOAD_DEFAULT_OVERRIDES -> reloadDefaultOverrides()
+            ACTION_RELOAD_POLICY -> reloadPolicy()
         }
 
         return if (AuraPreferences.isFirewallDesired(this)) START_STICKY else START_NOT_STICKY
@@ -161,8 +179,9 @@ class AuraVpnService : VpnService() {
     private fun startVpn() {
         if (isRunning.get()) return
 
+        currentPolicy = AuraPreferences.getPolicySnapshot(this)
         createNotificationChannel()
-        val notification = buildNotification()
+        val notification = buildNotification(currentPolicy.isPaused())
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -386,6 +405,20 @@ class AuraVpnService : VpnService() {
         dnsEngine.setDisabledDefaultDomains(overrides)
     }
 
+    private fun reloadPolicy() {
+        val snapshot = AuraPreferences.getPolicySnapshot(this)
+        currentPolicy = snapshot
+        Log.i(TAG, "Reloaded policy snapshot: mode=${snapshot.mode}, expiry=${snapshot.pauseExpiryUtcMillis}")
+        updateForegroundNotification(snapshot.isPaused())
+    }
+
+    private fun updateForegroundNotification(isPaused: Boolean) {
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.notify(NOTIFICATION_ID, buildNotification(isPaused))
+        } catch (_: Exception) {}
+    }
+
     // MARK: - Packet Processing Loop
 
     private fun processPackets(pfd: ParcelFileDescriptor) {
@@ -521,6 +554,32 @@ class AuraVpnService : VpnService() {
         }
 
         if (question != null) {
+            val now = System.currentTimeMillis()
+            var policy = currentPolicy
+
+            // 1. Thread-safe expired pause check and reconciliation
+            if (policy.isExpiredPause(now)) {
+                synchronized(this) {
+                    if (currentPolicy.isExpiredPause(now)) {
+                        Log.i(TAG, "Pause expired at $now; reconciling policy to ENABLED")
+                        AuraPreferences.setPolicyEnabled(this)
+                        currentPolicy = VpnPolicySnapshot(AuraPreferences.POLICY_ENABLED, 0L)
+                        updateForegroundNotification(false)
+                        AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.CONNECTED)
+                    }
+                    policy = currentPolicy
+                }
+            }
+
+            // 2. DNS Passthrough mode when policy is paused
+            if (policy.isPaused(now)) {
+                forwardExecutor?.execute {
+                    resolveAndForward(queryPacket, outputStream, question.name, qTypeStr, null, isPassthrough = true)
+                }
+                return
+            }
+
+            // 3. Normal DNS filtering when policy is enabled
             val decision = dnsEngine.evaluate(question.name, pslValidator)
 
             if (decision.isBlocked) {
@@ -587,7 +646,8 @@ class AuraVpnService : VpnService() {
         outputStream: FileOutputStream,
         domain: String?,
         queryType: String,
-        decision: AuraDnsEngine.MatchDecision?
+        decision: AuraDnsEngine.MatchDecision?,
+        isPassthrough: Boolean = false
     ) {
         try {
             val startTime = System.currentTimeMillis()
@@ -613,7 +673,7 @@ class AuraVpnService : VpnService() {
                         domain = domain,
                         queryType = queryType,
                         outcome = "allowed",
-                        matchedSource = decision?.matchedSource ?: "none",
+                        matchedSource = if (isPassthrough) "passthrough" else (decision?.matchedSource ?: "none"),
                         matchedRuleId = decision?.matchedRule,
                         matchedCategories = decision?.matchedCategories ?: emptyList(),
                         reason = null
@@ -637,7 +697,7 @@ class AuraVpnService : VpnService() {
                         domain = domain,
                         queryType = queryType,
                         outcome = "failed",
-                        matchedSource = decision?.matchedSource ?: "none",
+                        matchedSource = if (isPassthrough) "passthrough" else (decision?.matchedSource ?: "none"),
                         matchedRuleId = decision?.matchedRule,
                         matchedCategories = decision?.matchedCategories ?: emptyList(),
                         reason = "Upstream resolution failed or timed out"
@@ -727,7 +787,7 @@ class AuraVpnService : VpnService() {
         }
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(isPaused: Boolean = currentPolicy.isPaused()): Notification {
         val launchIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
@@ -738,9 +798,15 @@ class AuraVpnService : VpnService() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         )
 
+        val contentText = if (isPaused) {
+            "Paused — DNS filtering temporarily bypassed"
+        } else {
+            "Active — Filtering DNS queries"
+        }
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Theja's Aura Firewall")
-            .setContentText("Active — Filtering DNS queries")
+            .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

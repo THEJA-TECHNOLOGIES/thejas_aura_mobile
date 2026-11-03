@@ -100,6 +100,25 @@ class VpnPolicy {
       isLockdownActive: map['isLockdownActive'] as bool? ?? false,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VpnPolicy &&
+          runtimeType == other.runtimeType &&
+          mode == other.mode &&
+          pauseExpiryUtcMillis == other.pauseExpiryUtcMillis &&
+          isAutoRecoveryPermitted == other.isAutoRecoveryPermitted &&
+          isAlwaysOnActive == other.isAlwaysOnActive &&
+          isLockdownActive == other.isLockdownActive;
+
+  @override
+  int get hashCode =>
+      mode.hashCode ^
+      pauseExpiryUtcMillis.hashCode ^
+      isAutoRecoveryPermitted.hashCode ^
+      isAlwaysOnActive.hashCode ^
+      isLockdownActive.hashCode;
 }
 
 class AuraRuleItem {

@@ -8,6 +8,7 @@ part 'dashboard_state.freezed.dart';
 abstract class DashboardState with _$DashboardState {
   const factory DashboardState({
     @Default(TunnelStatus.disconnected) TunnelStatus status,
+    @Default(VpnPolicy()) VpnPolicy policy,
     @Default(false) bool isInitialized,
     @Default(false) bool isTogglingTunnel,
     @Default(false) bool isLoadingStats,

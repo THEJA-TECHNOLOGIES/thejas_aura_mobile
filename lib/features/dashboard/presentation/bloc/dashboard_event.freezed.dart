@@ -56,13 +56,15 @@ extension DashboardEventPatterns on DashboardEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _DashboardStarted value)?  started,TResult Function( _DashboardTunnelStatusUpdated value)?  tunnelStatusUpdated,TResult Function( _DashboardTunnelToggled value)?  tunnelToggled,TResult Function( _DashboardStatsRefreshRequested value)?  statsRefreshRequested,TResult Function( _DashboardAppResumed value)?  appResumed,TResult Function( _DashboardErrorMessageDismissed value)?  errorMessageDismissed,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( _DashboardStarted value)?  started,TResult Function( _DashboardTunnelStatusUpdated value)?  tunnelStatusUpdated,TResult Function( _DashboardTunnelToggled value)?  tunnelToggled,TResult Function( _DashboardPauseRequested value)?  pauseRequested,TResult Function( _DashboardShutdownRequested value)?  shutdownRequested,TResult Function( _DashboardStatsRefreshRequested value)?  statsRefreshRequested,TResult Function( _DashboardAppResumed value)?  appResumed,TResult Function( _DashboardErrorMessageDismissed value)?  errorMessageDismissed,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case _DashboardStarted() when started != null:
 return started(_that);case _DashboardTunnelStatusUpdated() when tunnelStatusUpdated != null:
 return tunnelStatusUpdated(_that);case _DashboardTunnelToggled() when tunnelToggled != null:
-return tunnelToggled(_that);case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
+return tunnelToggled(_that);case _DashboardPauseRequested() when pauseRequested != null:
+return pauseRequested(_that);case _DashboardShutdownRequested() when shutdownRequested != null:
+return shutdownRequested(_that);case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
 return statsRefreshRequested(_that);case _DashboardAppResumed() when appResumed != null:
 return appResumed(_that);case _DashboardErrorMessageDismissed() when errorMessageDismissed != null:
 return errorMessageDismissed(_that);case _:
@@ -83,13 +85,15 @@ return errorMessageDismissed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _DashboardStarted value)  started,required TResult Function( _DashboardTunnelStatusUpdated value)  tunnelStatusUpdated,required TResult Function( _DashboardTunnelToggled value)  tunnelToggled,required TResult Function( _DashboardStatsRefreshRequested value)  statsRefreshRequested,required TResult Function( _DashboardAppResumed value)  appResumed,required TResult Function( _DashboardErrorMessageDismissed value)  errorMessageDismissed,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( _DashboardStarted value)  started,required TResult Function( _DashboardTunnelStatusUpdated value)  tunnelStatusUpdated,required TResult Function( _DashboardTunnelToggled value)  tunnelToggled,required TResult Function( _DashboardPauseRequested value)  pauseRequested,required TResult Function( _DashboardShutdownRequested value)  shutdownRequested,required TResult Function( _DashboardStatsRefreshRequested value)  statsRefreshRequested,required TResult Function( _DashboardAppResumed value)  appResumed,required TResult Function( _DashboardErrorMessageDismissed value)  errorMessageDismissed,}){
 final _that = this;
 switch (_that) {
 case _DashboardStarted():
 return started(_that);case _DashboardTunnelStatusUpdated():
 return tunnelStatusUpdated(_that);case _DashboardTunnelToggled():
-return tunnelToggled(_that);case _DashboardStatsRefreshRequested():
+return tunnelToggled(_that);case _DashboardPauseRequested():
+return pauseRequested(_that);case _DashboardShutdownRequested():
+return shutdownRequested(_that);case _DashboardStatsRefreshRequested():
 return statsRefreshRequested(_that);case _DashboardAppResumed():
 return appResumed(_that);case _DashboardErrorMessageDismissed():
 return errorMessageDismissed(_that);case _:
@@ -109,13 +113,15 @@ return errorMessageDismissed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _DashboardStarted value)?  started,TResult? Function( _DashboardTunnelStatusUpdated value)?  tunnelStatusUpdated,TResult? Function( _DashboardTunnelToggled value)?  tunnelToggled,TResult? Function( _DashboardStatsRefreshRequested value)?  statsRefreshRequested,TResult? Function( _DashboardAppResumed value)?  appResumed,TResult? Function( _DashboardErrorMessageDismissed value)?  errorMessageDismissed,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( _DashboardStarted value)?  started,TResult? Function( _DashboardTunnelStatusUpdated value)?  tunnelStatusUpdated,TResult? Function( _DashboardTunnelToggled value)?  tunnelToggled,TResult? Function( _DashboardPauseRequested value)?  pauseRequested,TResult? Function( _DashboardShutdownRequested value)?  shutdownRequested,TResult? Function( _DashboardStatsRefreshRequested value)?  statsRefreshRequested,TResult? Function( _DashboardAppResumed value)?  appResumed,TResult? Function( _DashboardErrorMessageDismissed value)?  errorMessageDismissed,}){
 final _that = this;
 switch (_that) {
 case _DashboardStarted() when started != null:
 return started(_that);case _DashboardTunnelStatusUpdated() when tunnelStatusUpdated != null:
 return tunnelStatusUpdated(_that);case _DashboardTunnelToggled() when tunnelToggled != null:
-return tunnelToggled(_that);case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
+return tunnelToggled(_that);case _DashboardPauseRequested() when pauseRequested != null:
+return pauseRequested(_that);case _DashboardShutdownRequested() when shutdownRequested != null:
+return shutdownRequested(_that);case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
 return statsRefreshRequested(_that);case _DashboardAppResumed() when appResumed != null:
 return appResumed(_that);case _DashboardErrorMessageDismissed() when errorMessageDismissed != null:
 return errorMessageDismissed(_that);case _:
@@ -135,12 +141,14 @@ return errorMessageDismissed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  started,TResult Function( TunnelStatus status)?  tunnelStatusUpdated,TResult Function()?  tunnelToggled,TResult Function()?  statsRefreshRequested,TResult Function()?  appResumed,TResult Function()?  errorMessageDismissed,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function()?  started,TResult Function( TunnelStatus status)?  tunnelStatusUpdated,TResult Function()?  tunnelToggled,TResult Function( Duration duration)?  pauseRequested,TResult Function()?  shutdownRequested,TResult Function()?  statsRefreshRequested,TResult Function()?  appResumed,TResult Function()?  errorMessageDismissed,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DashboardStarted() when started != null:
 return started();case _DashboardTunnelStatusUpdated() when tunnelStatusUpdated != null:
 return tunnelStatusUpdated(_that.status);case _DashboardTunnelToggled() when tunnelToggled != null:
-return tunnelToggled();case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
+return tunnelToggled();case _DashboardPauseRequested() when pauseRequested != null:
+return pauseRequested(_that.duration);case _DashboardShutdownRequested() when shutdownRequested != null:
+return shutdownRequested();case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
 return statsRefreshRequested();case _DashboardAppResumed() when appResumed != null:
 return appResumed();case _DashboardErrorMessageDismissed() when errorMessageDismissed != null:
 return errorMessageDismissed();case _:
@@ -161,12 +169,14 @@ return errorMessageDismissed();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  started,required TResult Function( TunnelStatus status)  tunnelStatusUpdated,required TResult Function()  tunnelToggled,required TResult Function()  statsRefreshRequested,required TResult Function()  appResumed,required TResult Function()  errorMessageDismissed,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function()  started,required TResult Function( TunnelStatus status)  tunnelStatusUpdated,required TResult Function()  tunnelToggled,required TResult Function( Duration duration)  pauseRequested,required TResult Function()  shutdownRequested,required TResult Function()  statsRefreshRequested,required TResult Function()  appResumed,required TResult Function()  errorMessageDismissed,}) {final _that = this;
 switch (_that) {
 case _DashboardStarted():
 return started();case _DashboardTunnelStatusUpdated():
 return tunnelStatusUpdated(_that.status);case _DashboardTunnelToggled():
-return tunnelToggled();case _DashboardStatsRefreshRequested():
+return tunnelToggled();case _DashboardPauseRequested():
+return pauseRequested(_that.duration);case _DashboardShutdownRequested():
+return shutdownRequested();case _DashboardStatsRefreshRequested():
 return statsRefreshRequested();case _DashboardAppResumed():
 return appResumed();case _DashboardErrorMessageDismissed():
 return errorMessageDismissed();case _:
@@ -186,12 +196,14 @@ return errorMessageDismissed();case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  started,TResult? Function( TunnelStatus status)?  tunnelStatusUpdated,TResult? Function()?  tunnelToggled,TResult? Function()?  statsRefreshRequested,TResult? Function()?  appResumed,TResult? Function()?  errorMessageDismissed,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function()?  started,TResult? Function( TunnelStatus status)?  tunnelStatusUpdated,TResult? Function()?  tunnelToggled,TResult? Function( Duration duration)?  pauseRequested,TResult? Function()?  shutdownRequested,TResult? Function()?  statsRefreshRequested,TResult? Function()?  appResumed,TResult? Function()?  errorMessageDismissed,}) {final _that = this;
 switch (_that) {
 case _DashboardStarted() when started != null:
 return started();case _DashboardTunnelStatusUpdated() when tunnelStatusUpdated != null:
 return tunnelStatusUpdated(_that.status);case _DashboardTunnelToggled() when tunnelToggled != null:
-return tunnelToggled();case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
+return tunnelToggled();case _DashboardPauseRequested() when pauseRequested != null:
+return pauseRequested(_that.duration);case _DashboardShutdownRequested() when shutdownRequested != null:
+return shutdownRequested();case _DashboardStatsRefreshRequested() when statsRefreshRequested != null:
 return statsRefreshRequested();case _DashboardAppResumed() when appResumed != null:
 return appResumed();case _DashboardErrorMessageDismissed() when errorMessageDismissed != null:
 return errorMessageDismissed();case _:
@@ -326,6 +338,106 @@ int get hashCode => runtimeType.hashCode;
 @override
 String toString() {
     return 'DashboardEvent.tunnelToggled()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class _DashboardPauseRequested implements DashboardEvent {
+  const _DashboardPauseRequested(this.duration);
+  
+
+ final  Duration duration;
+
+/// Create a copy of DashboardEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$DashboardPauseRequestedCopyWith<_DashboardPauseRequested> get copyWith => __$DashboardPauseRequestedCopyWithImpl<_DashboardPauseRequested>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DashboardPauseRequested&&(identical(other.duration, duration) || other.duration == duration));
+}
+
+
+@override
+int get hashCode {
+    return Object.hash(runtimeType,duration);
+}
+
+@override
+String toString() {
+    return 'DashboardEvent.pauseRequested(duration: $duration)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$DashboardPauseRequestedCopyWith<$Res> implements $DashboardEventCopyWith<$Res> {
+  factory _$DashboardPauseRequestedCopyWith(_DashboardPauseRequested value, $Res Function(_DashboardPauseRequested) _then) = __$DashboardPauseRequestedCopyWithImpl;
+@useResult
+$Res call({
+ Duration duration
+});
+
+
+
+
+}
+/// @nodoc
+class __$DashboardPauseRequestedCopyWithImpl<$Res>
+    implements _$DashboardPauseRequestedCopyWith<$Res> {
+  __$DashboardPauseRequestedCopyWithImpl(this._self, this._then);
+
+  final _DashboardPauseRequested _self;
+  final $Res Function(_DashboardPauseRequested) _then;
+
+/// Create a copy of DashboardEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? duration = null,}) {
+  return _then(_DashboardPauseRequested(
+null == duration ? _self.duration : duration // ignore: cast_nullable_to_non_nullable
+as Duration,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class _DashboardShutdownRequested implements DashboardEvent {
+  const _DashboardShutdownRequested();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _DashboardShutdownRequested);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+    return 'DashboardEvent.shutdownRequested()';
 }
 
 
