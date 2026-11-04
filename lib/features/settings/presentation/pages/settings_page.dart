@@ -496,8 +496,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   Divider(),
                                   InkWell(
-                                    onTap: () =>
-                                        _launchURL("https://aura.theja.in"),
+                                    onTap: () => _launchURL(
+                                      "https://aura.theja.in/policy",
+                                    ),
                                     focusColor: Colors.transparent,
                                     borderRadius: .circular(12),
                                     child: Padding(
@@ -523,8 +524,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   const Divider(),
                                   InkWell(
-                                    onTap: () =>
-                                        _launchURL("https://aura.theja.in"),
+                                    onTap: () => _launchURL(
+                                      "https://aura.theja.in/terms",
+                                    ),
                                     focusColor: Colors.transparent,
                                     borderRadius: .circular(12),
                                     child: Padding(
@@ -550,8 +552,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   const Divider(),
                                   InkWell(
-                                    onTap: () =>
-                                        _launchURL("https://aura.theja.in"),
+                                    onTap: () => _launchURL(
+                                      "https://aura.theja.in/support",
+                                    ),
                                     focusColor: Colors.transparent,
                                     borderRadius: .circular(12),
                                     child: Padding(
