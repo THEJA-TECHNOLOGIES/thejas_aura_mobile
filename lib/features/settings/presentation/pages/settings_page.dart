@@ -497,7 +497,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   Divider(),
                                   InkWell(
                                     onTap: () => _launchURL(
-                                      "https://aura.theja.in/policy",
+                                      "https://aura.theja.in/privacy",
                                     ),
                                     focusColor: Colors.transparent,
                                     borderRadius: .circular(12),

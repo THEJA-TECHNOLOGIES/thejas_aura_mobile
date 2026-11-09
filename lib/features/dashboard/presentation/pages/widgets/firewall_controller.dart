@@ -13,7 +13,9 @@ class FirewallController extends StatelessWidget {
   static String _formatRemaining(Duration duration) {
     if (duration.inHours > 0) {
       final mins = duration.inMinutes % 60;
-      return mins > 0 ? '${duration.inHours}h ${mins}m' : '${duration.inHours}h';
+      return mins > 0
+          ? '${duration.inHours}h ${mins}m'
+          : '${duration.inHours}h';
     }
     final mins = duration.inMinutes;
     return mins > 0 ? '${mins}m' : '< 1m';
@@ -26,7 +28,8 @@ class FirewallController extends StatelessWidget {
       DashboardState,
       (bool, bool, TunnelStatus, VpnPolicy)
     >(
-      selector: (s) => (s.isInitialized, s.isTogglingTunnel, s.status, s.policy),
+      selector: (s) =>
+          (s.isInitialized, s.isTogglingTunnel, s.status, s.policy),
       builder: (context, state) {
         final (isInitialized, isTogglingTunnel, status, policy) = state;
         final bloc = context.read<DashboardBloc>();
@@ -50,17 +53,17 @@ class FirewallController extends StatelessWidget {
         return PowerHero(
           face: face,
           title: switch (face) {
-            PowerFace.off => isPaused
-                ? 'Protection is paused'
-                : 'Protection is off',
+            PowerFace.off =>
+              isPaused ? 'Protection is paused' : 'Protection is off',
             PowerFace.connecting =>
               stopping ? 'Stopping protection…' : 'Starting protection…',
             PowerFace.on => "You're protected",
           },
           subtitle: switch (face) {
-            PowerFace.off => isPaused
-                ? 'Paused for ${_formatRemaining(remaining)}. Tap to resume.'
-                : 'Tap the button to raise the wall.',
+            PowerFace.off =>
+              isPaused
+                  ? 'Paused for ${_formatRemaining(remaining)}. Tap to resume.'
+                  : 'Tap the button to raise the wall.',
             PowerFace.connecting =>
               stopping
                   ? 'Turning off the local filter.'
@@ -314,19 +317,23 @@ class _PowerHeroState extends State<PowerHero> with TickerProviderStateMixin {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Container(
-          padding: context.isMobile
+          padding: context.isMobile || context.isTablet
               ? null
-              : .symmetric(horizontal: 34, vertical: 24),
-          decoration: context.isMobile
+              : .symmetric(
+                  horizontal: PlatformChecker.isAndroidTV ? 34 : 78,
+                  vertical: 24,
+                ),
+          decoration: context.isMobile || context.isTablet
               ? null
               : BoxDecoration(
                   color: colors.surfaceRaised,
                   borderRadius: .circular(20),
+                  border: Border.all(color: colors.border, width: 1),
                 ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (context.isMobile) ...[
+              if (context.isMobile || context.isTablet) ...[
                 AnimatedContainer(
                   duration: dur,
                   padding: const EdgeInsets.symmetric(

@@ -4,7 +4,37 @@ import os.log
 /// Pure Swift, clean-room DNS and domain-matching engine for Theja's Aura.
 /// Zero GPL dependencies. Compliant with RFC 1035 and RFC 3596 specifications.
 /// Includes Mozilla Public Suffix List (PSL) validation and multi-category attribution.
+/// Also includes EDNS0 parsing and DNS response truncation utilities.
 public final class AuraDNSEngine {
+
+    /// EDNS0 information extracted from a DNS query
+    public struct Edns0Info {
+        /// The advertised UDP payload size from the OPT record, or 512 if no OPT record
+        public let udpPayloadSize: Int
+        /// Whether an OPT record was found in the additional section
+        public let hasOptRecord: Bool
+
+        public static let defaultUdpPayload = 512
+        public static let minUdpPayload = 512
+        /// Conservative operational cap to avoid fragmentation (IPv6 min MTU 1280 - 48 IP/UDP headers = 1232)
+        public static let operationalCap = 1232
+
+        public init(udpPayloadSize: Int, hasOptRecord: Bool) {
+            self.udpPayloadSize = udpPayloadSize
+            self.hasOptRecord = hasOptRecord
+        }
+    }
+
+    /// Result of DNS response truncation
+    public struct TruncationResult {
+        public let truncatedResponse: Data
+        public let wasTruncated: Bool
+
+        public init(truncatedResponse: Data, wasTruncated: Bool) {
+            self.truncatedResponse = truncatedResponse
+            self.wasTruncated = wasTruncated
+        }
+    }
 
     public struct Rule: Codable, Equatable {
         public let id: String
@@ -512,5 +542,232 @@ public final class AuraDNSEngine {
         }
 
         return response
+    }
+
+    // =========================================================================
+    // EDNS0 Parsing and DNS Response Truncation
+    // =========================================================================
+
+    /// Parses the EDNS0 OPT record from a DNS query to extract the client's advertised
+    /// UDP payload size. If no OPT record is present, returns the default of 512 bytes.
+    public static func parseEdns0Info(queryData: Data) -> Edns0Info {
+        guard let header = parseHeader(data: queryData) else {
+            return Edns0Info(udpPayloadSize: Edns0Info.defaultUdpPayload, hasOptRecord: false)
+        }
+        guard header.qdCount > 0 else {
+            return Edns0Info(udpPayloadSize: Edns0Info.defaultUdpPayload, hasOptRecord: false)
+        }
+
+        guard let question = parseQuestion(data: queryData, offset: 12) else {
+            return Edns0Info(udpPayloadSize: Edns0Info.defaultUdpPayload, hasOptRecord: false)
+        }
+        var current = 12 + question.rawLength
+
+        // Skip answer and authority sections
+        var remaining = Int(header.anCount) + Int(header.nsCount)
+        current = skipResourceRecords(data: queryData, current: current, count: remaining)
+
+        // Now at additional section - look for OPT record (TYPE=41)
+        var optPayloadSize: Int? = nil
+        var hasOptRecord = false
+
+        for _ in 0..<Int(header.arCount) {
+            if current >= queryData.count { break }
+
+            // Parse record name (skip it)
+            guard let nameResult = parseDnsName(data: queryData, current: current) else { break }
+            current = nameResult.newOffset
+
+            if current + 8 > queryData.count { break }
+
+            let rtype = (Int(queryData[current]) << 8) | Int(queryData[current + 1])
+            let rclass = (Int(queryData[current + 2]) << 8) | Int(queryData[current + 3])
+
+            current += 8 // Skip TYPE, CLASS, TTL
+
+            if current + 2 > queryData.count { break }
+            let rdlength = (Int(queryData[current]) << 8) | Int(queryData[current + 1])
+            current += 2
+
+            if rtype == 41 && rclass >= Edns0Info.minUdpPayload { // TYPE=41 (OPT), CLASS = UDP payload size
+                hasOptRecord = true
+                // The CLASS field in OPT record IS the UDP payload size
+                optPayloadSize = rclass
+            }
+
+            if current + rdlength > queryData.count { break }
+            current += rdlength
+        }
+
+        let payloadSize = min(Edns0Info.operationalCap, max(Edns0Info.minUdpPayload, optPayloadSize ?? Edns0Info.defaultUdpPayload))
+
+        return Edns0Info(udpPayloadSize: payloadSize, hasOptRecord: hasOptRecord)
+    }
+
+    /// Parses a DNS name from the packet, handling compression pointers.
+    /// Returns the new offset after the name and whether a jump occurred.
+    private static func parseDnsName(data: Data, current: Int) -> (newOffset: Int, jumped: Bool)? {
+        var current = current
+        var jumped = false
+
+        while current < data.count {
+            let length = Int(data[current])
+            if length == 0 {
+                return (current + 1, jumped)
+            }
+            if (length & 0xC0) == 0xC0 {
+                // Compression pointer
+                if current + 1 >= data.count { return nil }
+                jumped = true
+                return (current + 2, true)
+            }
+            if current + 1 + length > data.count { return nil }
+            current += 1 + length
+        }
+        return nil
+    }
+
+    /// Skips the specified number of resource records in the packet.
+    private static func skipResourceRecords(data: Data, current: Int, count: Int) -> Int {
+        var current = current
+        for _ in 0..<count {
+            guard let nameResult = parseDnsName(data: data, current: current) else { return current }
+            current = nameResult.newOffset
+            if current + 10 > data.count { return current } // TYPE+CLASS+TTL+RDLENGTH
+            let rdlength = (Int(data[current + 8]) << 8) | Int(data[current + 9])
+            current += 10 + rdlength
+        }
+        return current
+    }
+
+    /// Calculates the effective UDP response limit based on EDNS0 info and MTU constraints.
+    public static func calculateEffectiveUdpLimit(edns0Info: Edns0Info) -> Int {
+        // The effective limit is the minimum of:
+        // 1. Client's advertised UDP payload size (from EDNS0)
+        // 2. Operational cap (1232 bytes for IPv6-safe unfragmented)
+        // 3. Path MTU estimate minus IP/UDP headers (conservative: 1500 - 28 = 1472 for IPv4)
+        let minVal = Edns0Info.minUdpPayload
+        let maxVal = Edns0Info.operationalCap
+        let value = edns0Info.udpPayloadSize
+        return max(minVal, min(maxVal, value))
+    }
+
+    /// Truncates a DNS response to fit within the specified UDP payload limit.
+    /// Preserves header, question section, and complete resource records only.
+    /// Sets TC bit and updates section counts appropriately.
+    public static func truncateDnsResponse(
+        responseData: Data,
+        maxUdpPayload: Int,
+        isBlockedResponse: Bool = false,
+        isServFailResponse: Bool = false
+    ) -> TruncationResult {
+        if responseData.count <= maxUdpPayload {
+            return TruncationResult(truncatedResponse: responseData, wasTruncated: false)
+        }
+
+        guard let header = parseHeader(data: responseData),
+              header.qdCount > 0,
+              let question = parseQuestion(data: responseData, offset: 12) else {
+            return TruncationResult(truncatedResponse: responseData.prefix(maxUdpPayload), wasTruncated: true)
+        }
+
+        var current = 12 + question.rawLength
+
+        struct RecordBoundary {
+            let section: Int // 0=answer, 1=authority, 2=additional
+            let startOffset: Int
+            let endOffset: Int
+            let recordSize: Int
+            let isOptRecord: Bool
+        }
+
+        var records: [RecordBoundary] = []
+        let sectionCounts = [Int(header.anCount), Int(header.nsCount), Int(header.arCount)]
+
+        for section in 0..<3 {
+            for _ in 0..<sectionCounts[section] {
+                if current >= responseData.count { break }
+
+                let recordStart = current
+                guard let nameResult = parseDnsName(data: responseData, current: current) else { break }
+                current = nameResult.newOffset
+
+                if current + 10 > responseData.count { break }
+                let rtype = (Int(responseData[current]) << 8) | Int(responseData[current + 1])
+                current += 8 // Skip TYPE, CLASS, TTL
+
+                if current + 2 > responseData.count { break }
+                let rdlength = (Int(responseData[current]) << 8) | Int(responseData[current + 1])
+                current += 2
+
+                let isOpt = rtype == 41
+                if current + rdlength > responseData.count { break }
+                current += rdlength
+
+                records.append(RecordBoundary(section: section, startOffset: recordStart, endOffset: current, recordSize: current - recordStart, isOptRecord: isOpt))
+            }
+        }
+
+        let headerSize = 12
+        let questionSize = question.rawLength
+        let fixedOverhead = headerSize + questionSize
+
+        var includedRecords: [RecordBoundary] = []
+        var currentSize = fixedOverhead
+
+        for record in records {
+            if currentSize + record.recordSize > maxUdpPayload { break }
+            currentSize += record.recordSize
+            includedRecords.append(record)
+        }
+
+        if fixedOverhead > maxUdpPayload {
+            // Return minimal SERVFAIL
+            let minimalServFail = synthesizeServFailResponse(requestData: Data(count: 12)) ?? Data(count: maxUdpPayload)
+            return TruncationResult(truncatedResponse: minimalServFail.prefix(maxUdpPayload), wasTruncated: true)
+        }
+
+        var truncated = Data()
+        truncated.append(responseData[0..<headerSize]) // Header (will update counts later)
+        truncated.append(responseData[12..<(12 + questionSize)]) // Question
+
+        for record in includedRecords {
+            truncated.append(responseData[record.startOffset..<record.endOffset])
+        }
+
+        // Update header: counts and TC bit
+        if truncated.count >= 12 {
+            let anCount = includedRecords.filter { $0.section == 0 }.count
+            let nsCount = includedRecords.filter { $0.section == 1 }.count
+            let arCount = includedRecords.filter { $0.section == 2 }.count
+
+            // Update ANCOUNT (bytes 4-5)
+            truncated[4] = UInt8((anCount >> 8) & 0xFF)
+            truncated[5] = UInt8(anCount & 0xFF)
+            // Update NSCOUNT (bytes 6-7)
+            truncated[6] = UInt8((nsCount >> 8) & 0xFF)
+            truncated[7] = UInt8(nsCount & 0xFF)
+            // Update ARCOUNT (bytes 10-11)
+            truncated[10] = UInt8((arCount >> 8) & 0xFF)
+            truncated[11] = UInt8(arCount & 0xFF)
+
+            // Set TC bit (bit 1 of flags byte at index 2)
+            truncated[2] |= 0x02
+        }
+
+        return TruncationResult(truncatedResponse: truncated, wasTruncated: true)
+    }
+
+    /// Applies size-limiting to a DNS response before sending downstream.
+    public static func limitDnsResponseSize(
+        responseData: Data,
+        queryData: Data,
+        isBlockedResponse: Bool = false,
+        isServFailResponse: Bool = false
+    ) -> Data {
+        let edns0Info = parseEdns0Info(queryData: queryData)
+        let maxUdpPayload = calculateEffectiveUdpLimit(edns0Info: edns0Info)
+        let result = truncateDnsResponse(responseData: responseData, maxUdpPayload: maxUdpPayload, isBlockedResponse: isBlockedResponse, isServFailResponse: isServFailResponse)
+        return result.truncatedResponse
     }
 }

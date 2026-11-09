@@ -34,8 +34,10 @@
 		A1110083294A000100000001 /* AuraDNSEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110006294A000100000001 /* AuraDNSEngine.swift */; };
 		A1110084294A000100000001 /* Resources/public_suffix_list.dat in Resources */ = {isa = PBXBuildFile; fileRef = A1110054294A000100000001 /* Resources/public_suffix_list.dat */; };
 		A1110085294A000100000001 /* AuraActivityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110064294A000100000001 /* AuraActivityDatabase.swift */; };
+		A1110086294A000100000001 /* AuraLocalDNSResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110004294A000100000001 /* AuraLocalDNSResolver.swift */; };
 		A1110093294A000100000001 /* AuraDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110091294A000100000001 /* AuraDatabaseTests.swift */; };
 		A1110094294A000100000001 /* AuraReleaseStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110092294A000100000001 /* AuraReleaseStoreTests.swift */; };
+		A1110096294A000100000001 /* AuraTCPDNSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1110095294A000100000001 /* AuraTCPDNSTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -115,6 +117,7 @@
 		A1110070294A000100000001 /* AuraActivityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraActivityRepository.swift; sourceTree = "<group>"; };
 		A1110091294A000100000001 /* AuraDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraDatabaseTests.swift; sourceTree = "<group>"; };
 		A1110092294A000100000001 /* AuraReleaseStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraReleaseStoreTests.swift; sourceTree = "<group>"; };
+		A1110095294A000100000001 /* AuraTCPDNSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraTCPDNSTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -142,6 +145,7 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 				A1110091294A000100000001 /* AuraDatabaseTests.swift */,
 				A1110092294A000100000001 /* AuraReleaseStoreTests.swift */,
+				A1110095294A000100000001 /* AuraTCPDNSTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -398,6 +402,7 @@
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
 				A1110093294A000100000001 /* AuraDatabaseTests.swift in Sources */,
 				A1110094294A000100000001 /* AuraReleaseStoreTests.swift in Sources */,
+				A1110096294A000100000001 /* AuraTCPDNSTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -415,6 +420,7 @@
 				A1110082294A000100000001 /* AuraCategoryStore.swift in Sources */,
 				A1110083294A000100000001 /* AuraDNSEngine.swift in Sources */,
 				A1110085294A000100000001 /* AuraActivityDatabase.swift in Sources */,
+				A1110086294A000100000001 /* AuraLocalDNSResolver.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

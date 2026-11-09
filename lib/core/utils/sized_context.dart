@@ -35,9 +35,9 @@ extension SizedContext on BuildContext {
 
   bool get isMobile => widthPx < 600;
 
-  bool get isTablet => widthPx >= 600 && widthPx < 1024;
+  bool get isTablet => widthPx >= 600 && widthPx < 900;
 
-  bool get isDesktop => widthPx >= 1024;
+  bool get isDesktop => widthPx >= 900;
 
   /// Returns pixel size in Inches
   Size get sizeInches {

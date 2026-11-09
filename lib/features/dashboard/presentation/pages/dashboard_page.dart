@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/check_platforms.dart';
-import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/bar_chart.dart';
-import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
-import 'package:theja_aura/features/dashboard/presentation/pages/widgets/block_list_sync_indicator.dart';
-import 'package:theja_aura/features/dashboard/presentation/pages/widgets/cta_buttons.dart';
-import 'package:theja_aura/features/dashboard/presentation/pages/widgets/firewall_controller.dart';
-import 'package:theja_aura/features/dashboard/presentation/pages/widgets/statistics_section.dart';
+import 'package:theja_aura/core/utils/sized_context.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/mobile_widget.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/desktop_widget.dart';
+import 'package:theja_aura/features/dashboard/presentation/pages/widgets/tv_widget.dart';
 import 'package:theja_aura/features/settings/presentation/pages/settings_page.dart';
 
 import '../../../../core/utils/app_toast.dart';
@@ -69,82 +66,10 @@ class _DashboardPageState extends State<DashboardPage>
             ],
           ),
           body: PlatformChecker.isAndroidTV
-              ? Align(
-                  alignment: .topCenter,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: 1200),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(left: 16),
-                                child: FirewallController(),
-                              ),
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    BlockListSyncIndicator(),
-                                    StatisticsSection(),
-                                    Expanded(
-                                      child:
-                                          BlocSelector<
-                                            DashboardBloc,
-                                            DashboardState,
-                                            List<IndividualBar>
-                                          >(
-                                            selector: (s) => s.chartData,
-                                            builder: (context, chartData) {
-                                              return AppBarChart(
-                                                data: chartData,
-                                              );
-                                            },
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: 18),
-                        CTAButtons(useRow: true),
-                      ],
-                    ),
-                  ),
-                )
-              : SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(height: 22),
-                      FirewallController(),
-                      const SizedBox(height: 16),
-                      BlockListSyncIndicator(),
-                      StatisticsSection(),
-                      const SizedBox(height: 16),
-                      CTAButtons(),
-                      SizedBox(
-                        height: 260,
-                        child:
-                            BlocSelector<
-                              DashboardBloc,
-                              DashboardState,
-                              List<IndividualBar>
-                            >(
-                              selector: (s) => s.chartData,
-                              builder: (context, chartData) {
-                                return AppBarChart(data: chartData);
-                              },
-                            ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
-                ),
+              ? TVWidget()
+              : context.isDesktop
+              ? DesktopWidget()
+              : MobileWidget(),
         );
       },
     );

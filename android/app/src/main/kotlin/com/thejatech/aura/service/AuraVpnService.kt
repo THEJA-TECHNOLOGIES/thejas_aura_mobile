@@ -18,10 +18,12 @@ import com.thejatech.aura.database.AuraActivityDatabase
 import com.thejatech.aura.database.AuraActivityWriter
 import com.thejatech.aura.engine.AuraDnsEngine
 import com.thejatech.aura.engine.AuraPslValidator
+import com.thejatech.aura.engine.TcpConnectionManager
 import com.thejatech.aura.model.ActivityRecord
 import com.thejatech.aura.model.AuraTunnelStatus
 import com.thejatech.aura.packet.IpPacketParser
 import com.thejatech.aura.packet.ParsedDnsPacket
+import com.thejatech.aura.packet.TcpPacketParser
 import com.thejatech.aura.storage.AuraCategoryStore
 import com.thejatech.aura.storage.AuraPreferences
 import com.thejatech.aura.storage.VpnPolicySnapshot
@@ -37,7 +39,11 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 class AuraVpnService : VpnService() {
 
@@ -81,6 +87,19 @@ class AuraVpnService : VpnService() {
     private var workerThread: Thread? = null
     private var forwardExecutor: ExecutorService? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    private val tcpConnectionManager = TcpConnectionManager()
+
+    // Timer executor + scheduled future holder for atomic lifecycle management
+    private val timerHolder = AtomicReference<TimerHolder?>(null)
+
+    private data class TimerHolder(
+        val executor: ScheduledExecutorService,
+        val future: ScheduledFuture<*>
+    )
+    @Volatile
+    private var tunOutputStream: FileOutputStream? = null
+    private var packetProcessor: AuraDnsPacketProcessor? = null
 
     private val dnsEngine = AuraDnsEngine()
     private lateinit var ruleStore: AuraRuleStore
@@ -279,6 +298,38 @@ class AuraVpnService : VpnService() {
             Thread(r, "aura-dns-forwarder").apply { isDaemon = true }
         }
 
+        val processor = AuraDnsPacketProcessor(
+            dnsEngine = dnsEngine,
+            tcpConnectionManager = tcpConnectionManager,
+            pslValidator = pslValidator,
+            policyProvider = { currentPolicy },
+            onPolicyReconciled = { renewedPolicy ->
+                synchronized(this@AuraVpnService) {
+                    AuraPreferences.setPolicyEnabled(this@AuraVpnService)
+                    currentPolicy = renewedPolicy
+                    updateForegroundNotification(false)
+                    AuraTunnelManager.shared.updateStatus(this@AuraVpnService, AuraTunnelStatus.CONNECTED)
+                }
+            },
+            upstreamResolver = { requestDns -> resolveUpstream(requestDns) },
+            packetWriter = { pkt -> tunOutputStream?.let { sendPacket(it, pkt) } },
+            activityLogger = { record -> activityWriter.enqueue(record) },
+            executor = forwardExecutor
+        )
+        packetProcessor = processor
+
+        val timer = Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "aura-tcp-timer").apply { isDaemon = true }
+        }
+        val future = timer.scheduleWithFixedDelay({
+            try {
+                processor?.checkTimers()
+            } catch (t: Throwable) {
+                Log.e(TAG, "Error in tcpTimerExecutor", t)
+            }
+        }, 200, 200, TimeUnit.MILLISECONDS)
+        timerHolder.set(TimerHolder(timer, future))
+
         workerThread = Thread({ processPackets(pfd) }, "aura-vpn-worker").apply {
             start()
         }
@@ -367,6 +418,14 @@ class AuraVpnService : VpnService() {
         forwardExecutor?.shutdownNow()
         forwardExecutor = null
 
+        // Atomically shut down timer executor and cancel its scheduled task
+        timerHolder.getAndSet(null)?.let { holder ->
+            holder.future.cancel(true)
+            holder.executor.shutdownNow()
+        }
+        tcpConnectionManager.reset()
+        packetProcessor = null
+
         activityWriter.flushAndClose(500L)
 
         AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.DISCONNECTED)
@@ -424,6 +483,7 @@ class AuraVpnService : VpnService() {
     private fun processPackets(pfd: ParcelFileDescriptor) {
         val inputStream = FileInputStream(pfd.fileDescriptor)
         val outputStream = FileOutputStream(pfd.fileDescriptor)
+        tunOutputStream = outputStream
         val buffer = ByteArray(4096)
 
         try {
@@ -437,24 +497,14 @@ class AuraVpnService : VpnService() {
                 if (length <= 0) continue
 
                 try {
-                    val packet = buffer.copyOf(length)
-                    val parsed = IpPacketParser.parse(packet, length)
-                    if (parsed != null) {
-                        handleDnsQuery(parsed, outputStream)
-                    } else {
-                        // If it's a TCP probe (e.g. Android Private DNS probing port 853 or port 53),
-                        // reply with TCP RST so the system doesn't stall waiting for DoT handshake
-                        val rst = IpPacketParser.buildTcpResetPacket(packet, length)
-                        if (rst != null) {
-                            sendPacket(outputStream, rst)
-                        }
-                    }
+                    packetProcessor?.processPacket(buffer, length)
                 } catch (t: Throwable) {
                     Log.e(TAG, "Error handling packet in processPackets", t)
                 }
             }
         } catch (_: Exception) {
         } finally {
+            tunOutputStream = null
             try {
                 inputStream.close()
                 outputStream.close()
@@ -497,6 +547,43 @@ class AuraVpnService : VpnService() {
                 Thread(r, "aura-dns-forwarder-recovered").apply { isDaemon = true }
             }
         }
+
+        // Atomically replace timer executor: cancel old future, shutdown old executor, create new
+        val newTimer = Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "aura-tcp-timer-recovered").apply { isDaemon = true }
+        }
+        val newFuture = newTimer.scheduleWithFixedDelay({
+            try {
+                packetProcessor?.checkTimers()
+            } catch (t: Throwable) {
+                Log.e(TAG, "Error in tcpTimerExecutor", t)
+            }
+        }, 200, 200, TimeUnit.MILLISECONDS)
+
+        // Swap atomically: cancel old future, shutdown old executor
+        timerHolder.getAndSet(TimerHolder(newTimer, newFuture))?.let { oldHolder ->
+            oldHolder.future.cancel(true)
+            oldHolder.executor.shutdownNow()
+        }
+
+        packetProcessor = AuraDnsPacketProcessor(
+            dnsEngine = dnsEngine,
+            tcpConnectionManager = tcpConnectionManager,
+            pslValidator = pslValidator,
+            policyProvider = { currentPolicy },
+            onPolicyReconciled = { renewedPolicy ->
+                synchronized(this@AuraVpnService) {
+                    AuraPreferences.setPolicyEnabled(this@AuraVpnService)
+                    currentPolicy = renewedPolicy
+                    updateForegroundNotification(false)
+                    AuraTunnelManager.shared.updateStatus(this@AuraVpnService, AuraTunnelStatus.CONNECTED)
+                }
+            },
+            upstreamResolver = { requestDns -> resolveUpstream(requestDns) },
+            packetWriter = { pkt -> tunOutputStream?.let { sendPacket(it, pkt) } },
+            activityLogger = { record -> activityWriter.enqueue(record) },
+            executor = forwardExecutor
+        )
 
         // Re-establish interface
         val builder = Builder()
@@ -542,76 +629,7 @@ class AuraVpnService : VpnService() {
     }
 
     private fun handleDnsQuery(queryPacket: ParsedDnsPacket, outputStream: FileOutputStream) {
-        val question = AuraDnsEngine.parseQuestion(queryPacket.dnsPayload, 12)
-        val qTypeStr = when (question?.qType) {
-            1 -> "A"
-            28 -> "AAAA"
-            5 -> "CNAME"
-            15 -> "MX"
-            16 -> "TXT"
-            65 -> "HTTPS"
-            else -> if (question != null) "TYPE${question.qType}" else "UNKNOWN"
-        }
-
-        if (question != null) {
-            val now = System.currentTimeMillis()
-            var policy = currentPolicy
-
-            // 1. Thread-safe expired pause check and reconciliation
-            if (policy.isExpiredPause(now)) {
-                synchronized(this) {
-                    if (currentPolicy.isExpiredPause(now)) {
-                        Log.i(TAG, "Pause expired at $now; reconciling policy to ENABLED")
-                        AuraPreferences.setPolicyEnabled(this)
-                        currentPolicy = VpnPolicySnapshot(AuraPreferences.POLICY_ENABLED, 0L)
-                        updateForegroundNotification(false)
-                        AuraTunnelManager.shared.updateStatus(this, AuraTunnelStatus.CONNECTED)
-                    }
-                    policy = currentPolicy
-                }
-            }
-
-            // 2. DNS Passthrough mode when policy is paused
-            if (policy.isPaused(now)) {
-                forwardExecutor?.execute {
-                    resolveAndForward(queryPacket, outputStream, question.name, qTypeStr, null, isPassthrough = true)
-                }
-                return
-            }
-
-            // 3. Normal DNS filtering when policy is enabled
-            val decision = dnsEngine.evaluate(question.name, pslValidator)
-
-            if (decision.isBlocked) {
-                val blockedDns = AuraDnsEngine.createBlockedResponse(queryPacket.dnsPayload)
-                if (blockedDns != null) {
-                    val responsePacket = IpPacketParser.buildResponsePacket(queryPacket, blockedDns)
-                    sendPacket(outputStream, responsePacket)
-
-                    val record = ActivityRecord(
-                        domain = question.name,
-                        queryType = qTypeStr,
-                        outcome = "blocked",
-                        matchedSource = decision.matchedSource,
-                        matchedRuleId = decision.matchedRule,
-                        matchedCategories = decision.matchedCategories,
-                        reason = decision.reason
-                    )
-                    activityWriter.enqueue(record)
-                    return
-                }
-            }
-
-            // Allowed: forward upstream
-            forwardExecutor?.execute {
-                resolveAndForward(queryPacket, outputStream, question.name, qTypeStr, decision)
-            }
-        } else {
-            // Unparseable DNS payload: forward upstream without evaluation
-            forwardExecutor?.execute {
-                resolveAndForward(queryPacket, outputStream, null, "UNKNOWN", null)
-            }
-        }
+        packetProcessor?.handleUdpDnsQuery(queryPacket)
     }
 
     private fun getActiveUpstreamResolvers(): List<InetSocketAddress> {
@@ -641,79 +659,126 @@ class AuraVpnService : VpnService() {
         return resolvers
     }
 
-    private fun resolveAndForward(
-        queryPacket: ParsedDnsPacket,
-        outputStream: FileOutputStream,
-        domain: String?,
-        queryType: String,
-        decision: AuraDnsEngine.MatchDecision?,
-        isPassthrough: Boolean = false
-    ) {
-        try {
-            val startTime = System.currentTimeMillis()
-            var responseDns: ByteArray? = null
-            val maxTotalBudget = 2000L // 2.0s
+    private fun resolveUpstream(requestDns: ByteArray): ByteArray? {
+        val startTime = System.currentTimeMillis()
+        val maxTotalBudget = 2000L // 2.0s
 
-            val resolvers = getActiveUpstreamResolvers()
-            for (resolver in resolvers) {
-                val elapsed = System.currentTimeMillis() - startTime
-                if (elapsed >= maxTotalBudget) break
+        val resolvers = getActiveUpstreamResolvers()
+        for (resolver in resolvers) {
+            val elapsed = System.currentTimeMillis() - startTime
+            if (elapsed >= maxTotalBudget) break
 
-                val remainingTimeout = (maxTotalBudget - elapsed).coerceIn(400L, 800L).toInt()
-                responseDns = queryUpstream(resolver, queryPacket.dnsPayload, remainingTimeout)
-                if (responseDns != null) break
+            val remainingTimeout = (maxTotalBudget - elapsed).coerceIn(400L, 800L).toInt()
+            val responseDns = queryUpstream(resolver, requestDns, remainingTimeout, startTime, maxTotalBudget)
+            if (responseDns != null) return responseDns
+        }
+        return null
+    }
+
+    /**
+     * Checks if a DNS response has the TC (Truncated) flag set.
+     * TC flag is bit 1 (0x02) of the flags byte (byte index 2).
+     */
+    private fun isTruncatedResponse(response: ByteArray): Boolean {
+        return response.size >= 3 && (response[2].toInt() and 0x02) != 0
+    }
+
+    /**
+     * Queries an upstream DNS resolver over TCP with proper DNS-over-TCP framing.
+     * Implements two-byte length prefix, partial read/write handling, and response validation.
+     */
+    private fun queryUpstreamTcp(
+        resolver: InetSocketAddress,
+        requestDns: ByteArray,
+        timeoutMs: Int
+    ): ByteArray? {
+        var socket: java.net.Socket? = null
+        return try {
+            socket = java.net.Socket()
+            val isProtected = protect(socket)
+            if (!isProtected) {
+                Log.w(TAG, "VpnService.protect(socket) failed for upstream TCP ${resolver.address}")
+                return null
+            }
+            socket.soTimeout = timeoutMs
+            socket.connect(resolver, timeoutMs)
+
+            val outputStream = socket.getOutputStream()
+            val inputStream = socket.getInputStream()
+
+            // DNS-over-TCP framing: 2-byte length prefix (network byte order) + DNS message
+            val lengthPrefix = ByteArray(2)
+            lengthPrefix[0] = ((requestDns.size shr 8) and 0xFF).toByte()
+            lengthPrefix[1] = (requestDns.size and 0xFF).toByte()
+
+            // Write length prefix + DNS query (handle partial writes)
+            outputStream.write(lengthPrefix)
+            var written = 0
+            while (written < requestDns.size) {
+                val chunk = minOf(4096, requestDns.size - written)
+                outputStream.write(requestDns, written, chunk)
+                written += chunk
+            }
+            outputStream.flush()
+
+            // Read response: first 2 bytes = length
+            val lenBuf = ByteArray(2)
+            var read = 0
+            while (read < 2) {
+                val r = inputStream.read(lenBuf, read, 2 - read)
+                if (r <= 0) return null // Connection closed prematurely
+                read += r
+            }
+            val responseLength = ((lenBuf[0].toInt() and 0xFF) shl 8) or (lenBuf[1].toInt() and 0xFF)
+
+            // Sanity check: reasonable DNS message size (max 64KB per RFC, but limit to 16KB)
+            if (responseLength < 12 || responseLength > 16384) {
+                Log.w(TAG, "Invalid TCP DNS response length: $responseLength")
+                return null
             }
 
-            if (responseDns != null) {
-                val responsePacket = IpPacketParser.buildResponsePacket(queryPacket, responseDns)
-                sendPacket(outputStream, responsePacket)
-
-                if (domain != null) {
-                    val record = ActivityRecord(
-                        domain = domain,
-                        queryType = queryType,
-                        outcome = "allowed",
-                        matchedSource = if (isPassthrough) "passthrough" else (decision?.matchedSource ?: "none"),
-                        matchedRuleId = decision?.matchedRule,
-                        matchedCategories = decision?.matchedCategories ?: emptyList(),
-                        reason = null
-                    )
-                    activityWriter.enqueue(record)
-                }
-            } else {
-                // All upstream resolvers failed or timed out: return valid RFC SERVFAIL response
-                val servFail = AuraDnsEngine.synthesizeServFailResponse(queryPacket.dnsPayload)
-                if (servFail != null) {
-                    try {
-                        val responsePacket = IpPacketParser.buildResponsePacket(queryPacket, servFail)
-                        sendPacket(outputStream, responsePacket)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to send SERVFAIL packet", e)
-                    }
-                }
-
-                if (domain != null) {
-                    val record = ActivityRecord(
-                        domain = domain,
-                        queryType = queryType,
-                        outcome = "failed",
-                        matchedSource = if (isPassthrough) "passthrough" else (decision?.matchedSource ?: "none"),
-                        matchedRuleId = decision?.matchedRule,
-                        matchedCategories = decision?.matchedCategories ?: emptyList(),
-                        reason = "Upstream resolution failed or timed out"
-                    )
-                    activityWriter.enqueue(record)
-                }
+            // Read exact response length (handle partial reads)
+            val responseBuf = ByteArray(responseLength)
+            read = 0
+            while (read < responseLength) {
+                val r = inputStream.read(responseBuf, read, responseLength - read)
+                if (r <= 0) return null // Connection closed prematurely
+                read += r
             }
-        } catch (t: Throwable) {
-            Log.e(TAG, "Unhandled error during resolveAndForward", t)
+
+            // Validate response
+            if (responseBuf.size < 12) return null
+
+            // 1. Transaction ID matching (first 2 bytes)
+            if (responseBuf[0] != requestDns[0] || responseBuf[1] != requestDns[1]) {
+                Log.d(TAG, "TCP response transaction ID mismatch for ${resolver.address}")
+                return null
+            }
+
+            // 2. Response QR bit check (Flags byte 2, bit 7 must be 1)
+            val flagsByte = responseBuf[2].toInt() and 0xFF
+            if ((flagsByte and 0x80) == 0) {
+                Log.d(TAG, "TCP response QR bit not set for ${resolver.address}")
+                return null
+            }
+
+            responseBuf
+        } catch (e: Exception) {
+            Log.d(TAG, "queryUpstreamTcp failed for ${resolver.address}: ${e.message}")
+            null
+        } finally {
+            try {
+                socket?.close()
+            } catch (_: Exception) {}
         }
     }
 
     private fun queryUpstream(
         resolver: InetSocketAddress,
         requestDns: ByteArray,
-        timeoutMs: Int
+        timeoutMs: Int,
+        globalStartTime: Long,
+        globalMaxBudgetMs: Long
     ): ByteArray? {
         var socket: DatagramSocket? = null
         return try {
@@ -751,7 +816,18 @@ class AuraVpnService : VpnService() {
                 return null
             }
 
-            recvBuf.copyOf(received)
+            val udpResponse = recvBuf.copyOf(received)
+
+            // 3. Check for TC (Truncated) flag - bit 1 of flags byte
+            if (isTruncatedResponse(udpResponse)) {
+                Log.i(TAG, "Upstream UDP response truncated (TC=1) for ${resolver.address}, retrying over TCP")
+                // Pass the remaining time within the global budget, not the full per-resolver timeout.
+                val elapsed = System.currentTimeMillis() - globalStartTime
+                val remainingForTcp = (globalMaxBudgetMs - elapsed).coerceAtLeast(200).toInt()
+                return queryUpstreamTcp(resolver, requestDns, remainingForTcp)
+            }
+
+            udpResponse
         } catch (e: Exception) {
             Log.d(TAG, "queryUpstream failed for ${resolver.address}: ${e.message}")
             null

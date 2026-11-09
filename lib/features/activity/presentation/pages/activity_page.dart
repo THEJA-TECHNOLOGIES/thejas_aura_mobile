@@ -16,11 +16,12 @@ import '../bloc/activity_bloc.dart';
 class ActivityPage extends StatefulWidget {
   final bool isLogsMode;
   final bool isModal;
-
+  final bool shrinkWrap;
   const ActivityPage({
     super.key,
     this.isLogsMode = false,
     this.isModal = false,
+    this.shrinkWrap = false,
   });
   static Future<void> show({
     required BuildContext context,
@@ -374,7 +375,9 @@ class _ActivityPageState extends State<ActivityPage>
                       onOutcomeChanged: _onOutcomeChanged,
                     ),
 
-                  Expanded(child: _buildContent(context, state)),
+                  Expanded(
+                    child: _buildContent(context, state, widget.shrinkWrap),
+                  ),
                 ],
               ),
             ),
@@ -384,7 +387,11 @@ class _ActivityPageState extends State<ActivityPage>
     );
   }
 
-  Widget _buildContent(BuildContext context, ActivityState state) {
+  Widget _buildContent(
+    BuildContext context,
+    ActivityState state,
+    bool shrinkWrap,
+  ) {
     final colors = context.appColors;
     final typo = context.appTypography;
     if (state.isLoading) {
@@ -540,6 +547,7 @@ class _ActivityPageState extends State<ActivityPage>
         interactive: true,
         child: ListView.separated(
           controller: _scrollController,
+          shrinkWrap: shrinkWrap,
           itemCount: state.records.length + (state.hasMore ? 1 : 0),
           separatorBuilder: (context, index) => const SizedBox(height: 6),
           itemBuilder: (context, index) {

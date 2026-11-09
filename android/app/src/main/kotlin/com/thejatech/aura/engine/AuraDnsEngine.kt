@@ -203,6 +203,304 @@ class AuraDnsEngine {
     )
 
     companion object {
+        // =========================================================================
+        // Private helper functions (must be defined first)
+        // =========================================================================
+
+        /**
+         * Parses a DNS name from the packet, handling compression pointers.
+         * Returns the new offset after the name.
+         */
+        private fun parseDnsName(data: ByteArray, offset: Int): Pair<Int, Boolean>? {
+            var current = offset
+            var jumped = false
+
+            while (current < data.size) {
+                val length = data[current].toInt() and 0xFF
+                if (length == 0) {
+                    return Pair(current + 1, jumped)
+                }
+                if ((length and 0xC0) == 0xC0) {
+                    // Compression pointer
+                    if (current + 1 >= data.size) return null
+                    jumped = true
+                    return Pair(current + 2, true)
+                }
+                if (current + 1 + length > data.size) return null
+                current += 1 + length
+            }
+            return null
+        }
+
+        /**
+         * Skips the specified number of resource records in the packet.
+         * Returns the offset after the skipped records.
+         */
+        private fun skipResourceRecords(data: ByteArray, offset: Int, count: Int): Int {
+            var current = offset
+            repeat(count) {
+                val nameResult = parseDnsName(data, current)
+                if (nameResult == null) return current
+                current = nameResult.first
+                if (current + 10 > data.size) return current // TYPE+CLASS+TTL+RDLENGTH
+                val rdlength = ((data[current + 8].toInt() and 0xFF) shl 8) or (data[current + 9].toInt() and 0xFF)
+                current += 10 + rdlength
+            }
+            return current
+        }
+
+        // =========================================================================
+        // EDNS0 Parsing and DNS Response Truncation
+        // =========================================================================
+
+        /**
+         * Result of EDNS0 parsing from a DNS query.
+         */
+        data class Edns0Info(
+            /** The advertised UDP payload size from the OPT record, or 512 if no OPT record. */
+            val udpPayloadSize: Int,
+            /** Whether an OPT record was found in the additional section. */
+            val hasOptRecord: Boolean
+        ) {
+            companion object {
+                val DEFAULT_UDP_PAYLOAD = 512
+                val MIN_UDP_PAYLOAD = 512
+                // Conservative operational cap to avoid fragmentation (IPv6 min MTU 1280 - 48 IP/UDP headers = 1232)
+                val OPERATIONAL_CAP = 1232
+            }
+        }
+
+        /**
+         * Result of DNS response truncation.
+         */
+        data class TruncationResult(
+            val truncatedResponse: ByteArray,
+            val wasTruncated: Boolean
+        )
+
+        /**
+         * Parses the EDNS0 OPT record from a DNS query to extract the client's advertised
+         * UDP payload size. If no OPT record is present, returns the default of 512 bytes.
+         *
+         * @param queryDns The original DNS query packet
+         * @return Edns0Info containing the UDP payload size and whether an OPT record was found
+         */
+        fun parseEdns0Info(queryDns: ByteArray): Edns0Info {
+            return try {
+                val header = parseHeader(queryDns) ?: return Edns0Info(Edns0Info.DEFAULT_UDP_PAYLOAD, false)
+                if (header.qdCount == 0) return Edns0Info(Edns0Info.DEFAULT_UDP_PAYLOAD, false)
+
+                // Parse question section to find where additional section starts
+                val question = parseQuestion(queryDns, 12) ?: return Edns0Info(Edns0Info.DEFAULT_UDP_PAYLOAD, false)
+                var current = 12 + question.rawLength
+
+                // Skip answer, authority sections
+                var remaining = header.anCount + header.nsCount
+                current = skipResourceRecords(queryDns, current, remaining)
+
+                // Now at additional section - look for OPT record (TYPE=41)
+                var optPayloadSize: Int? = null
+                var hasOptRecord = false
+
+                var arCount = header.arCount
+                var loopCurrent = current
+                while (arCount > 0 && loopCurrent < queryDns.size) {
+                    arCount--
+
+                    // Parse record name (skip it)
+                    val nameResult = parseDnsName(queryDns, loopCurrent)
+                    if (nameResult == null) break
+                    loopCurrent = nameResult.first
+
+                    if (loopCurrent + 8 > queryDns.size) break // TYPE(2) + CLASS(2) + TTL(4) + RDLENGTH(2) = 10 minimum
+
+                    val rtype = ((queryDns[loopCurrent].toInt() and 0xFF) shl 8) or (queryDns[loopCurrent + 1].toInt() and 0xFF)
+                    val rclass = ((queryDns[loopCurrent + 2].toInt() and 0xFF) shl 8) or (queryDns[loopCurrent + 3].toInt() and 0xFF)
+
+                    loopCurrent += 8 // Skip TYPE, CLASS, TTL
+
+                    if (loopCurrent + 2 > queryDns.size) break
+                    val rdlength = ((queryDns[loopCurrent].toInt() and 0xFF) shl 8) or (queryDns[loopCurrent + 1].toInt() and 0xFF)
+                    loopCurrent += 2
+
+                    if (rtype == 41 && rclass >= Edns0Info.MIN_UDP_PAYLOAD) { // TYPE=41 (OPT), CLASS = UDP payload size
+                        // hasOptRecord = true
+                        // OPT record RDATA format: options (variable length)
+                        // The CLASS field in OPT record IS the UDP payload size
+                        optPayloadSize = rclass
+                    }
+
+                    if (loopCurrent + rdlength > queryDns.size) break
+                    loopCurrent += rdlength
+                }
+                current = loopCurrent
+
+                val payloadSize = optPayloadSize?.coerceIn(Edns0Info.MIN_UDP_PAYLOAD, Edns0Info.OPERATIONAL_CAP)
+                    ?: Edns0Info.DEFAULT_UDP_PAYLOAD
+
+                Edns0Info(payloadSize, hasOptRecord)
+            } catch (e: Exception) {
+                Edns0Info(Edns0Info.DEFAULT_UDP_PAYLOAD, false)
+            }
+        }
+
+        /**
+         * Calculates the effective UDP response limit based on EDNS0 info and MTU constraints.
+         */
+        fun calculateEffectiveUdpLimit(edns0Info: Edns0Info): Int {
+            // The effective limit is the minimum of:
+            // 1. Client's advertised UDP payload size (from EDNS0)
+            // 2. Operational cap (1232 bytes for IPv6-safe unfragmented)
+            // 3. Path MTU estimate minus IP/UDP headers (conservative: 1500 - 28 = 1472 for IPv4)
+            return edns0Info.udpPayloadSize.coerceAtMost(Edns0Info.OPERATIONAL_CAP)
+        }
+
+        /**
+         * Truncates a DNS response to fit within the specified UDP payload limit.
+         * Preserves header, question section, and complete resource records only.
+         * Sets TC bit and updates section counts appropriately.
+         *
+         * @param responseDns The complete DNS response to potentially truncate
+         * @param maxUdpPayload Maximum UDP payload size in bytes
+         * @param isBlockedResponse Whether this is a locally synthesized blocked response
+         * @param isServFailResponse Whether this is a locally synthesized SERVFAIL response
+         * @return TruncationResult with the (possibly truncated) response and whether truncation occurred
+         */
+        fun truncateDnsResponse(
+            responseDns: ByteArray,
+            maxUdpPayload: Int,
+            isBlockedResponse: Boolean = false,
+            isServFailResponse: Boolean = false
+        ): TruncationResult {
+            if (responseDns.size <= maxUdpPayload) {
+                return TruncationResult(responseDns, false)
+            }
+
+            return try {
+                val header = parseHeader(responseDns) ?: return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+                if (header.qdCount == 0) return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+
+                val question = parseQuestion(responseDns, 12) ?: return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+                var current = 12 + question.rawLength
+
+                // Parse all resource records, tracking their boundaries
+                data class RecordBoundary(
+                    val section: Int, // 0=answer, 1=authority, 2=additional
+                    val startOffset: Int,
+                    val endOffset: Int,
+                    val recordSize: Int,
+                    val isOptRecord: Boolean
+                )
+
+                val records = mutableListOf<RecordBoundary>()
+                val sectionCounts = intArrayOf(header.anCount, header.nsCount, header.arCount)
+
+                for (section in 0..2) {
+                    var sectionCount = sectionCounts[section]
+                    while (sectionCount > 0) {
+                        sectionCount--
+                        if (current >= responseDns.size) return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+
+                        val recordStart = current
+                        val nameResult = parseDnsName(responseDns, current)
+                        if (nameResult == null) return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+                        current = nameResult.first
+
+                        if (current + 10 > responseDns.size) return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+                        val rtype = ((responseDns[current].toInt() and 0xFF) shl 8) or (responseDns[current + 1].toInt() and 0xFF)
+                        val rclass = ((responseDns[current + 2].toInt() and 0xFF) shl 8) or (responseDns[current + 3].toInt() and 0xFF)
+                        current += 8 // Skip TYPE, CLASS, TTL
+                        if (current + 2 > responseDns.size) return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+                        val rdlength = ((responseDns[current].toInt() and 0xFF) shl 8) or (responseDns[current + 1].toInt() and 0xFF)
+                        current += 2
+
+                        val isOpt = rtype == 41
+                        if (current + rdlength > responseDns.size) return TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+                        current += rdlength
+
+                        records.add(RecordBoundary(section, recordStart, current, current - recordStart, isOpt))
+                    }
+                }
+
+                // Determine which records fit within the limit
+                val headerSize = 12
+                val questionSize = question.rawLength
+                val fixedOverhead = headerSize + questionSize
+
+                var includedRecords = mutableListOf<RecordBoundary>()
+                var currentSize = fixedOverhead
+
+                for (record in records) {
+                    if (currentSize + record.recordSize > maxUdpPayload) {
+                        break
+                    }
+                    currentSize += record.recordSize
+                    includedRecords.add(record)
+                }
+
+                // If we can't even fit the header + question, return minimal response
+                if (fixedOverhead > maxUdpPayload) {
+                    // Return minimal SERVFAIL
+                    return TruncationResult(synthesizeServFailResponse(ByteArray(responseDns.size))?.copyOf(maxUdpPayload) ?: responseDns.copyOf(maxUdpPayload), true)
+                }
+
+                // Build truncated response
+                val output = ByteArrayOutputStream()
+                output.write(responseDns, 0, headerSize) // Header (will update counts later)
+                output.write(responseDns, 12, questionSize) // Question
+
+                // Write included records
+                for (record in includedRecords) {
+                    output.write(responseDns, record.startOffset, record.recordSize)
+                }
+
+                var truncated = output.toByteArray()
+
+                // Update header: counts and TC bit
+                if (truncated.size >= 12) {
+                    // Update ANCOUNT, NSCOUNT, ARCOUNT
+                    val anCount = includedRecords.count { it.section == 0 }
+                    val nsCount = includedRecords.count { it.section == 1 }
+                    val arCount = includedRecords.count { it.section == 2 }
+
+                    // Update header counts (bytes 4-11)
+                    val anCountBytes = ByteBuffer.allocate(2).putShort(anCount.toShort()).array()
+                    val nsCountBytes = ByteBuffer.allocate(2).putShort(nsCount.toShort()).array()
+                    val arCountBytes = ByteBuffer.allocate(2).putShort(arCount.toShort()).array()
+
+                    truncated[4] = anCountBytes[0]
+                    truncated[5] = anCountBytes[1]
+                    truncated[6] = nsCountBytes[0]
+                    truncated[7] = nsCountBytes[1]
+                    truncated[10] = arCountBytes[0]
+                    truncated[11] = arCountBytes[1]
+
+                    // Set TC bit (bit 1 of flags byte at index 2)
+                    truncated[2] = (truncated[2].toInt() or 0x02).toByte()
+                }
+
+                TruncationResult(truncated, true)
+            } catch (e: Exception) {
+                TruncationResult(responseDns.copyOf(maxUdpPayload), true)
+            }
+        }
+
+        /**
+         * Applies size-limiting to a DNS response before sending downstream.
+         * Handles both upstream responses and locally synthesized responses.
+         */
+        fun limitDnsResponseSize(
+            responseDns: ByteArray,
+            queryDns: ByteArray,
+            isBlockedResponse: Boolean = false,
+            isServFailResponse: Boolean = false
+        ): ByteArray {
+            val edns0Info = parseEdns0Info(queryDns)
+            val maxUdpPayload = calculateEffectiveUdpLimit(edns0Info)
+            val result = truncateDnsResponse(responseDns, maxUdpPayload, isBlockedResponse, isServFailResponse)
+            return result.truncatedResponse
+        }
+
         fun normalizeDomain(raw: String): String {
             var domain = raw.trim().lowercase()
             val schemeIdx = domain.indexOf("://")

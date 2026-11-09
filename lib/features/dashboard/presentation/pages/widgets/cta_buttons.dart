@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
+import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/core/utils/sized_context.dart';
 import 'package:theja_aura/features/activity/presentation/pages/activity_page.dart';
 import 'package:theja_aura/features/blocklist/presentation/pages/blocklist_page.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 
 class CTAButtons extends StatelessWidget {
-  const new({super.key, this.useRow = false});
+  const new({
+    super.key,
+    this.useRow = false,
+    this.onLogsTaped,
+    this.onActivityTaped,
+    this.onBlocklistTaped,
+  });
   final bool useRow;
+  final VoidCallback? onLogsTaped;
+  final VoidCallback? onActivityTaped;
+  final VoidCallback? onBlocklistTaped;
 
   @override
   Widget build(BuildContext context) {
@@ -43,14 +53,16 @@ class CTAButtons extends StatelessWidget {
                 icon: Icons.notes,
                 useRow: useRow,
                 color: Colors.blueAccent,
-                onTap: () {
-                  ActivityPage.show(context: context, isLogsMode: true);
-                  if (context.mounted) {
-                    context.read<DashboardBloc>().add(
-                      const DashboardEvent.statsRefreshRequested(),
-                    );
-                  }
-                },
+                onTap:
+                    onLogsTaped ??
+                    () {
+                      ActivityPage.show(context: context, isLogsMode: true);
+                      if (context.mounted) {
+                        context.read<DashboardBloc>().add(
+                          const DashboardEvent.statsRefreshRequested(),
+                        );
+                      }
+                    },
               ),
             ),
             const SizedBox(width: 8),
@@ -62,7 +74,7 @@ class CTAButtons extends StatelessWidget {
               icon: Icons.insights,
               color: Color(0XFF0B7F65),
               useRow: useRow,
-              onTap: openLiveActivity,
+              onTap: onActivityTaped ?? openLiveActivity,
             ),
           ),
           const SizedBox(width: 8),
@@ -72,7 +84,7 @@ class CTAButtons extends StatelessWidget {
               subtitle: 'Domains & rules',
               icon: Icons.rule,
               color: Colors.deepPurpleAccent,
-              onTap: openBlocklist,
+              onTap: onBlocklistTaped ?? openBlocklist,
               useRow: useRow,
             ),
           ),
@@ -110,7 +122,7 @@ class _CtaButtonsState extends State<CtaButtons> {
     final colors = context.appColors;
     final typo = context.appTypography;
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(22),
       onTap: widget.onTap,
       focusColor: Colors.transparent,
       onFocusChange: (bool hasFocus) {
@@ -118,10 +130,12 @@ class _CtaButtonsState extends State<CtaButtons> {
           _isFocused = hasFocus;
         });
       },
-
+      hoverColor: Colors.transparent,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-        margin: .only(bottom: widget.useRow ? 18 : 0),
+        margin: .only(
+          bottom: widget.useRow && PlatformChecker.isAndroidTV ? 18 : 0,
+        ),
         decoration: BoxDecoration(
           color: colors.surfaceRaised,
           borderRadius: BorderRadius.circular(22),
