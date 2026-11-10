@@ -214,8 +214,12 @@ class AuraDnsEngine {
         private fun parseDnsName(data: ByteArray, offset: Int): Pair<Int, Boolean>? {
             var current = offset
             var jumped = false
+            val visited = mutableSetOf<Int>()
 
             while (current < data.size) {
+                // Compression pointer loop guard — prevent cycles
+                if (!visited.add(current)) return null
+
                 val length = data[current].toInt() and 0xFF
                 if (length == 0) {
                     return Pair(current + 1, jumped)
@@ -642,6 +646,159 @@ class AuraDnsEngine {
             }
 
             return out.toByteArray()
+        }
+
+        // =========================================================================
+        // DNS Rebinding Protection — M8
+        // =========================================================================
+
+        /**
+         * Checks if an IPv4 address (4 bytes) falls into private/reserved ranges:
+         * 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8,
+         * 169.254.0.0/16 (link-local), 224.0.0.0/4 (multicast).
+         */
+        fun isPrivateIpv4(b0: Int, b1: Int, b2: Int, b3: Int): Boolean {
+            return when {
+                b0 == 10 -> true
+                b0 == 172 && b1 in 16..31 -> true
+                b0 == 192 && b1 == 168 -> true
+                b0 == 127 -> true
+                b0 == 169 && b1 == 254 -> true
+                b0 in 224..239 -> true
+                else -> false
+            }
+        }
+
+        /**
+         * Checks if an IPv6 address (16 bytes) falls into private/reserved ranges:
+         * ::1/128 (loopback), fc00::/7 (unique local), fe80::/10 (link-local),
+         * ff00::/8 (multicast), ::ffff:0:0/96 (IPv4-mapped private).
+         */
+        fun isPrivateIpv6(bytes: ByteArray): Boolean {
+            if (bytes.size != 16) return false
+            val b0 = bytes[0].toInt() and 0xFF
+            val b1 = bytes[1].toInt() and 0xFF
+
+            // ::1/128 loopback
+            if (bytes.contentEquals(ByteArray(16) { 0 }.apply { set(15, 1) })) return true
+
+            // fc00::/7 unique local
+            if (b0 and 0xFE == 0xFC) return true
+
+            // fe80::/10 link-local
+            if ((b0 shl 8 or b1) and 0xFFC0 == 0xFE80) return true
+
+            // ff00::/8 multicast
+            if (b0 == 0xFF) return true
+
+            // ::ffff:0:0/96 IPv4-mapped — check embedded IPv4
+            if (bytes[0].toInt() and 0xFF == 0 &&
+                bytes[1].toInt() and 0xFF == 0 &&
+                bytes[2].toInt() and 0xFF == 0 &&
+                bytes[3].toInt() and 0xFF == 0 &&
+                bytes[4].toInt() and 0xFF == 0 &&
+                bytes[5].toInt() and 0xFF == 0 &&
+                bytes[6].toInt() and 0xFF == 0 &&
+                bytes[7].toInt() and 0xFF == 0 &&
+                bytes[8].toInt() and 0xFF == 0 &&
+                bytes[9].toInt() and 0xFF == 0 &&
+                bytes[10].toInt() and 0xFF == 0 &&
+                bytes[11].toInt() and 0xFF == 0xFF) {
+                return isPrivateIpv4(
+                    bytes[12].toInt() and 0xFF,
+                    bytes[13].toInt() and 0xFF,
+                    bytes[14].toInt() and 0xFF,
+                    bytes[15].toInt() and 0xFF
+                )
+            }
+
+            return false
+        }
+
+        /**
+         * Extracts IP addresses from answer records in a DNS response.
+         * Returns a list of (ipType: "A"|"AAAA", ipBytes: ByteArray) pairs.
+         */
+        fun extractAnswerIps(response: ByteArray): List<Pair<String, ByteArray>> {
+            val results = mutableListOf<Pair<String, ByteArray>>()
+            val header = parseHeader(response) ?: return results
+            if (header.qdCount == 0) return results
+
+            val question = parseQuestion(response, 12) ?: return results
+            var current = 12 + question.rawLength
+
+            // Only check the answer section
+            for (i in 0 until header.anCount) {
+                if (current >= response.size) break
+
+                val recordStart = current
+                val nameResult = parseDnsName(response, current)
+                if (nameResult == null) break
+                current = nameResult.first
+
+                if (current + 10 > response.size) break
+                val rtype = ((response[current].toInt() and 0xFF) shl 8) or (response[current + 1].toInt() and 0xFF)
+                current += 8 // TYPE(2) + CLASS(2) + TTL(4)
+
+                if (current + 2 > response.size) break
+                val rdlength = ((response[current].toInt() and 0xFF) shl 8) or (response[current + 1].toInt() and 0xFF)
+                current += 2
+
+                if (current + rdlength > response.size) break
+                val rdata = response.copyOfRange(current, current + rdlength)
+
+                when (rtype) {
+                    1 -> { // A record
+                        if (rdlength == 4) {
+                            results.add("A" to rdata)
+                        }
+                    }
+                    28 -> { // AAAA record
+                        if (rdlength == 16) {
+                            results.add("AAAA" to rdata)
+                        }
+                    }
+                }
+
+                current = recordStart + (nameResult.first - recordStart) + 10 + rdlength
+            }
+
+            return results
+        }
+
+        /**
+         * Checks if a DNS response contains private/reserved IP addresses in its answer section.
+         * Used for DNS rebinding protection — prevents upstream responses from resolving
+         * public domains to local/internal IP addresses.
+         */
+        fun hasPrivateIpAnswers(response: ByteArray): Boolean {
+            for ((type, bytes) in extractAnswerIps(response)) {
+                if (type == "A" && bytes.size == 4) {
+                    if (isPrivateIpv4(
+                        bytes[0].toInt() and 0xFF,
+                        bytes[1].toInt() and 0xFF,
+                        bytes[2].toInt() and 0xFF,
+                        bytes[3].toInt() and 0xFF
+                    )) {
+                        return true
+                    }
+                } else if (type == "AAAA" && bytes.size == 16) {
+                    if (isPrivateIpv6(bytes)) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+
+        /**
+         * Validates that a DNS response's question section matches the original query.
+         * Prevents upstream servers from returning responses for different domains.
+         */
+        fun questionsMatch(query: ByteArray, response: ByteArray): Boolean {
+            val qQuestion = parseQuestion(query, 12) ?: return false
+            val rQuestion = parseQuestion(response, 12) ?: return false
+            return qQuestion.name == rQuestion.name && qQuestion.qType == rQuestion.qType
         }
     }
 }

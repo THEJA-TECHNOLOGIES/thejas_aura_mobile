@@ -11,6 +11,7 @@ import com.thejatech.aura.packet.TcpPacketParser
 import com.thejatech.aura.storage.AuraPreferences
 import com.thejatech.aura.storage.VpnPolicySnapshot
 import java.util.concurrent.ExecutorService
+import android.util.Log
 
 /**
  * Core TUN packet router and processor for Aura DNS Firewall.
@@ -33,6 +34,9 @@ class AuraDnsPacketProcessor(
     val activityLogger: ((ActivityRecord) -> Unit)? = null,
     val executor: ExecutorService? = null
 ) {
+    private companion object {
+        const val TAG = "AuraDnsPacketProcessor"
+    }
 
     /**
      * Inspects a raw IP packet read from TUN and dispatches it to the appropriate handler.
@@ -206,6 +210,52 @@ class AuraDnsPacketProcessor(
         decision: AuraDnsEngine.MatchDecision?,
         isPassthrough: Boolean
     ) {
+        // QNAME Matching: verify upstream response question matches the original query
+        if (upstreamResp != null && !AuraDnsEngine.questionsMatch(queryPacket.dnsPayload, upstreamResp)) {
+            Log.w(TAG, "QNAME mismatch detected — returning SERVFAIL")
+            val servFail = AuraDnsEngine.synthesizeServFailResponse(queryPacket.dnsPayload)
+            if (servFail != null) {
+                val limited = AuraDnsEngine.limitDnsResponseSize(
+                    servFail,
+                    queryPacket.dnsPayload,
+                    isBlockedResponse = false,
+                    isServFailResponse = true
+                )
+                val responsePacket = IpPacketParser.buildResponsePacket(queryPacket, limited)
+                packetWriter(responsePacket)
+            }
+            return
+        }
+
+        // DNS Rebinding Protection: reject upstream responses containing private/reserved IPs
+        if (upstreamResp != null && AuraDnsEngine.hasPrivateIpAnswers(upstreamResp)) {
+            Log.w(TAG, "DNS rebinding attempt detected for domain=$domain — returning SERVFAIL")
+            val servFail = AuraDnsEngine.synthesizeServFailResponse(queryPacket.dnsPayload)
+            if (servFail != null) {
+                val limited = AuraDnsEngine.limitDnsResponseSize(
+                    servFail,
+                    queryPacket.dnsPayload,
+                    isBlockedResponse = false,
+                    isServFailResponse = true
+                )
+                val responsePacket = IpPacketParser.buildResponsePacket(queryPacket, limited)
+                packetWriter(responsePacket)
+            }
+
+            if (domain != null) {
+                logActivity(
+                    domain = domain,
+                    queryType = queryType,
+                    outcome = "failed",
+                    matchedSource = if (isPassthrough) "passthrough" else (decision?.matchedSource ?: "none"),
+                    matchedRuleId = decision?.matchedRule,
+                    matchedCategories = decision?.matchedCategories ?: emptyList(),
+                    reason = "DNS rebinding attempt — private IP in upstream answer"
+                )
+            }
+            return
+        }
+
         if (upstreamResp != null) {
             val limited = AuraDnsEngine.limitDnsResponseSize(
                 upstreamResp,
@@ -313,6 +363,50 @@ class AuraDnsPacketProcessor(
         isPassthrough: Boolean,
         now: Long
     ) {
+        // QNAME Matching: verify upstream response question matches the original query
+        if (upstreamResp != null && !AuraDnsEngine.questionsMatch(requestDns, upstreamResp)) {
+            Log.w(TAG, "QNAME mismatch detected — returning SERVFAIL")
+            val servFail = AuraDnsEngine.synthesizeServFailResponse(requestDns)
+            if (servFail != null) {
+                val limited = AuraDnsEngine.limitDnsResponseSize(
+                    servFail,
+                    requestDns,
+                    isBlockedResponse = false,
+                    isServFailResponse = true
+                )
+                sendTcpDnsResponse(key, limited, now)
+            }
+            return
+        }
+
+        // DNS Rebinding Protection: reject upstream responses containing private/reserved IPs
+        if (upstreamResp != null && AuraDnsEngine.hasPrivateIpAnswers(upstreamResp)) {
+            Log.w(TAG, "DNS rebinding attempt detected for domain=$domain — returning SERVFAIL")
+            val servFail = AuraDnsEngine.synthesizeServFailResponse(requestDns)
+            if (servFail != null) {
+                val limited = AuraDnsEngine.limitDnsResponseSize(
+                    servFail,
+                    requestDns,
+                    isBlockedResponse = false,
+                    isServFailResponse = true
+                )
+                sendTcpDnsResponse(key, limited, now)
+            }
+
+            if (domain != null) {
+                logActivity(
+                    domain = domain,
+                    queryType = queryType,
+                    outcome = "failed",
+                    matchedSource = if (isPassthrough) "passthrough" else (decision?.matchedSource ?: "none"),
+                    matchedRuleId = decision?.matchedRule,
+                    matchedCategories = decision?.matchedCategories ?: emptyList(),
+                    reason = "DNS rebinding attempt — private IP in upstream answer"
+                )
+            }
+            return
+        }
+
         if (upstreamResp != null) {
             val validResponse = if (upstreamResp.size > TcpConnectionManager.MAX_DNS_MESSAGE_SIZE) {
                 // Truncate at the last complete DNS record boundary to avoid cutting mid-record.

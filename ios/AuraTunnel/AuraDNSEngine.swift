@@ -545,6 +545,119 @@ public final class AuraDNSEngine {
     }
 
     // =========================================================================
+    // DNS Rebinding Protection — M8
+    // =========================================================================
+
+    /// Checks if an IPv4 address falls into private/reserved ranges:
+    /// 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8,
+    /// 169.254.0.0/16 (link-local), 224.0.0.0/4 (multicast).
+    public static func isPrivateIpv4(b0: UInt8, b1: UInt8, b2: UInt8, b3: UInt8) -> Bool {
+        switch (b0, b1) {
+        case (10, _): return true
+        case (172, 16...31): return true
+        case (192, 168): return true
+        case (127, _): return true
+        case (169, 254): return true
+        case (224...239, _): return true
+        default: return false
+        }
+    }
+
+    /// Checks if an IPv6 address falls into private/reserved ranges:
+    /// ::1/128 (loopback), fc00::/7 (unique local), fe80::/10 (link-local),
+    /// ff00::/8 (multicast), ::ffff:0:0/96 (IPv4-mapped private).
+    public static func isPrivateIpv6(_ bytes: [UInt8]) -> Bool {
+        guard bytes.count == 16 else { return false }
+
+        // ::1/128 loopback
+        if bytes[0..<15].elementsEqual([UInt8](repeating: 0, count: 15)) && bytes[15] == 1 { return true }
+
+        // fc00::/7 unique local
+        if (bytes[0] & 0xFE) == 0xFC { return true }
+
+        // fe80::/10 link-local
+        if ((Int(bytes[0]) << 8 | Int(bytes[1])) & 0xFFC0) == 0xFE80 { return true }
+
+        // ff00::/8 multicast
+        if bytes[0] == 0xFF { return true }
+
+        // ::ffff:0:0/96 IPv4-mapped — check embedded IPv4
+        if bytes[0..<12].elementsEqual([UInt8](repeating: 0, count: 12)) && bytes[11] == 0xFF {
+            return isPrivateIpv4(
+                b0: bytes[12], b1: bytes[13], b2: bytes[14], b3: bytes[15]
+            )
+        }
+
+        return false
+    }
+
+    /// Extracts IP addresses from answer records in a DNS response.
+    /// Returns a list of (ipType: "A"|"AAAA", ipBytes: [UInt8]) pairs.
+    public static func extractAnswerIps(_ response: Data) -> [(type: String, bytes: [UInt8])] {
+        var results: [(type: String, bytes: [UInt8])] = []
+        guard let header = parseHeader(data: response), header.qdCount > 0 else { return results }
+        guard let question = parseQuestion(data: response, offset: 12) else { return results }
+
+        var current = 12 + question.rawLength
+
+        // Only check the answer section
+        for _ in 0..<Int(header.anCount) {
+            guard current < response.count else { break }
+
+            let recordStart = current
+            guard let nameResult = parseDnsName(data: response, current: current) else { break }
+            current = nameResult.newOffset
+
+            guard current + 10 <= response.count else { break }
+            let rtype = (Int(response[current]) << 8) | Int(response[current + 1])
+            current += 8 // TYPE(2) + CLASS(2) + TTL(4)
+
+            guard current + 2 <= response.count else { break }
+            let rdlength = (Int(response[current]) << 8) | Int(response[current + 1])
+            current += 2
+
+            guard current + rdlength <= response.count else { break }
+            let rdata = [UInt8](response[current..<current + rdlength])
+
+            switch rtype {
+            case 1: // A record
+                if rdlength == 4 { results.append(("A", rdata)) }
+            case 28: // AAAA record
+                if rdlength == 16 { results.append(("AAAA", rdata)) }
+            default: break
+            }
+
+            current = recordStart + (nameResult.newOffset - recordStart) + 10 + rdlength
+        }
+
+        return results
+    }
+
+    /// Checks if a DNS response contains private/reserved IP addresses in its answer section.
+    /// Used for DNS rebinding protection — prevents upstream responses from resolving
+    /// public domains to local/internal IP addresses.
+    public static func hasPrivateIpAnswers(_ response: Data) -> Bool {
+        for (type, bytes) in extractAnswerIps(response) {
+            if type == "A", bytes.count == 4 {
+                if isPrivateIpv4(b0: bytes[0], b1: bytes[1], b2: bytes[2], b3: bytes[3]) {
+                    return true
+                }
+            } else if type == "AAAA", bytes.count == 16 {
+                if isPrivateIpv6(bytes) { return true }
+            }
+        }
+        return false
+    }
+
+    /// Validates that a DNS response's question section matches the original query.
+    /// Prevents upstream servers from returning responses for different domains.
+    public static func questionsMatch(query: Data, response: Data) -> Bool {
+        guard let qQuestion = parseQuestion(data: query, offset: 12) else { return false }
+        guard let rQuestion = parseQuestion(data: response, offset: 12) else { return false }
+        return qQuestion.name == rQuestion.name && qQuestion.qType == rQuestion.qType
+    }
+
+    // =========================================================================
     // EDNS0 Parsing and DNS Response Truncation
     // =========================================================================
 
@@ -606,11 +719,15 @@ public final class AuraDNSEngine {
 
     /// Parses a DNS name from the packet, handling compression pointers.
     /// Returns the new offset after the name and whether a jump occurred.
-    private static func parseDnsName(data: Data, current: Int) -> (newOffset: Int, jumped: Bool)? {
+    static func parseDnsName(data: Data, current: Int) -> (newOffset: Int, jumped: Bool)? {
         var current = current
         var jumped = false
+        var visited = Set<Int>()
 
         while current < data.count {
+            // Compression pointer loop guard — prevent cycles
+            guard visited.insert(current).inserted else { return nil }
+
             let length = Int(data[current])
             if length == 0 {
                 return (current + 1, jumped)

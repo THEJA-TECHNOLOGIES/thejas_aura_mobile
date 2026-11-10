@@ -570,6 +570,70 @@ public final class AuraLocalDNSResolver {
             let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000)
 
             if let response = responseData {
+                // QNAME Matching: verify upstream response question matches the original query
+                guard AuraDNSEngine.questionsMatch(query: requestData, response: response) else {
+                    os_log(
+                        .error,
+                        log: Self.log,
+                        "QNAME mismatch detected for %{public}@ — returning SERVFAIL",
+                        domain ?? "unknown"
+                    )
+                    if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
+                        let limitedServFail = AuraDNSEngine.limitDnsResponseSize(
+                            responseData: servFail,
+                            queryData: requestData,
+                            isBlockedResponse: false,
+                            isServFailResponse: true
+                        )
+                        self.sendResponse(limitedServFail, to: clientAddr, addrLen: addrLen)
+                    }
+                    if let domain = domain {
+                        let record = ActivityRecord(
+                            domain: domain,
+                            queryType: queryType,
+                            outcome: "failed",
+                            matchedSource: isPassthrough ? "passthrough" : (decision?.matchedSource ?? "none"),
+                            matchedRuleId: decision?.matchedRule,
+                            matchedCategories: decision?.matchedCategories ?? [],
+                            reason: "QNAME mismatch — upstream response question does not match query"
+                        )
+                        self.activityWriter?.enqueue(record)
+                    }
+                    return
+                }
+
+                // DNS Rebinding Protection: reject upstream responses containing private/reserved IPs
+                guard !AuraDNSEngine.hasPrivateIpAnswers(response) else {
+                    os_log(
+                        .error,
+                        log: Self.log,
+                        "DNS rebinding attempt detected for %{public}@ — returning SERVFAIL",
+                        domain ?? "unknown"
+                    )
+                    if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
+                        let limitedServFail = AuraDNSEngine.limitDnsResponseSize(
+                            responseData: servFail,
+                            queryData: requestData,
+                            isBlockedResponse: false,
+                            isServFailResponse: true
+                        )
+                        self.sendResponse(limitedServFail, to: clientAddr, addrLen: addrLen)
+                    }
+                    if let domain = domain {
+                        let record = ActivityRecord(
+                            domain: domain,
+                            queryType: queryType,
+                            outcome: "failed",
+                            matchedSource: isPassthrough ? "passthrough" : (decision?.matchedSource ?? "none"),
+                            matchedRuleId: decision?.matchedRule,
+                            matchedCategories: decision?.matchedCategories ?? [],
+                            reason: "DNS rebinding attempt — private IP in upstream answer"
+                        )
+                        self.activityWriter?.enqueue(record)
+                    }
+                    return
+                }
+
                 // Apply EDNS0-aware size limiting to upstream response
                 let limitedResponse = AuraDNSEngine.limitDnsResponseSize(
                     responseData: response,
@@ -762,6 +826,58 @@ public final class AuraLocalDNSResolver {
             let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000)
 
             if let response = responseData {
+                // QNAME Matching: verify upstream response question matches the original query
+                guard AuraDNSEngine.questionsMatch(query: requestData, response: response) else {
+                    os_log(
+                        .error,
+                        log: Self.log,
+                        "QNAME mismatch detected for %{public}@ — returning SERVFAIL",
+                        domain ?? "unknown"
+                    )
+                    if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
+                        connection.sendResponse(servFail)
+                    }
+                    if let domain = domain {
+                        let record = ActivityRecord(
+                            domain: domain,
+                            queryType: queryType,
+                            outcome: "failed",
+                            matchedSource: isPassthrough ? "passthrough" : (decision?.matchedSource ?? "none"),
+                            matchedRuleId: decision?.matchedRule,
+                            matchedCategories: decision?.matchedCategories ?? [],
+                            reason: "QNAME mismatch — upstream response question does not match query"
+                        )
+                        self.activityWriter?.enqueue(record)
+                    }
+                    return
+                }
+
+                // DNS Rebinding Protection: reject upstream responses containing private/reserved IPs
+                guard !AuraDNSEngine.hasPrivateIpAnswers(response) else {
+                    os_log(
+                        .error,
+                        log: Self.log,
+                        "DNS rebinding attempt detected for %{public}@ — returning SERVFAIL",
+                        domain ?? "unknown"
+                    )
+                    if let servFail = AuraDNSEngine.synthesizeServFailResponse(requestData: requestData) {
+                        connection.sendResponse(servFail)
+                    }
+                    if let domain = domain {
+                        let record = ActivityRecord(
+                            domain: domain,
+                            queryType: queryType,
+                            outcome: "failed",
+                            matchedSource: isPassthrough ? "passthrough" : (decision?.matchedSource ?? "none"),
+                            matchedRuleId: decision?.matchedRule,
+                            matchedCategories: decision?.matchedCategories ?? [],
+                            reason: "DNS rebinding attempt — private IP in upstream answer"
+                        )
+                        self.activityWriter?.enqueue(record)
+                    }
+                    return
+                }
+
                 // Downstream DNS-over-TCP: Do NOT truncate to EDNS0 UDP payload limit.
                 // Transmit the full DNS response up to maxDnsMessageSize (16KB) over TCP.
                 os_log(
