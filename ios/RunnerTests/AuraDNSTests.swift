@@ -221,4 +221,163 @@ final class AuraDNSTests: XCTestCase {
         let ipBytes = response.suffix(4)
         XCTAssertEqual(Array(ipBytes), [0, 0, 0, 0])
     }
+
+    // MARK: - M8: DNS Rebinding Protection Tests
+
+    func testPrivateIpv4Detection() {
+        // Private ranges
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 10, b1: 0, b2: 0, b3: 1))        // 10.0.0.0/8
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 172, b1: 16, b2: 0, b3: 1))      // 172.16.0.0/12
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 172, b1: 31, b2: 255, b3: 255))  // 172.31.255.255
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 192, b1: 168, b2: 0, b3: 1))     // 192.168.0.0/16
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 127, b1: 0, b2: 0, b3: 1))       // 127.0.0.0/8
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 169, b1: 254, b2: 0, b3: 1))     // 169.254.0.0/16
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 224, b1: 0, b2: 0, b3: 1))       // 224.0.0.0/4
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv4(b0: 239, b1: 255, b2: 255, b3: 255)) // 239.255.255.255
+
+        // Public IPs
+        XCTAssertFalse(AuraDNSEngine.isPrivateIpv4(b0: 9, b1: 9, b2: 9, b3: 9))        // Quad9
+        XCTAssertFalse(AuraDNSEngine.isPrivateIpv4(b0: 1, b1: 1, b2: 1, b3: 1))        // Cloudflare
+        XCTAssertFalse(AuraDNSEngine.isPrivateIpv4(b0: 8, b1: 8, b2: 8, b3: 8))        // Google
+        XCTAssertFalse(AuraDNSEngine.isPrivateIpv4(b0: 172, b1: 15, b2: 255, b3: 255)) // Just outside 172.16/12
+        XCTAssertFalse(AuraDNSEngine.isPrivateIpv4(b0: 172, b1: 32, b2: 0, b3: 0))     // Just outside 172.16/12
+    }
+
+    func testPrivateIpv6Detection() {
+        // Loopback ::1
+        var loopback = [UInt8](repeating: 0, count: 15); loopback[15] = 1
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv6(loopback))
+
+        // Unique local fc00::/7
+        var ula = [UInt8](repeating: 0, count: 16); ula[0] = 0xFC
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv6(ula))
+        ula[0] = 0xFD
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv6(ula))
+
+        // Link-local fe80::/10
+        var linkLocal = [UInt8](repeating: 0, count: 16); linkLocal[0] = 0xFE; linkLocal[1] = 0x80
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv6(linkLocal))
+
+        // Multicast ff00::/8
+        var multicast = [UInt8](repeating: 0, count: 16); multicast[0] = 0xFF
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv6(multicast))
+
+        // IPv4-mapped private ::ffff:10.0.0.1
+        var mapped = [UInt8](repeating: 0, count: 12); mapped.append(0xFF); mapped.append(contentsOf: [10, 0, 0, 1])
+        XCTAssertTrue(AuraDNSEngine.isPrivateIpv6(mapped))
+
+        // Public IPv6 (2001:db8:: - documentation range)
+        var publicIpv6 = [UInt8](repeating: 0, count: 16); publicIpv6[0] = 0x20; publicIpv6[1] = 0x01
+        XCTAssertFalse(AuraDNSEngine.isPrivateIpv6(publicIpv6))
+
+        // Invalid length
+        XCTAssertFalse(AuraDNSEngine.isPrivateIpv6([1, 2, 3]))
+    }
+
+    func testHasPrivateIpAnswers() {
+        // Build a response with an A record pointing to 10.0.0.1 (private)
+        var response = Data()
+        var id: UInt16 = 0x1234.bigEndian; response.append(Data(bytes: &id, count: 2))
+        var flags: UInt16 = 0x8180.bigEndian; response.append(Data(bytes: &flags, count: 2))
+        var qdCount: UInt16 = 1.bigEndian; response.append(Data(bytes: &qdCount, count: 2))
+        var anCount: UInt16 = 1.bigEndian; response.append(Data(bytes: &anCount, count: 2))
+        var zero: UInt16 = 0; response.append(Data(bytes: &zero, count: 2))
+        response.append(Data(bytes: &zero, count: 2))
+
+        // Question: example.com, type A, class IN
+        response.append(7); response.append("example".data(using: .ascii)!)
+        response.append(3); response.append("com".data(using: .ascii)!)
+        response.append(0)
+        var qtype: UInt16 = 1.bigEndian; response.append(Data(bytes: &qtype, count: 2))
+        var qclass: UInt16 = 1.bigEndian; response.append(Data(bytes: &qclass, count: 2))
+
+        // Answer: name pointer, type A, class IN, TTL, rdlength=4, rdata=10.0.0.1
+        response.append(0xC0); response.append(0x0C) // Name pointer to offset 12
+        var aType: UInt16 = 1.bigEndian; response.append(Data(bytes: &aType, count: 2))
+        var aClass: UInt16 = 1.bigEndian; response.append(Data(bytes: &aClass, count: 2))
+        var ttl: UInt32 = 300.bigEndian; response.append(Data(bytes: &ttl, count: 4))
+        var rdLen: UInt16 = 4.bigEndian; response.append(Data(bytes: &rdLen, count: 2))
+        response.append(contentsOf: [10, 0, 0, 1])
+
+        XCTAssertTrue(AuraDNSEngine.hasPrivateIpAnswers(response))
+
+        // Build a response with an A record pointing to 9.9.9.9 (public)
+        var publicResponse = Data()
+        var pid: UInt16 = 0x1234.bigEndian; publicResponse.append(Data(bytes: &pid, count: 2))
+        var pflags: UInt16 = 0x8180.bigEndian; publicResponse.append(Data(bytes: &pflags, count: 2))
+        var pqdCount: UInt16 = 1.bigEndian; publicResponse.append(Data(bytes: &pqdCount, count: 2))
+        var panCount: UInt16 = 1.bigEndian; publicResponse.append(Data(bytes: &panCount, count: 2))
+        publicResponse.append(Data(bytes: &zero, count: 2))
+        publicResponse.append(Data(bytes: &zero, count: 2))
+
+        publicResponse.append(7); publicResponse.append("example".data(using: .ascii)!)
+        publicResponse.append(3); publicResponse.append("com".data(using: .ascii)!)
+        publicResponse.append(0)
+        var pqtype: UInt16 = 1.bigEndian; publicResponse.append(Data(bytes: &pqtype, count: 2))
+        var pqclass: UInt16 = 1.bigEndian; publicResponse.append(Data(bytes: &pqclass, count: 2))
+
+        publicResponse.append(0xC0); publicResponse.append(0x0C)
+        var paType: UInt16 = 1.bigEndian; publicResponse.append(Data(bytes: &paType, count: 2))
+        var paClass: UInt16 = 1.bigEndian; publicResponse.append(Data(bytes: &paClass, count: 2))
+        var pttl: UInt32 = 300.bigEndian; publicResponse.append(Data(bytes: &pttl, count: 4))
+        var prdLen: UInt16 = 4.bigEndian; publicResponse.append(Data(bytes: &prdLen, count: 2))
+        publicResponse.append(contentsOf: [9, 9, 9, 9])
+
+        XCTAssertFalse(AuraDNSEngine.hasPrivateIpAnswers(publicResponse))
+
+        // Empty response should not have private IPs
+        XCTAssertFalse(AuraDNSEngine.hasPrivateIpAnswers(Data()))
+    }
+
+    func testQuestionsMatch() {
+        // Build a query for example.com, type A
+        var query = Data()
+        var qid: UInt16 = 0x1234.bigEndian; query.append(Data(bytes: &qid, count: 2))
+        var qflags: UInt16 = 0x0100.bigEndian; query.append(Data(bytes: &qflags, count: 2))
+        var qqdCount: UInt16 = 1.bigEndian; query.append(Data(bytes: &qqdCount, count: 2))
+        query.append(Data(bytes: &zero, count: 2))
+        query.append(Data(bytes: &zero, count: 2))
+        query.append(Data(bytes: &zero, count: 2))
+        query.append(7); query.append("example".data(using: .ascii)!)
+        query.append(3); query.append("com".data(using: .ascii)!)
+        query.append(0)
+        var qqtype: UInt16 = 1.bigEndian; query.append(Data(bytes: &qqtype, count: 2))
+        var qqclass: UInt16 = 1.bigEndian; query.append(Data(bytes: &qqclass, count: 2))
+
+        // Matching response (same question section)
+        var matchingResponse = query
+        matchingResponse[2] = 0x81 // QR=1
+        matchingResponse[3] = 0x80 // RA, NoError
+
+        XCTAssertTrue(AuraDNSEngine.questionsMatch(query: query, response: matchingResponse))
+
+        // Non-matching response (different domain)
+        var differentQuery = Data()
+        var did: UInt16 = 0x5678.bigEndian; differentQuery.append(Data(bytes: &did, count: 2))
+        var dflags: UInt16 = 0x0100.bigEndian; differentQuery.append(Data(bytes: &dflags, count: 2))
+        var dqdCount: UInt16 = 1.bigEndian; differentQuery.append(Data(bytes: &dqdCount, count: 2))
+        differentQuery.append(Data(bytes: &zero, count: 2))
+        differentQuery.append(Data(bytes: &zero, count: 2))
+        differentQuery.append(Data(bytes: &zero, count: 2))
+        differentQuery.append(3); differentQuery.append("evil".data(using: .ascii)!)
+        differentQuery.append(3); differentQuery.append("com".data(using: .ascii)!)
+        differentQuery.append(0)
+        var dqtype: UInt16 = 1.bigEndian; differentQuery.append(Data(bytes: &dqtype, count: 2))
+        var dqclass: UInt16 = 1.bigEndian; differentQuery.append(Data(bytes: &dqclass, count: 2))
+
+        XCTAssertFalse(AuraDNSEngine.questionsMatch(query: query, response: differentQuery))
+    }
+
+    func testCompressionPointerLoopGuard() {
+        // Build a packet with a cyclic compression pointer
+        // Offset 12: pointer to offset 10 (before itself) - creates a cycle
+        var cyclicData = Data([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                               0x00, 0x00, 0x00, 0x00]) // 12 bytes header
+        cyclicData.append(0xC0) // Compression pointer first byte
+        cyclicData.append(0x0A) // Points to offset 10 (inside header, creates cycle)
+
+        // parseDnsName starting at offset 12 should detect the cycle and return nil
+        let result = AuraDNSEngine.parseDnsName(data: cyclicData, current: 12)
+        XCTAssertNil(result)
+    }
 }

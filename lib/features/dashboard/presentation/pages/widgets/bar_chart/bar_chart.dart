@@ -1,10 +1,13 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/check_platforms.dart';
 import 'package:theja_aura/features/dashboard/presentation/pages/widgets/bar_chart/individual_bar.dart';
+
+import '../../../../../../core/utils/app_utils.dart';
 
 class AppBarChart extends StatefulWidget {
   final List<IndividualBar>? data;
@@ -80,7 +83,7 @@ class _AppBarChartState extends State<AppBarChart> {
           item.blockedCount > maximum ? item.blockedCount : maximum,
     );
 
-    final maxY = maxCount == 0 ? 10.0 : (maxCount * 1.2).ceilToDouble();
+    final maxY = maxCount == 0 ? 10.0 : (maxCount).ceilToDouble();
 
     return PopScope(
       canPop: !_isBarNavigationActive,
@@ -183,133 +186,206 @@ class _AppBarChartState extends State<AppBarChart> {
             ),
           ),
           alignment: Alignment.center,
-          child: Stack(
-            alignment: Alignment.center,
+          child: Column(
+            // alignment: Alignment.center,
+            spacing: 18,
             children: [
-              BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  minY: 0,
-                  maxY: maxY,
-                  gridData: FlGridData(show: false),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    topTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+              Row(
+                crossAxisAlignment: .start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: .start,
+                      children: [
+                        Text(
+                          "Logs Recived",
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          formatNumber(maxY),
+                          style: typo.headlineMedium.copyWith(
+                            fontWeight: .w700,
+                          ),
+                        ),
+                      ],
                     ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                  ),
+                  Container(
+                    padding: .symmetric(horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colors.segmentBg,
+                      borderRadius: .circular(40),
+                      border: .all(color: colors.border),
                     ),
-                    rightTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                    child: Row(
+                      spacing: 4,
+                      mainAxisSize: .min,
+                      children: [
+                        Icon(CupertinoIcons.calendar, size: 12),
+                        Text(
+                          "Last 7 days",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 22,
-                        interval: 1,
-                        getTitlesWidget: (value, meta) {
-                          final index = value.toInt();
+                  ),
+                ],
+              ),
+              Expanded(
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    minY: 0,
+                    maxY: maxY,
+                    gridData: FlGridData(show: false, drawVerticalLine: false),
+                    borderData: FlBorderData(show: false),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      topTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 26,
+                          interval: maxY <= 10 ? 2 : (maxY / 4).ceilToDouble(),
+                          getTitlesWidget: (value, meta) {
+                            // Skip the max label if it's not a clean tick (avoids overlap/clutter).
+                            if (value == meta.max &&
+                                value != meta.max.roundToDouble()) {
+                              return const SizedBox.shrink();
+                            }
 
-                          if (value != index.toDouble() ||
-                              index < 0 ||
-                              index >= _data.length) {
-                            return const SizedBox.shrink();
-                          }
-
-                          final interval = _data.length > 7
-                              ? (_data.length / 6).ceil()
-                              : 1;
-                          final isVisible =
-                              (index % interval == 0) ||
-                              (index == _data.length - 1);
-                          if (_data.length > 7 &&
-                              isVisible &&
-                              index != _data.length - 1 &&
-                              (_data.length - 1 - index) < 3) {
-                            return const SizedBox.shrink();
-                          }
-                          if (!isVisible) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return SideTitleWidget(
-                            meta: meta,
-                            child: Text(
-                              DateFormat('dd MMM')
-                                  .format(_data[index].timestamp),
-                              style: typo.bodySmall.copyWith(
-                                color: colors.textSecondary,
-                                fontSize: 10,
+                            return SideTitleWidget(
+                              meta: meta,
+                              space: 6,
+                              child: Text(
+                                formatNumber(value),
+                                style: typo.bodySmall.copyWith(
+                                  color: colors.textSecondary,
+                                  fontSize: 10,
+                                ),
                               ),
+                            );
+                          },
+                        ),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 22,
+                          interval: 1,
+                          getTitlesWidget: (value, meta) {
+                            final index = value.toInt();
+
+                            if (value != index.toDouble() ||
+                                index < 0 ||
+                                index >= _data.length) {
+                              return const SizedBox.shrink();
+                            }
+
+                            final interval = _data.length > 7
+                                ? (_data.length / 6).ceil()
+                                : 1;
+                            final isVisible =
+                                (index % interval == 0) ||
+                                (index == _data.length - 1);
+                            if (_data.length > 7 &&
+                                isVisible &&
+                                index != _data.length - 1 &&
+                                (_data.length - 1 - index) < 3) {
+                              return const SizedBox.shrink();
+                            }
+                            if (!isVisible) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return SideTitleWidget(
+                              meta: meta,
+                              child: Text(
+                                DateFormat('dd MMM')
+                                    .format(_data[index].timestamp),
+                                style: typo.bodySmall.copyWith(
+                                  color: colors.textSecondary,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    barTouchData: BarTouchData(
+                      enabled: true,
+                      handleBuiltInTouches: true,
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          if (group.x < 0 || group.x >= _data.length) {
+                            return null;
+                          }
+
+                          final item = _data[group.x];
+
+                          return BarTooltipItem(
+                            '${DateFormat('dd MMM:').format(item.timestamp)} ${item.blockedCount} blocked',
+                            const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 10,
                             ),
                           );
                         },
                       ),
                     ),
-                  ),
-                  barTouchData: BarTouchData(
-                    enabled: true,
-                    handleBuiltInTouches: true,
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                        if (group.x < 0 || group.x >= _data.length) {
-                          return null;
-                        }
+                    barGroups: List.generate(_data.length, (index) {
+                      final item = _data[index];
+                      final isSelected =
+                          _isBarNavigationActive && index == _selectedBarIndex;
+                      final isZero = item.blockedCount == 0;
 
-                        final item = _data[group.x];
+                      // Subtle baseline marker height for zero-count dates (1.8% of maxY).
+                      // This produces a consistent ~3-5px visual tick on the baseline at any scale.
+                      final zeroMarkerY = maxY * 0.018;
 
-                        return BarTooltipItem(
-                          '${DateFormat('dd MMM:').format(item.timestamp)} ${item.blockedCount} blocked',
-                          const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 10,
+                      final double rodY = isZero
+                          ? zeroMarkerY
+                          : (item.blockedCount.toDouble() < zeroMarkerY * 1.5
+                                ? zeroMarkerY * 1.5
+                                : item.blockedCount.toDouble());
+                      final Color rodColor = isZero
+                          ? (isSelected
+                                ? colors.primary
+                                : colors.textSecondary.withValues(alpha: 0.25))
+                          : (PlatformChecker.isAndroidTV
+                                ? isSelected
+                                      ? colors.primary
+                                      : colors.primary200
+                                : colors.primary);
+                      return BarChartGroupData(
+                        x: index,
+                        showingTooltipIndicators: isSelected ? [0] : [],
+                        barRods: [
+                          BarChartRodData(
+                            toY: rodY,
+                            color: rodColor,
+                            width: isSelected ? 34.0 : 30.0,
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                        );
-                      },
-                    ),
+                        ],
+                      );
+                    }),
                   ),
-                  barGroups: List.generate(_data.length, (index) {
-                    final item = _data[index];
-                    final isSelected =
-                        _isBarNavigationActive && index == _selectedBarIndex;
-                    final isZero = item.blockedCount == 0;
-
-                    // Subtle baseline marker height for zero-count dates (1.8% of maxY).
-                    // This produces a consistent ~3-5px visual tick on the baseline at any scale.
-                    final zeroMarkerY = maxY * 0.018;
-
-                    final double rodY = isZero
-                        ? zeroMarkerY
-                        : (item.blockedCount.toDouble() < zeroMarkerY * 1.5
-                              ? zeroMarkerY * 1.5
-                              : item.blockedCount.toDouble());
-                    final Color rodColor = isZero
-                        ? (isSelected
-                              ? colors.primary
-                              : colors.textSecondary.withValues(alpha: 0.25))
-                        : (PlatformChecker.isAndroidTV
-                              ? isSelected
-                                    ? colors.primary
-                                    : colors.primary200
-                              : colors.primary);
-                    return BarChartGroupData(
-                      x: index,
-                      showingTooltipIndicators: isSelected ? [0] : [],
-                      barRods: [
-                        BarChartRodData(
-                          toY: rodY,
-                          color: rodColor,
-                          width: isSelected ? 34.0 : 30.0,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ],
-                    );
-                  }),
+                  duration: const Duration(milliseconds: 180),
                 ),
-                duration: const Duration(milliseconds: 180),
               ),
               if (_data.isEmpty || maxCount == 0)
                 Text(

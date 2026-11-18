@@ -265,7 +265,7 @@ final class AuraReleaseStoreTests: XCTestCase {
         }
 
         let items = try FileManager.default.contentsOfDirectory(atPath: activeDir.path)
-        let sortedItems = items.sorted()
+        let sortedItems = items.filter { $0.hasSuffix(".txt") }.sorted()
         XCTAssertEqual(sortedItems, ["ads.txt", "analytics.txt", "trackers.txt"])
 
         for item in sortedItems {

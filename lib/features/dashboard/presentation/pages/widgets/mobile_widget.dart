@@ -25,7 +25,7 @@ class MobileWidget extends StatelessWidget {
           const SizedBox(height: 16),
           CTAButtons(),
           SizedBox(
-            height: 260,
+            height: 280,
             child:
                 BlocSelector<
                   DashboardBloc,

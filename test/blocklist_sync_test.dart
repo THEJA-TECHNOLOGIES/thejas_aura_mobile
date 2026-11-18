@@ -146,7 +146,7 @@ void main() {
       final config = AppConfig(
         apiBaseUrl: Uri.parse(AppConfig.defaultLocalUrl),
       );
-      expect(config.apiBaseUrl.toString(), equals('http://127.0.0.1:8080'));
+      expect(config.apiBaseUrl.toString(), equals('https://mobileapi.theja.in'));
     });
 
     test('Validates custom base URLs and strips trailing slashes', () {

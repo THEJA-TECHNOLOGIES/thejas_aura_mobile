@@ -2,6 +2,8 @@ import XCTest
 import SQLite3
 @testable import Runner
 
+private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
 final class AuraDatabaseTests: XCTestCase {
 
     var tempDirectory: URL!

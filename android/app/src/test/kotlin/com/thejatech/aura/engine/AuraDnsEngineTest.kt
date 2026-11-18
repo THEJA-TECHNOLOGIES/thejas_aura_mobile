@@ -275,4 +275,136 @@ class AuraDnsEngineTest {
 
         return out.toByteArray()
     }
+
+    // =========================================================================
+    // M8: DNS Rebinding Protection Tests
+    // =========================================================================
+
+    @Test
+    fun testIsPrivateIpv4() {
+        // Private ranges
+        assertTrue(AuraDnsEngine.isPrivateIpv4(10, 0, 0, 1))          // 10.0.0.0/8
+        assertTrue(AuraDnsEngine.isPrivateIpv4(172, 16, 0, 1))        // 172.16.0.0/12
+        assertTrue(AuraDnsEngine.isPrivateIpv4(172, 31, 255, 255))    // 172.31.255.255
+        assertTrue(AuraDnsEngine.isPrivateIpv4(192, 168, 0, 1))       // 192.168.0.0/16
+        assertTrue(AuraDnsEngine.isPrivateIpv4(127, 0, 0, 1))         // 127.0.0.0/8
+        assertTrue(AuraDnsEngine.isPrivateIpv4(169, 254, 0, 1))       // 169.254.0.0/16
+        assertTrue(AuraDnsEngine.isPrivateIpv4(224, 0, 0, 1))         // 224.0.0.0/4
+        assertTrue(AuraDnsEngine.isPrivateIpv4(239, 255, 255, 255))   // 239.255.255.255
+
+        // Public IPs
+        assertFalse(AuraDnsEngine.isPrivateIpv4(9, 9, 9, 9))          // Quad9
+        assertFalse(AuraDnsEngine.isPrivateIpv4(1, 1, 1, 1))          // Cloudflare
+        assertFalse(AuraDnsEngine.isPrivateIpv4(8, 8, 8, 8))          // Google
+        assertFalse(AuraDnsEngine.isPrivateIpv4(172, 15, 255, 255))   // Just outside 172.16/12
+        assertFalse(AuraDnsEngine.isPrivateIpv4(172, 32, 0, 0))       // Just outside 172.16/12
+    }
+
+    @Test
+    fun testIsPrivateIpv6() {
+        // Loopback ::1
+        val loopback = ByteArray(16).apply { this[15] = 1 }
+        assertTrue(AuraDnsEngine.isPrivateIpv6(loopback))
+
+        // Unique local fc00::/7
+        val ulaFc = ByteArray(16).apply { this[0] = 0xFC.toByte() }
+        assertTrue(AuraDnsEngine.isPrivateIpv6(ulaFc))
+        val ulaFd = ByteArray(16).apply { this[0] = 0xFD.toByte() }
+        assertTrue(AuraDnsEngine.isPrivateIpv6(ulaFd))
+
+        // Link-local fe80::/10
+        val linkLocal = ByteArray(16).apply { this[0] = 0xFE.toByte(); this[1] = 0x80.toByte() }
+        assertTrue(AuraDnsEngine.isPrivateIpv6(linkLocal))
+
+        // Multicast ff00::/8
+        val multicast = ByteArray(16).apply { this[0] = 0xFF.toByte() }
+        assertTrue(AuraDnsEngine.isPrivateIpv6(multicast))
+
+        // IPv4-mapped private ::ffff:10.0.0.1
+        val mapped = ByteArray(16).apply {
+            this[11] = 0xFF.toByte()
+            this[12] = 10
+            this[13] = 0
+            this[14] = 0
+            this[15] = 1
+        }
+        assertTrue(AuraDnsEngine.isPrivateIpv6(mapped))
+
+        // Public IPv6 (2001:db8:: - documentation range)
+        val publicIpv6 = ByteArray(16).apply { this[0] = 0x20.toByte(); this[1] = 0x01.toByte() }
+        assertFalse(AuraDnsEngine.isPrivateIpv6(publicIpv6))
+
+        // Invalid length
+        assertFalse(AuraDnsEngine.isPrivateIpv6(byteArrayOf(1, 2, 3)))
+    }
+
+    @Test
+    fun testHasPrivateIpAnswers() {
+        // Build a response with an A record pointing to 10.0.0.1 (private)
+        val privateResponse = buildResponseWithAnswer("example.com", 1, byteArrayOf(10, 0, 0, 1))
+        assertTrue(AuraDnsEngine.hasPrivateIpAnswers(privateResponse))
+
+        // Build a response with an A record pointing to 9.9.9.9 (public)
+        val publicResponse = buildResponseWithAnswer("example.com", 1, byteArrayOf(9, 9, 9, 9))
+        assertFalse(AuraDnsEngine.hasPrivateIpAnswers(publicResponse))
+
+        // Empty response should not have private IPs
+        assertFalse(AuraDnsEngine.hasPrivateIpAnswers(byteArrayOf()))
+    }
+
+    @Test
+    fun testQuestionsMatch() {
+        val query = createQueryPacket("example.com", 1)
+
+        // Matching response (same question section)
+        val matchingResponse = query.copyOf().apply {
+            this[2] = 0x81.toByte() // QR=1
+            this[3] = 0x80.toByte() // RA, NoError
+        }
+        assertTrue(AuraDnsEngine.questionsMatch(query, matchingResponse))
+
+        // Non-matching response (different domain - evil.com)
+        val differentDomain = createQueryPacket("evil.com", 1)
+        assertFalse(AuraDnsEngine.questionsMatch(query, differentDomain))
+    }
+
+    /**
+     * Builds a minimal DNS response with an A record answer containing the given IP bytes.
+     */
+    private fun buildResponseWithAnswer(domain: String, qType: Int, ipBytes: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream()
+        val header = ByteBuffer.allocate(12)
+        header.putShort(0x1234.toShort()) // Transaction ID
+        header.putShort(0x8180.toShort()) // Response, NoError
+        header.putShort(1.toShort())      // QDCOUNT = 1
+        header.putShort(1.toShort())      // ANCOUNT = 1
+        header.putShort(0.toShort())      // NSCOUNT = 0
+        header.putShort(0.toShort())      // ARCOUNT = 0
+        out.write(header.array())
+
+        // Question section
+        for (label in domain.split('.')) {
+            val bytes = label.toByteArray(Charsets.UTF_8)
+            out.write(bytes.size)
+            out.write(bytes)
+        }
+        out.write(0)
+        val qTail = ByteBuffer.allocate(4)
+        qTail.putShort(qType.toShort())
+        qTail.putShort(1.toShort()) // IN
+        out.write(qTail.array())
+
+        // Answer section: name pointer, type, class, TTL, rdlength, rdata
+        out.write(0xC0) // Name pointer to offset 12
+        out.write(0x0C)
+        val aTail = ByteBuffer.allocate(10)
+        aTail.putShort(qType.toShort())    // TYPE
+        aTail.putShort(1.toShort())        // CLASS IN
+        aTail.putInt(300)                  // TTL
+        aTail.putShort(ipBytes.size.toShort()) // RDLENGTH
+        out.write(aTail.array())
+        out.write(ipBytes)
+
+        return out.toByteArray()
+    }
 }
