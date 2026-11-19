@@ -2,7 +2,7 @@ import 'package:delightful_toast/delight_toast.dart';
 import 'package:delightful_toast/toast/utils/enums.dart';
 import 'package:theja_aura/core/theme/app_colors.dart';
 import 'package:theja_aura/main.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
 import 'package:theja_aura/core/utils/sized_context.dart';
 

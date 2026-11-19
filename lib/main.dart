@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:theja_aura/core/theme/app_theme.dart';
@@ -12,6 +12,7 @@ import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_bloc.d
 import 'package:theja_aura/features/blocklist/presentation/bloc/blocklist_sync_cubit.dart';
 import 'package:theja_aura/features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'package:theja_aura/features/settings/presentation/bloc/settings_bloc.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'core/DI/injection.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
@@ -27,6 +28,12 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
 void main() async {
   // 1. Initialize Flutter bindings
   WidgetsFlutterBinding.ensureInitialized();
+  final window = WindowManager.instance.getCurrent()!;
+  window.maximumSize = const Size(800, double.infinity).toNative();
+  window.setSize(const Size(600, double.infinity).toNative(), false);
+  window.minimumSize = const Size(500, 600).toNative();
+  window.center();
+  window.show();
   await PlatformChecker.initialize();
   // 2. Load environment configuration & 3. Configure dependencies
   await configureDependencies();

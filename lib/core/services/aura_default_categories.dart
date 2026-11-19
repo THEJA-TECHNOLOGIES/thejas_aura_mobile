@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Represents a domain blocking category published by the backend release in Theja's Aura.
 class AuraDefaultCategory {
