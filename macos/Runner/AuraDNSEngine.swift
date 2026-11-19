@@ -1,0 +1,890 @@
+import Foundation
+import os.log
+
+/// Pure Swift, clean-room DNS and domain-matching engine for Theja's Aura.
+/// Zero GPL dependencies. Compliant with RFC 1035 and RFC 3596 specifications.
+/// Includes Mozilla Public Suffix List (PSL) validation and multi-category attribution.
+/// Also includes EDNS0 parsing and DNS response truncation utilities.
+public final class AuraDNSEngine {
+
+    /// EDNS0 information extracted from a DNS query
+    public struct Edns0Info {
+        /// The advertised UDP payload size from the OPT record, or 512 if no OPT record
+        public let udpPayloadSize: Int
+        /// Whether an OPT record was found in the additional section
+        public let hasOptRecord: Bool
+
+        public static let defaultUdpPayload = 512
+        public static let minUdpPayload = 512
+        /// Conservative operational cap to avoid fragmentation (IPv6 min MTU 1280 - 48 IP/UDP headers = 1232)
+        public static let operationalCap = 1232
+
+        public init(udpPayloadSize: Int, hasOptRecord: Bool) {
+            self.udpPayloadSize = udpPayloadSize
+            self.hasOptRecord = hasOptRecord
+        }
+    }
+
+    /// Result of DNS response truncation
+    public struct TruncationResult {
+        public let truncatedResponse: Data
+        public let wasTruncated: Bool
+
+        public init(truncatedResponse: Data, wasTruncated: Bool) {
+            self.truncatedResponse = truncatedResponse
+            self.wasTruncated = wasTruncated
+        }
+    }
+
+    public struct Rule: Codable, Equatable {
+        public let id: String
+        public let domain: String
+        public let isEnabled: Bool
+        public let isBlocked: Bool // true: block, false: allow/whitelist
+
+        enum CodingKeys: String, CodingKey {
+            case id, domain, isEnabled, isBlocked
+        }
+
+        public init(id: String? = nil, domain: String, isEnabled: Bool = true, isBlocked: Bool = true) {
+            let normalized = AuraDNSEngine.normalizeDomain(domain)
+            self.id = (id == nil || id?.isEmpty == true) ? normalized : id!
+            self.domain = normalized
+            self.isEnabled = isEnabled
+            self.isBlocked = isBlocked
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let rawDomain = try container.decode(String.self, forKey: .domain)
+            let normalized = AuraDNSEngine.normalizeDomain(rawDomain)
+            let rawId = try container.decodeIfPresent(String.self, forKey: .id)
+            self.id = (rawId == nil || rawId?.isEmpty == true) ? normalized : rawId!
+            self.domain = normalized
+            self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+            self.isBlocked = try container.decodeIfPresent(Bool.self, forKey: .isBlocked) ?? true
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+            try container.encode(domain, forKey: .domain)
+            try container.encode(isEnabled, forKey: .isEnabled)
+            try container.encode(isBlocked, forKey: .isBlocked)
+        }
+    }
+
+    /// Legacy match result for backward-compatible call sites.
+    public enum MatchResult: Equatable {
+        case blocked(matchedRule: String)
+        case allowed(matchedRule: String?)
+    }
+
+    /// Structured, deterministic decision for a queried domain.
+    public struct MatchDecision: Equatable {
+        public let isBlocked: Bool
+        public let matchedSource: String // "allowlist", "custom", "default", "none"
+        public let matchedRule: String?   // The rule domain that triggered the decision (if any)
+        public let matchedCategories: [String] // Sorted array of matching enabled categories
+        public let reason: String
+
+        public var legacyMatchResult: MatchResult {
+            if isBlocked {
+                return .blocked(matchedRule: matchedRule ?? matchedCategories.first ?? "")
+            } else {
+                return .allowed(matchedRule: matchedRule)
+            }
+        }
+
+        public static func allowedByAllowlist(rule: String, categories: [String] = []) -> MatchDecision {
+            return MatchDecision(
+                isBlocked: false,
+                matchedSource: "allowlist",
+                matchedRule: rule,
+                matchedCategories: categories,
+                reason: "Allowed by custom allowlist rule: \(rule)"
+            )
+        }
+
+        public static func allowedDefault(domain: String, categories: [String] = []) -> MatchDecision {
+            return MatchDecision(
+                isBlocked: false,
+                matchedSource: "none",
+                matchedRule: nil,
+                matchedCategories: categories,
+                reason: "Permitted domain"
+            )
+        }
+
+        public static func blockedByCustom(rule: String, categories: [String] = []) -> MatchDecision {
+            let catStr = categories.isEmpty ? "" : " (also matches: \(categories.joined(separator: ", ")))"
+            return MatchDecision(
+                isBlocked: true,
+                matchedSource: "custom",
+                matchedRule: rule,
+                matchedCategories: categories,
+                reason: "Blocked by custom rule: \(rule)\(catStr)"
+            )
+        }
+
+        public static func blockedByDefault(categories: [String], matchedDomain: String) -> MatchDecision {
+            return MatchDecision(
+                isBlocked: true,
+                matchedSource: "default",
+                matchedRule: matchedDomain,
+                matchedCategories: categories,
+                reason: "Blocked by \(categories.joined(separator: ", "))"
+            )
+        }
+
+        public static func == (lhs: MatchDecision, rhs: MatchResult) -> Bool {
+            return lhs.legacyMatchResult == rhs
+        }
+
+        public static func == (lhs: MatchResult, rhs: MatchDecision) -> Bool {
+            return lhs == rhs.legacyMatchResult
+        }
+    }
+
+    private var rules: [String: Rule] = [:]
+    private var compactIndex: AuraCompactCategoryIndex? = nil
+    private var legacyCategories: [String: Set<String>] = [:]
+    private var categoryPreferences: [String: Bool] = [:]
+    private var disabledDefaultDomains: Set<String> = []
+    private let lock = NSLock()
+
+    public init() {}
+
+    // MARK: - Domain Normalization & Rule Management
+
+    /// Normalizes a domain name: lowercase, strips schemes, paths, port numbers, and trailing dots.
+    public static func normalizeDomain(_ raw: String) -> String {
+        var domain = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // Strip scheme if present
+        if let schemeRange = domain.range(of: "://") {
+            domain = String(domain[schemeRange.upperBound...])
+        }
+
+        // Strip path or query
+        if let slashIndex = domain.firstIndex(of: "/") {
+            domain = String(domain[..<slashIndex])
+        }
+
+        // Strip port if present
+        if let colonIndex = domain.firstIndex(of: ":") {
+            domain = String(domain[..<colonIndex])
+        }
+
+        // Strip trailing dots
+        while domain.hasSuffix(".") {
+            domain.removeLast()
+        }
+
+        return domain
+    }
+
+    /// Sets or replaces the active custom rule set. Thread-safe.
+    public func setRules(_ newRules: [Rule]) {
+        lock.lock()
+        defer { lock.unlock() }
+        rules.removeAll(keepingCapacity: true)
+        for rule in newRules {
+            let normalized = rule.domain
+            if !normalized.isEmpty {
+                rules[normalized] = rule
+            }
+        }
+    }
+
+    /// Sets or replaces default category domain compact index. Thread-safe.
+    public func setCompactIndex(_ newIndex: AuraCompactCategoryIndex?) {
+        lock.lock()
+        defer { lock.unlock() }
+        compactIndex = newIndex
+    }
+
+    /// Sets or replaces default category domain lists (e.g. "Ads", "Trackers", "Analytics"). Thread-safe.
+    public func setCategories(_ newCategories: [String: Set<String>]) {
+        lock.lock()
+        defer { lock.unlock() }
+        legacyCategories = newCategories
+        if newCategories.isEmpty {
+            compactIndex = nil
+        } else {
+            compactIndex = AuraCompactCategoryIndex(from: newCategories)
+        }
+    }
+
+    /// Sets or replaces category enable/disable preferences. Thread-safe.
+    public func setCategoryPreferences(_ prefs: [String: Bool]) {
+        lock.lock()
+        defer { lock.unlock() }
+        categoryPreferences = prefs
+    }
+
+    /// Sets or replaces disabled default domains. Thread-safe.
+    public func setDisabledDefaultDomains(_ domains: Set<String>) {
+        lock.lock()
+        defer { lock.unlock() }
+        disabledDefaultDomains = domains
+    }
+
+    // MARK: - Candidate Suffix Generation with PSL Guard
+
+    /// Generates candidate domain suffixes for matching against rules (e.g. "ads.google.com" -> ["ads.google.com", "google.com"]).
+    /// Enforces:
+    /// 1. Strict label boundaries (whole '.' separated labels only).
+    /// 2. PSL Guard: Excludes candidate suffixes that are bare Public Suffixes (e.g. "com", "co.uk", "gov.au").
+    public static func generateCandidateSuffixes(
+        for domain: String,
+        pslValidator: AuraPSLValidator = .shared
+    ) -> [String] {
+        let normalized = normalizeDomain(domain)
+        guard !normalized.isEmpty else { return [] }
+
+        let parts = normalized.split(separator: ".").map(String.init)
+        guard parts.count >= 2 else { return [] }
+
+        var candidates: [String] = []
+        for i in 0..<parts.count {
+            let candidate = parts[i...].joined(separator: ".")
+            // Exclude bare public suffixes from rule candidate evaluation
+            if !pslValidator.isPublicSuffix(candidate) {
+                candidates.append(candidate)
+            }
+        }
+        return candidates
+    }
+
+    // MARK: - Deterministic Domain Evaluation & Rule Precedence
+
+    /// Evaluates a domain against custom rules and default blocklist categories.
+    ///
+    /// Semantics:
+    /// 1. An applicable enabled custom allow rule takes precedence over ALL blocking rules.
+    /// 2. Otherwise, a matching enabled custom block rule blocks the query.
+    /// 3. Otherwise, any matching enabled default category blocks the query.
+    /// 4. If multiple enabled default categories match, all matching categories are recorded deterministically.
+    /// 5. Disabling one category does not unblock a domain still matched by another enabled category or custom block rule.
+    /// 6. A child allow rule (e.g. "mail.google.com") permits itself and its subdomains, but does NOT allow parent or sibling domains.
+    private func isCategoryEnabled(catName: String, prefs: [String: Bool]) -> Bool {
+        if let exact = prefs[catName] { return exact }
+        let normTarget = catName.lowercased().replacingOccurrences(of: "_", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "")
+        for (key, value) in prefs {
+            let normKey = key.lowercased().replacingOccurrences(of: "_", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "-", with: "")
+            if normKey == normTarget {
+                return value
+            }
+        }
+        return true
+    }
+
+    public func evaluate(domain: String) -> MatchDecision {
+        let target = AuraDNSEngine.normalizeDomain(domain)
+        guard !target.isEmpty else {
+            return .allowedDefault(domain: "")
+        }
+
+        lock.lock()
+        let currentRules = self.rules
+        let currentCompactIndex = self.compactIndex
+        let currentLegacyCategories = self.legacyCategories
+        let currentPrefs = self.categoryPreferences
+        let currentDisabledDefaultDomains = self.disabledDefaultDomains
+        lock.unlock()
+
+        let candidates = AuraDNSEngine.generateCandidateSuffixes(for: target)
+        guard !candidates.isEmpty else {
+            return .allowedDefault(domain: target)
+        }
+
+        // 1. Check Custom Allowlist first (highest precedence across all candidates)
+        var matchedAllowRule: String? = nil
+        for candidate in candidates {
+            if let rule = currentRules[candidate], rule.isEnabled && !rule.isBlocked {
+                matchedAllowRule = candidate
+                break
+            }
+        }
+
+        // 2. Check Custom Blocklist across candidates
+        var matchedCustomBlock: String? = nil
+        for candidate in candidates {
+            if let rule = currentRules[candidate], rule.isEnabled && rule.isBlocked {
+                matchedCustomBlock = candidate
+                break
+            }
+        }
+
+        // Check matching categories across all candidates
+        var matchingEnabledCategories = Set<String>()
+        var allMatchingCategories = Set<String>()
+        var firstCategoryMatchedDomain: String? = nil
+
+        if let index = currentCompactIndex, index.count > 0 {
+            for candidate in candidates {
+                let h = AuraCompactCategoryIndex.fnv1a64(candidate)
+                if let mask = index.matchingCategoryMask(for: h) {
+                    let catNames = index.categories(for: mask)
+                    for catName in catNames {
+                        allMatchingCategories.insert(catName)
+                        let isEnabled = isCategoryEnabled(catName: catName, prefs: currentPrefs)
+                        if isEnabled && !currentDisabledDefaultDomains.contains(candidate) {
+                            matchingEnabledCategories.insert(catName)
+                            if firstCategoryMatchedDomain == nil {
+                                firstCategoryMatchedDomain = candidate
+                            }
+                        }
+                    }
+                }
+            }
+        } else if !currentLegacyCategories.isEmpty {
+            for (catName, domainSet) in currentLegacyCategories {
+                let isEnabled = isCategoryEnabled(catName: catName, prefs: currentPrefs)
+                for candidate in candidates {
+                    if domainSet.contains(candidate) {
+                        allMatchingCategories.insert(catName)
+                        if isEnabled && !currentDisabledDefaultDomains.contains(candidate) {
+                            matchingEnabledCategories.insert(catName)
+                            if firstCategoryMatchedDomain == nil {
+                                firstCategoryMatchedDomain = candidate
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+        }
+
+        let sortedEnabledCategories = matchingEnabledCategories.sorted()
+        let sortedAllCategories = allMatchingCategories.sorted()
+        let recordCategories = !sortedEnabledCategories.isEmpty ? sortedEnabledCategories : sortedAllCategories
+
+        if let allowRule = matchedAllowRule {
+            return .allowedByAllowlist(rule: allowRule, categories: recordCategories)
+        }
+
+        // If custom block matched:
+        if let customRule = matchedCustomBlock {
+            return .blockedByCustom(rule: customRule, categories: recordCategories)
+        }
+
+        // 3. Check Default Categories (if any enabled category matched)
+        if !sortedEnabledCategories.isEmpty {
+            let matchedDomain = firstCategoryMatchedDomain ?? target
+            return .blockedByDefault(categories: sortedEnabledCategories, matchedDomain: matchedDomain)
+        }
+
+        // 4. Default Allow
+        return .allowedDefault(domain: target, categories: recordCategories)
+    }
+
+    /// Legacy evaluation method for callers expecting MatchResult.
+    public func evaluateLegacy(domain: String) -> MatchResult {
+        return evaluate(domain: domain).legacyMatchResult
+    }
+
+    // MARK: - DNS Packet Parsing & Synthesis
+
+    public struct DNSHeader {
+        public let id: UInt16
+        public let flags: UInt16
+        public let qdCount: UInt16
+        public let anCount: UInt16
+        public let nsCount: UInt16
+        public let arCount: UInt16
+    }
+
+    public struct DNSQuestion {
+        public let name: String
+        public let qType: UInt16
+        public let qClass: UInt16
+        public let rawLength: Int
+    }
+
+    /// Safely parses DNS Header with bounds checking.
+    public static func parseHeader(data: Data) -> DNSHeader? {
+        guard data.count >= 12 else { return nil }
+        let id = data.subdata(in: 0..<2).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+        let flags = data.subdata(in: 2..<4).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+        let qdCount = data.subdata(in: 4..<6).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+        let anCount = data.subdata(in: 6..<8).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+        let nsCount = data.subdata(in: 8..<10).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+        let arCount = data.subdata(in: 10..<12).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+
+        return DNSHeader(id: id, flags: flags, qdCount: qdCount, anCount: anCount, nsCount: nsCount, arCount: arCount)
+    }
+
+    /// Safely parses the first Question section in a DNS packet with bounds checking.
+    public static func parseQuestion(data: Data, offset: Int = 12) -> DNSQuestion? {
+        guard data.count > offset else { return nil }
+        var current = offset
+        var domainParts: [String] = []
+
+        while current < data.count {
+            let length = Int(data[current])
+            if length == 0 {
+                current += 1
+                break
+            }
+
+            if (length & 0xC0) == 0xC0 {
+                current += 2
+                break
+            }
+
+            current += 1
+            guard current + length <= data.count else { return nil }
+            guard let label = String(data: data.subdata(in: current..<(current + length)), encoding: .utf8) ??
+                              String(data: data.subdata(in: current..<(current + length)), encoding: .ascii) else {
+                return nil
+            }
+            domainParts.append(label)
+            current += length
+        }
+
+        guard current + 4 <= data.count else { return nil }
+        let qType = data.subdata(in: current..<(current + 2)).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+        let qClass = data.subdata(in: (current + 2)..<(current + 4)).withUnsafeBytes { $0.load(as: UInt16.self).bigEndian }
+
+        let fullDomain = domainParts.joined(separator: ".")
+        return DNSQuestion(name: fullDomain, qType: qType, qClass: qClass, rawLength: (current + 4) - offset)
+    }
+
+    /// Synthesizes an RFC 1035 compliant DNS response sinkholing blocked queries to 0.0.0.0 (for A) or :: (for AAAA).
+    public static func synthesizeBlockedResponse(requestData: Data) -> Data? {
+        guard let header = parseHeader(data: requestData), header.qdCount > 0 else { return nil }
+        guard let question = parseQuestion(data: requestData, offset: 12) else { return nil }
+
+        var response = Data()
+
+        // 1. Header (12 bytes)
+        var idBig = header.id.bigEndian
+        response.append(Data(bytes: &idBig, count: 2))
+
+        // Flags: Standard response, No error (0x8180)
+        var flagsBig: UInt16 = UInt16(0x8180).bigEndian
+        response.append(Data(bytes: &flagsBig, count: 2))
+
+        // QDCOUNT: 1
+        var qdCountBig: UInt16 = UInt16(1).bigEndian
+        response.append(Data(bytes: &qdCountBig, count: 2))
+
+        // ANCOUNT: 1
+        var anCountBig: UInt16 = UInt16(1).bigEndian
+        response.append(Data(bytes: &anCountBig, count: 2))
+
+        // NSCOUNT: 0, ARCOUNT: 0
+        var zeroCount: UInt16 = 0
+        response.append(Data(bytes: &zeroCount, count: 2))
+        response.append(Data(bytes: &zeroCount, count: 2))
+
+        // 2. Question section (copied verbatim from request)
+        let questionData = requestData.subdata(in: 12..<(12 + question.rawLength))
+        response.append(questionData)
+
+        // 3. Answer Section
+        // Name pointer back to question name (0xC00C = offset 12)
+        var pointer: UInt16 = UInt16(0xC00C).bigEndian
+        response.append(Data(bytes: &pointer, count: 2))
+
+        // TYPE (A = 1, AAAA = 28)
+        var typeBig = question.qType.bigEndian
+        response.append(Data(bytes: &typeBig, count: 2))
+
+        // CLASS (IN = 1)
+        var classBig: UInt16 = UInt16(1).bigEndian
+        response.append(Data(bytes: &classBig, count: 2))
+
+        // TTL (300 seconds)
+        var ttlBig: UInt32 = UInt32(300).bigEndian
+        response.append(Data(bytes: &ttlBig, count: 4))
+
+        if question.qType == 28 {
+            // AAAA: 16 bytes of 0x00 (::)
+            var rdLengthBig: UInt16 = UInt16(16).bigEndian
+            response.append(Data(bytes: &rdLengthBig, count: 2))
+            response.append(Data(repeating: 0, count: 16))
+        } else {
+            // Default A: 4 bytes of 0x00 (0.0.0.0)
+            var rdLengthBig: UInt16 = UInt16(4).bigEndian
+            response.append(Data(bytes: &rdLengthBig, count: 2))
+            response.append(Data(repeating: 0, count: 4))
+        }
+
+        return response
+    }
+
+    /// Synthesizes a SERVFAIL (RCODE 2) DNS response for upstream timeout/unreachable states.
+    public static func synthesizeServFailResponse(requestData: Data) -> Data? {
+        guard let header = parseHeader(data: requestData) else { return nil }
+        var response = Data()
+
+        var idBig = header.id.bigEndian
+        response.append(Data(bytes: &idBig, count: 2))
+
+        // Flags: Response, ServFail (0x8182)
+        var flagsBig: UInt16 = UInt16(0x8182).bigEndian
+        response.append(Data(bytes: &flagsBig, count: 2))
+
+        // QDCOUNT: preserved if valid, otherwise 0
+        var qdCountBig: UInt16 = header.qdCount.bigEndian
+        response.append(Data(bytes: &qdCountBig, count: 2))
+
+        var zeroCount: UInt16 = 0
+        response.append(Data(bytes: &zeroCount, count: 2)) // ANCOUNT: 0
+        response.append(Data(bytes: &zeroCount, count: 2)) // NSCOUNT: 0
+        response.append(Data(bytes: &zeroCount, count: 2)) // ARCOUNT: 0
+
+        if header.qdCount > 0, let question = parseQuestion(data: requestData, offset: 12) {
+            response.append(requestData.subdata(in: 12..<(12 + question.rawLength)))
+        }
+
+        return response
+    }
+
+    // =========================================================================
+    // DNS Rebinding Protection — M8
+    // =========================================================================
+
+    /// Checks if an IPv4 address falls into private/reserved ranges:
+    /// 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8,
+    /// 169.254.0.0/16 (link-local), 224.0.0.0/4 (multicast).
+    public static func isPrivateIpv4(b0: UInt8, b1: UInt8, b2: UInt8, b3: UInt8) -> Bool {
+        switch (b0, b1) {
+        case (10, _): return true
+        case (172, 16...31): return true
+        case (192, 168): return true
+        case (127, _): return true
+        case (169, 254): return true
+        case (224...239, _): return true
+        default: return false
+        }
+    }
+
+    /// Checks if an IPv6 address falls into private/reserved ranges:
+    /// ::1/128 (loopback), fc00::/7 (unique local), fe80::/10 (link-local),
+    /// ff00::/8 (multicast), ::ffff:0:0/96 (IPv4-mapped private).
+    public static func isPrivateIpv6(_ bytes: [UInt8]) -> Bool {
+        guard bytes.count == 16 else { return false }
+
+        // ::1/128 loopback
+        if bytes[0..<15].elementsEqual([UInt8](repeating: 0, count: 15)) && bytes[15] == 1 { return true }
+
+        // fc00::/7 unique local
+        if (bytes[0] & 0xFE) == 0xFC { return true }
+
+        // fe80::/10 link-local
+        if ((Int(bytes[0]) << 8 | Int(bytes[1])) & 0xFFC0) == 0xFE80 { return true }
+
+        // ff00::/8 multicast
+        if bytes[0] == 0xFF { return true }
+
+        // ::ffff:0:0/96 IPv4-mapped — check embedded IPv4
+        if bytes[0..<12].elementsEqual([UInt8](repeating: 0, count: 12)) && bytes[11] == 0xFF {
+            return isPrivateIpv4(
+                b0: bytes[12], b1: bytes[13], b2: bytes[14], b3: bytes[15]
+            )
+        }
+
+        return false
+    }
+
+    /// Extracts IP addresses from answer records in a DNS response.
+    /// Returns a list of (ipType: "A"|"AAAA", ipBytes: [UInt8]) pairs.
+    public static func extractAnswerIps(_ response: Data) -> [(type: String, bytes: [UInt8])] {
+        var results: [(type: String, bytes: [UInt8])] = []
+        guard let header = parseHeader(data: response), header.qdCount > 0 else { return results }
+        guard let question = parseQuestion(data: response, offset: 12) else { return results }
+
+        var current = 12 + question.rawLength
+
+        // Only check the answer section
+        for _ in 0..<Int(header.anCount) {
+            guard current < response.count else { break }
+
+            let recordStart = current
+            guard let nameResult = parseDnsName(data: response, current: current) else { break }
+            current = nameResult.newOffset
+
+            guard current + 10 <= response.count else { break }
+            let rtype = (Int(response[current]) << 8) | Int(response[current + 1])
+            current += 8 // TYPE(2) + CLASS(2) + TTL(4)
+
+            guard current + 2 <= response.count else { break }
+            let rdlength = (Int(response[current]) << 8) | Int(response[current + 1])
+            current += 2
+
+            guard current + rdlength <= response.count else { break }
+            let rdata = [UInt8](response[current..<current + rdlength])
+
+            switch rtype {
+            case 1: // A record
+                if rdlength == 4 { results.append(("A", rdata)) }
+            case 28: // AAAA record
+                if rdlength == 16 { results.append(("AAAA", rdata)) }
+            default: break
+            }
+
+            current = recordStart + (nameResult.newOffset - recordStart) + 10 + rdlength
+        }
+
+        return results
+    }
+
+    /// Checks if a DNS response contains private/reserved IP addresses in its answer section.
+    /// Used for DNS rebinding protection — prevents upstream responses from resolving
+    /// public domains to local/internal IP addresses.
+    public static func hasPrivateIpAnswers(_ response: Data) -> Bool {
+        for (type, bytes) in extractAnswerIps(response) {
+            if type == "A", bytes.count == 4 {
+                if isPrivateIpv4(b0: bytes[0], b1: bytes[1], b2: bytes[2], b3: bytes[3]) {
+                    return true
+                }
+            } else if type == "AAAA", bytes.count == 16 {
+                if isPrivateIpv6(bytes) { return true }
+            }
+        }
+        return false
+    }
+
+    /// Validates that a DNS response's question section matches the original query.
+    /// Prevents upstream servers from returning responses for different domains.
+    public static func questionsMatch(query: Data, response: Data) -> Bool {
+        guard let qQuestion = parseQuestion(data: query, offset: 12) else { return false }
+        guard let rQuestion = parseQuestion(data: response, offset: 12) else { return false }
+        return qQuestion.name == rQuestion.name && qQuestion.qType == rQuestion.qType
+    }
+
+    // =========================================================================
+    // EDNS0 Parsing and DNS Response Truncation
+    // =========================================================================
+
+    /// Parses the EDNS0 OPT record from a DNS query to extract the client's advertised
+    /// UDP payload size. If no OPT record is present, returns the default of 512 bytes.
+    public static func parseEdns0Info(queryData: Data) -> Edns0Info {
+        guard let header = parseHeader(data: queryData) else {
+            return Edns0Info(udpPayloadSize: Edns0Info.defaultUdpPayload, hasOptRecord: false)
+        }
+        guard header.qdCount > 0 else {
+            return Edns0Info(udpPayloadSize: Edns0Info.defaultUdpPayload, hasOptRecord: false)
+        }
+
+        guard let question = parseQuestion(data: queryData, offset: 12) else {
+            return Edns0Info(udpPayloadSize: Edns0Info.defaultUdpPayload, hasOptRecord: false)
+        }
+        var current = 12 + question.rawLength
+
+        // Skip answer and authority sections
+        var remaining = Int(header.anCount) + Int(header.nsCount)
+        current = skipResourceRecords(data: queryData, current: current, count: remaining)
+
+        // Now at additional section - look for OPT record (TYPE=41)
+        var optPayloadSize: Int? = nil
+        var hasOptRecord = false
+
+        for _ in 0..<Int(header.arCount) {
+            if current >= queryData.count { break }
+
+            // Parse record name (skip it)
+            guard let nameResult = parseDnsName(data: queryData, current: current) else { break }
+            current = nameResult.newOffset
+
+            if current + 8 > queryData.count { break }
+
+            let rtype = (Int(queryData[current]) << 8) | Int(queryData[current + 1])
+            let rclass = (Int(queryData[current + 2]) << 8) | Int(queryData[current + 3])
+
+            current += 8 // Skip TYPE, CLASS, TTL
+
+            if current + 2 > queryData.count { break }
+            let rdlength = (Int(queryData[current]) << 8) | Int(queryData[current + 1])
+            current += 2
+
+            if rtype == 41 && rclass >= Edns0Info.minUdpPayload { // TYPE=41 (OPT), CLASS = UDP payload size
+                hasOptRecord = true
+                // The CLASS field in OPT record IS the UDP payload size
+                optPayloadSize = rclass
+            }
+
+            if current + rdlength > queryData.count { break }
+            current += rdlength
+        }
+
+        let payloadSize = min(Edns0Info.operationalCap, max(Edns0Info.minUdpPayload, optPayloadSize ?? Edns0Info.defaultUdpPayload))
+
+        return Edns0Info(udpPayloadSize: payloadSize, hasOptRecord: hasOptRecord)
+    }
+
+    /// Parses a DNS name from the packet, handling compression pointers.
+    /// Returns the new offset after the name and whether a jump occurred.
+    static func parseDnsName(data: Data, current: Int) -> (newOffset: Int, jumped: Bool)? {
+        var current = current
+        var jumped = false
+        var visited = Set<Int>()
+
+        while current < data.count {
+            // Compression pointer loop guard — prevent cycles
+            guard visited.insert(current).inserted else { return nil }
+
+            let length = Int(data[current])
+            if length == 0 {
+                return (current + 1, jumped)
+            }
+            if (length & 0xC0) == 0xC0 {
+                // Compression pointer
+                if current + 1 >= data.count { return nil }
+                jumped = true
+                return (current + 2, true)
+            }
+            if current + 1 + length > data.count { return nil }
+            current += 1 + length
+        }
+        return nil
+    }
+
+    /// Skips the specified number of resource records in the packet.
+    private static func skipResourceRecords(data: Data, current: Int, count: Int) -> Int {
+        var current = current
+        for _ in 0..<count {
+            guard let nameResult = parseDnsName(data: data, current: current) else { return current }
+            current = nameResult.newOffset
+            if current + 10 > data.count { return current } // TYPE+CLASS+TTL+RDLENGTH
+            let rdlength = (Int(data[current + 8]) << 8) | Int(data[current + 9])
+            current += 10 + rdlength
+        }
+        return current
+    }
+
+    /// Calculates the effective UDP response limit based on EDNS0 info and MTU constraints.
+    public static func calculateEffectiveUdpLimit(edns0Info: Edns0Info) -> Int {
+        // The effective limit is the minimum of:
+        // 1. Client's advertised UDP payload size (from EDNS0)
+        // 2. Operational cap (1232 bytes for IPv6-safe unfragmented)
+        // 3. Path MTU estimate minus IP/UDP headers (conservative: 1500 - 28 = 1472 for IPv4)
+        let minVal = Edns0Info.minUdpPayload
+        let maxVal = Edns0Info.operationalCap
+        let value = edns0Info.udpPayloadSize
+        return max(minVal, min(maxVal, value))
+    }
+
+    /// Truncates a DNS response to fit within the specified UDP payload limit.
+    /// Preserves header, question section, and complete resource records only.
+    /// Sets TC bit and updates section counts appropriately.
+    public static func truncateDnsResponse(
+        responseData: Data,
+        maxUdpPayload: Int,
+        isBlockedResponse: Bool = false,
+        isServFailResponse: Bool = false
+    ) -> TruncationResult {
+        if responseData.count <= maxUdpPayload {
+            return TruncationResult(truncatedResponse: responseData, wasTruncated: false)
+        }
+
+        guard let header = parseHeader(data: responseData),
+              header.qdCount > 0,
+              let question = parseQuestion(data: responseData, offset: 12) else {
+            return TruncationResult(truncatedResponse: responseData.prefix(maxUdpPayload), wasTruncated: true)
+        }
+
+        var current = 12 + question.rawLength
+
+        struct RecordBoundary {
+            let section: Int // 0=answer, 1=authority, 2=additional
+            let startOffset: Int
+            let endOffset: Int
+            let recordSize: Int
+            let isOptRecord: Bool
+        }
+
+        var records: [RecordBoundary] = []
+        let sectionCounts = [Int(header.anCount), Int(header.nsCount), Int(header.arCount)]
+
+        for section in 0..<3 {
+            for _ in 0..<sectionCounts[section] {
+                if current >= responseData.count { break }
+
+                let recordStart = current
+                guard let nameResult = parseDnsName(data: responseData, current: current) else { break }
+                current = nameResult.newOffset
+
+                if current + 10 > responseData.count { break }
+                let rtype = (Int(responseData[current]) << 8) | Int(responseData[current + 1])
+                current += 8 // Skip TYPE, CLASS, TTL
+
+                if current + 2 > responseData.count { break }
+                let rdlength = (Int(responseData[current]) << 8) | Int(responseData[current + 1])
+                current += 2
+
+                let isOpt = rtype == 41
+                if current + rdlength > responseData.count { break }
+                current += rdlength
+
+                records.append(RecordBoundary(section: section, startOffset: recordStart, endOffset: current, recordSize: current - recordStart, isOptRecord: isOpt))
+            }
+        }
+
+        let headerSize = 12
+        let questionSize = question.rawLength
+        let fixedOverhead = headerSize + questionSize
+
+        var includedRecords: [RecordBoundary] = []
+        var currentSize = fixedOverhead
+
+        for record in records {
+            if currentSize + record.recordSize > maxUdpPayload { break }
+            currentSize += record.recordSize
+            includedRecords.append(record)
+        }
+
+        if fixedOverhead > maxUdpPayload {
+            // Return minimal SERVFAIL
+            let minimalServFail = synthesizeServFailResponse(requestData: Data(count: 12)) ?? Data(count: maxUdpPayload)
+            return TruncationResult(truncatedResponse: minimalServFail.prefix(maxUdpPayload), wasTruncated: true)
+        }
+
+        var truncated = Data()
+        truncated.append(responseData[0..<headerSize]) // Header (will update counts later)
+        truncated.append(responseData[12..<(12 + questionSize)]) // Question
+
+        for record in includedRecords {
+            truncated.append(responseData[record.startOffset..<record.endOffset])
+        }
+
+        // Update header: counts and TC bit
+        if truncated.count >= 12 {
+            let anCount = includedRecords.filter { $0.section == 0 }.count
+            let nsCount = includedRecords.filter { $0.section == 1 }.count
+            let arCount = includedRecords.filter { $0.section == 2 }.count
+
+            // Update ANCOUNT (bytes 4-5)
+            truncated[4] = UInt8((anCount >> 8) & 0xFF)
+            truncated[5] = UInt8(anCount & 0xFF)
+            // Update NSCOUNT (bytes 6-7)
+            truncated[6] = UInt8((nsCount >> 8) & 0xFF)
+            truncated[7] = UInt8(nsCount & 0xFF)
+            // Update ARCOUNT (bytes 10-11)
+            truncated[10] = UInt8((arCount >> 8) & 0xFF)
+            truncated[11] = UInt8(arCount & 0xFF)
+
+            // Set TC bit (bit 1 of flags byte at index 2)
+            truncated[2] |= 0x02
+        }
+
+        return TruncationResult(truncatedResponse: truncated, wasTruncated: true)
+    }
+
+    /// Applies size-limiting to a DNS response before sending downstream.
+    public static func limitDnsResponseSize(
+        responseData: Data,
+        queryData: Data,
+        isBlockedResponse: Bool = false,
+        isServFailResponse: Bool = false
+    ) -> Data {
+        let edns0Info = parseEdns0Info(queryData: queryData)
+        let maxUdpPayload = calculateEffectiveUdpLimit(edns0Info: edns0Info)
+        let result = truncateDnsResponse(responseData: responseData, maxUdpPayload: maxUdpPayload, isBlockedResponse: isBlockedResponse, isServFailResponse: isServFailResponse)
+        return result.truncatedResponse
+    }
+}

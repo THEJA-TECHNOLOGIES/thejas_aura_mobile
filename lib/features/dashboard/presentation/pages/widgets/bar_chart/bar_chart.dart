@@ -205,7 +205,7 @@ class _AppBarChartState extends State<AppBarChart> {
                           ),
                         ),
                         Text(
-                          formatNumber(maxY),
+                          formatNumber(maxCount),
                           style: typo.headlineMedium.copyWith(
                             fontWeight: .w700,
                           ),

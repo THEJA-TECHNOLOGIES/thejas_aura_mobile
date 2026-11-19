@@ -85,6 +85,7 @@ class BlockListSyncIndicator extends StatelessWidget {
           );
         } else if (state.errorMessage != null &&
             state.errorMessage!.isNotEmpty) {
+          print(state.errorMessage);
           content = Container(
             key: const ValueKey('blocklist_sync_error'),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
