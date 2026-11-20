@@ -28,12 +28,14 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
 void main() async {
   // 1. Initialize Flutter bindings
   WidgetsFlutterBinding.ensureInitialized();
-  final window = WindowManager.instance.getCurrent()!;
-  window.maximumSize = const Size(800, double.infinity).toNative();
-  window.setSize(const Size(600, double.infinity).toNative(), false);
-  window.minimumSize = const Size(500, 600).toNative();
-  window.center();
-  window.show();
+  if (PlatformChecker.isMacOS || PlatformChecker.isWindows) {
+    final window = WindowManager.instance.getCurrent()!;
+    window.maximumSize = const Size(800, double.infinity).toNative();
+    window.setSize(const Size(600, double.infinity).toNative(), false);
+    window.minimumSize = const Size(500, 600).toNative();
+    window.center();
+    window.show();
+  }
   await PlatformChecker.initialize();
   // 2. Load environment configuration & 3. Configure dependencies
   await configureDependencies();

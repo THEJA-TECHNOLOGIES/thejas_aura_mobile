@@ -252,7 +252,7 @@ class _AppBarChartState extends State<AppBarChart> {
                       ),
                       leftTitles: AxisTitles(
                         sideTitles: SideTitles(
-                          showTitles: true,
+                          showTitles: maxCount > 0,
                           reservedSize: 26,
                           interval: maxY <= 10 ? 2 : (maxY / 4).ceilToDouble(),
                           getTitlesWidget: (value, meta) {

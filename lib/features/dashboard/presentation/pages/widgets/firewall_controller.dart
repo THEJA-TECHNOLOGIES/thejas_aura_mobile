@@ -316,181 +316,166 @@ class _PowerHeroState extends State<PowerHero> with TickerProviderStateMixin {
       },
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Container(
-          padding: context.isMobile || context.isTablet
-              ? null
-              : .symmetric(
-                  horizontal: PlatformChecker.isAndroidTV ? 34 : 78,
-                  vertical: 24,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (context.isMobile || context.isTablet) ...[
+              AnimatedContainer(
+                duration: dur,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
                 ),
-          decoration: context.isMobile || context.isTablet
-              ? null
-              : BoxDecoration(
-                  color: colors.surfaceRaised,
-                  borderRadius: .circular(20),
-                  border: Border.all(color: colors.border, width: 1),
+                decoration: BoxDecoration(
+                  color: chipBg,
+                  borderRadius: BorderRadius.circular(999),
                 ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (context.isMobile || context.isTablet) ...[
-                AnimatedContainer(
-                  duration: dur,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: chipBg,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedBuilder(
-                        animation: _pulse,
-                        builder: (_, _) {
-                          // bw-pulse: ring grows 0→8px and fades .55→0 over first 70%.
-                          final p = (_pulse.value / 0.7).clamp(0.0, 1.0);
-                          final show = connecting && _pulse.value < 0.7;
-                          return Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: chipFg,
-                              boxShadow: show
-                                  ? [
-                                      BoxShadow(
-                                        color: t.teal.withValues(
-                                          alpha: 0.55 * (1 - p),
-                                        ),
-                                        spreadRadius: 8 * p,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.chipText,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: chipFg,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // ── Rings + button ──────────────────────────────────────────
-              Semantics(
-                button: true,
-                enabled: widget.onTap != null,
-                label: switch (face) {
-                  PowerFace.off => 'Turn protection on',
-                  PowerFace.connecting => 'Starting protection',
-                  PowerFace.on => 'Turn protection off',
-                },
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: widget.onTap,
-                  child: SizedBox(
-                    width: 240,
-                    height: 240,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      clipBehavior: Clip.none,
-                      children: [
-                        // outer ring 240
-                        AnimatedContainer(
-                          duration: dur,
-                          width: 240,
-                          height: 240,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: ring1, width: 1),
-                          ),
-                        ),
-                        // spinning arc rides on the OUTER ring while connecting
-                        if (connecting)
-                          RotationTransition(
-                            turns: _spin,
-                            child: CustomPaint(
-                              size: const Size(240, 240),
-                              painter: _ArcPainter(t.teal),
-                            ),
-                          ),
-                        // middle ring 206
-                        AnimatedContainer(
-                          duration: dur,
-                          width: 206,
-                          height: 206,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: ring2,
-                              width: _isFocused ? 3 : 1,
-                            ),
-                          ),
-                        ),
-                        // button 172
-                        AnimatedContainer(
-                          duration: dur,
-                          curve: Curves.easeOut,
-                          width: 172,
-                          height: 172,
-                          decoration: button,
-                          foregroundDecoration: buttonOverlay,
-                          alignment: Alignment.center,
-                          child: CustomPaint(
-                            size: const Size(66, 66),
-                            painter: _PowerIconPainter(iconColor),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // ── Title + subtitle ────────────────────────────────────────
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: Column(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      widget.title,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.52,
-                        color: t.text,
-                      ),
+                    AnimatedBuilder(
+                      animation: _pulse,
+                      builder: (_, _) {
+                        // bw-pulse: ring grows 0→8px and fades .55→0 over first 70%.
+                        final p = (_pulse.value / 0.7).clamp(0.0, 1.0);
+                        final show = connecting && _pulse.value < 0.7;
+                        return Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: chipFg,
+                            boxShadow: show
+                                ? [
+                                    BoxShadow(
+                                      color: t.teal.withValues(
+                                        alpha: 0.55 * (1 - p),
+                                      ),
+                                      spreadRadius: 8 * p,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(width: 8),
                     Text(
-                      widget.subtitle,
-                      textAlign: TextAlign.center,
+                      widget.chipText,
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        height: 1.45,
-                        color: t.muted,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: chipFg,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
             ],
-          ),
+
+            // ── Rings + button ──────────────────────────────────────────
+            Semantics(
+              button: true,
+              enabled: widget.onTap != null,
+              label: switch (face) {
+                PowerFace.off => 'Turn protection on',
+                PowerFace.connecting => 'Starting protection',
+                PowerFace.on => 'Turn protection off',
+              },
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onTap,
+                child: SizedBox(
+                  width: 240,
+                  height: 240,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
+                      // outer ring 240
+                      AnimatedContainer(
+                        duration: dur,
+                        width: 240,
+                        height: 240,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: ring1, width: 1),
+                        ),
+                      ),
+                      // spinning arc rides on the OUTER ring while connecting
+                      if (connecting)
+                        RotationTransition(
+                          turns: _spin,
+                          child: CustomPaint(
+                            size: const Size(240, 240),
+                            painter: _ArcPainter(t.teal),
+                          ),
+                        ),
+                      // middle ring 206
+                      AnimatedContainer(
+                        duration: dur,
+                        width: 206,
+                        height: 206,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: ring2,
+                            width: _isFocused ? 3 : 1,
+                          ),
+                        ),
+                      ),
+                      // button 172
+                      AnimatedContainer(
+                        duration: dur,
+                        curve: Curves.easeOut,
+                        width: 172,
+                        height: 172,
+                        decoration: button,
+                        foregroundDecoration: buttonOverlay,
+                        alignment: Alignment.center,
+                        child: CustomPaint(
+                          size: const Size(66, 66),
+                          painter: _PowerIconPainter(iconColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Title + subtitle ────────────────────────────────────────
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: Column(
+                children: [
+                  Text(
+                    widget.title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.52,
+                      color: t.text,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    widget.subtitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      height: 1.45,
+                      color: t.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

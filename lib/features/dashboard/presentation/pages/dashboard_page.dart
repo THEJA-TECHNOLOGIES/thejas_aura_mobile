@@ -65,11 +65,7 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             ],
           ),
-          body: PlatformChecker.isAndroidTV
-              ? TVWidget()
-              : context.isDesktop
-              ? DesktopWidget()
-              : MobileWidget(),
+          body: PlatformChecker.isAndroidTV ? TVWidget() : MobileWidget(),
         );
       },
     );
