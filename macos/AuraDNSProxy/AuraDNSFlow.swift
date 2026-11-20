@@ -17,6 +17,8 @@ final class AuraDNSFlow {
     private let reloadChecker: (() -> Void)?
     private var isClosed = false
     private let closeLock = NSLock()
+    private let readLock = NSLock()
+    private var isReading = false
 
     init(flow: NEAppProxyUDPFlow, engine: AuraDNSEngine, activityLogger: ActivityLogger? = nil, reloadChecker: (() -> Void)? = nil) {
         self.flowIdentifier = flow.hash
@@ -27,15 +29,32 @@ final class AuraDNSFlow {
     }
 
     func startReading() {
-        guard !isClosed else { return }
+        closeLock.lock()
+        guard !isClosed else {
+            closeLock.unlock()
+            return
+        }
+        closeLock.unlock()
         readNextQuery()
     }
 
     private func readNextQuery() {
-        guard !isClosed else { return }
+        readLock.lock()
+        guard !isReading else {
+            readLock.unlock()
+            return
+        }
+        isReading = true
+        readLock.unlock()
 
-        flow.readDatagrams { [weak self] (datagrams: [(Data, Network.NWEndpoint)]?, error: Error?) in
-            guard let self = self, !self.isClosed else { return }
+        flow.readDatagrams { [weak self] datagrams, error in
+            guard let self = self else { return }
+
+            defer {
+                self.readLock.lock()
+                self.isReading = false
+                self.readLock.unlock()
+            }
 
             if let error = error {
                 os_log(.error, log: Self.log, "Flow %{public}d read error: %{public}@", self.flowIdentifier, error.localizedDescription)
@@ -44,22 +63,24 @@ final class AuraDNSFlow {
             }
 
             guard let datagrams = datagrams, !datagrams.isEmpty else {
-                os_log(.default, log: Self.log, "Flow %{public}d received no data", self.flowIdentifier)
-                self.close()
+                // Empty datagram batch is not a terminal condition for UDP;
+                // continue reading for the next query.
+                os_log(.debug, log: Self.log, "Flow %{public}d received no data, continuing to read", self.flowIdentifier)
+                self.readNextQuery()
                 return
             }
 
-            for (queryData, _) in datagrams {
+            for (queryData, endpoint) in datagrams {
                 guard queryData.count >= 12 else {
                     os_log(.default, log: Self.log, "Flow %{public}d received invalid data (%{public}ld bytes)", self.flowIdentifier, queryData.count)
                     continue
                 }
-                self.handleQuery(queryData)
+                self.handleQuery(queryData: queryData, remoteEndpoint: endpoint)
             }
         }
     }
 
-    private func handleQuery(_ queryData: Data) {
+    private func handleQuery(queryData: Data, remoteEndpoint: Network.NWEndpoint) {
         guard !isClosed else { return }
 
         // Check for reload signals before evaluation
@@ -69,7 +90,7 @@ final class AuraDNSFlow {
         guard let question = AuraDNSEngine.parseQuestion(data: queryData, offset: 12) else {
             // Unparseable — forward upstream as-is
             os_log(.error, log: Self.log, "Flow %{public}d failed to parse DNS question", self.flowIdentifier)
-            forwardUpstream(queryData: queryData)
+            forwardUpstream(queryData: queryData, remoteEndpoint: remoteEndpoint)
             return
         }
 
@@ -82,7 +103,7 @@ final class AuraDNSFlow {
         let policy = getEffectivePolicy()
         if policy.isPaused() {
             os_log(.info, log: Self.log, "[PASSTHROUGH] %{public}@ bypassed (paused)", domain)
-            forwardUpstream(queryData: queryData, domain: domain, queryType: qTypeStr, isPassthrough: true)
+            forwardUpstream(queryData: queryData, remoteEndpoint: remoteEndpoint, domain: domain, queryType: qTypeStr, isPassthrough: true)
             return
         }
 
@@ -103,7 +124,7 @@ final class AuraDNSFlow {
                     isServFailResponse: false
                 )
                 os_log(.debug, log: Self.log, "Flow %{public}d writing BLOCKED response (%{public}ld bytes) for %{public}@", self.flowIdentifier, limitedResponse.count, domain)
-                writeResponse(limitedResponse)
+                writeResponse(limitedResponse, remoteEndpoint: remoteEndpoint)
 
                 logActivity(domain: domain, queryType: qTypeStr, outcome: "blocked",
                     matchedSource: decision.matchedSource,
@@ -112,16 +133,17 @@ final class AuraDNSFlow {
                     reason: decision.reason)
             } else {
                 os_log(.error, log: Self.log, "Flow %{public}d failed to synthesize blocked response for %{public}@", self.flowIdentifier, domain)
-                forwardUpstream(queryData: queryData, domain: domain, queryType: qTypeStr)
+                forwardUpstream(queryData: queryData, remoteEndpoint: remoteEndpoint, domain: domain, queryType: qTypeStr)
             }
         } else {
             os_log(.info, log: Self.log, "[ALLOW] %{public}@ (source: %{public}@)", domain, decision.matchedSource)
-            forwardUpstream(queryData: queryData, domain: domain, queryType: qTypeStr, decision: decision)
+            forwardUpstream(queryData: queryData, remoteEndpoint: remoteEndpoint, domain: domain, queryType: qTypeStr, decision: decision)
         }
     }
 
     private func forwardUpstream(
         queryData: Data,
+        remoteEndpoint: Network.NWEndpoint,
         domain: String? = nil,
         queryType: String = "UNKNOWN",
         decision: AuraDNSEngine.MatchDecision? = nil,
@@ -145,7 +167,7 @@ final class AuraDNSFlow {
                     isServFailResponse: true
                 )
                 os_log(.debug, log: Self.log, "Flow %{public}d writing SERVFAIL response (%{public}ld bytes) for %{public}@", self.flowIdentifier, limitedServFail.count, domain ?? "unknown")
-                writeResponse(limitedServFail)
+                writeResponse(limitedServFail, remoteEndpoint: remoteEndpoint)
             } else {
                 os_log(.error, log: Self.log, "Flow %{public}d failed to synthesize SERVFAIL response for %{public}@", self.flowIdentifier, domain ?? "unknown")
             }
@@ -171,7 +193,7 @@ final class AuraDNSFlow {
                     isServFailResponse: true
                 )
                 os_log(.debug, log: Self.log, "Flow %{public}d writing SERVFAIL (QNAME mismatch) for %{public}@", self.flowIdentifier, domain ?? "unknown")
-                writeResponse(limitedServFail)
+                writeResponse(limitedServFail, remoteEndpoint: remoteEndpoint)
             }
             readNextQuery()
             return
@@ -188,7 +210,7 @@ final class AuraDNSFlow {
                     isServFailResponse: true
                 )
                 os_log(.debug, log: Self.log, "Flow %{public}d writing SERVFAIL (rebinding) for %{public}@", self.flowIdentifier, domain ?? "unknown")
-                writeResponse(limitedServFail)
+                writeResponse(limitedServFail, remoteEndpoint: remoteEndpoint)
             }
             if let domain = domain {
                 logActivity(domain: domain, queryType: queryType, outcome: "failed",
@@ -213,7 +235,7 @@ final class AuraDNSFlow {
                domain ?? "unknown", Int((CFAbsoluteTimeGetCurrent() - startTime) * 1000), limitedResponse.count)
 
         os_log(.debug, log: Self.log, "Flow %{public}d writing ALLOWED response (%{public}ld bytes) for %{public}@", self.flowIdentifier, limitedResponse.count, domain ?? "unknown")
-        writeResponse(limitedResponse)
+        writeResponse(limitedResponse, remoteEndpoint: remoteEndpoint)
 
         if let domain = domain {
             logActivity(domain: domain, queryType: queryType, outcome: "allowed",
@@ -226,14 +248,17 @@ final class AuraDNSFlow {
         readNextQuery()
     }
 
-    private func writeResponse(_ response: Data) {
+    private func writeResponse(_ response: Data, remoteEndpoint: Network.NWEndpoint) {
+        closeLock.lock()
         guard !isClosed else {
+            closeLock.unlock()
             os_log(.error, log: Self.log, "Flow %{public}d writeResponse skipped — flow is closed", self.flowIdentifier)
             return
         }
-        let endpoint = NWEndpoint.hostPort(host: "0.0.0.0", port: 0)
+        closeLock.unlock()
+
         os_log(.debug, log: Self.log, "Flow %{public}d writeResponse: %{public}ld bytes", self.flowIdentifier, response.count)
-        flow.writeDatagrams([(response, endpoint)]) { [weak self] error in
+        flow.writeDatagrams([(response, remoteEndpoint)]) { [weak self] error in
             guard let self = self else { return }
             if let error = error {
                 os_log(.error, log: Self.log, "Flow %{public}d write error: %{public}@", self.flowIdentifier, error.localizedDescription)

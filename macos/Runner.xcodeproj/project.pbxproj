@@ -28,6 +28,7 @@
 		F2E3D4C5B6A7988970B1C2D3E4F5A6B7 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7 /* Network.framework */; };
 		254CA96C30ADCF60009F78C6 /* com.thejatech.aura.AuraDNSProxy.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 254CA94B30ADCA26009F78C6 /* com.thejatech.aura.AuraDNSProxy.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
+		4A5B6C7D8E9F0A1B2C3D4E5F6 /* AuraDNSProxyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A5B6C7D8E9F0A1B2C3D4E5F /* AuraDNSProxyTests.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
 		33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC10F02044A3C60003C045 /* AppDelegate.swift */; };
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
@@ -83,6 +84,13 @@
 			remoteGlobalIDString = 33CC111A2044C6BA0003C045;
 			remoteInfo = FLX;
 		};
+		4A5B6C7D8E9F0A1B2C3D4E5F7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33CC10E52044A3C60003C045 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 254CA94A30ADCA26009F78C6;
+			remoteInfo = AuraDNSProxy;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -120,6 +128,7 @@
 		2C3F2999F314F4E1623F9AFC /* AuraDNSProxyManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuraDNSProxyManager.swift; sourceTree = "<group>"; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
+		4A5B6C7D8E9F0A1B2C3D4E5F /* AuraDNSProxyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuraDNSProxyTests.swift; sourceTree = "<group>"; };
 		333000ED22D3DE5D00554162 /* Warnings.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Warnings.xcconfig; sourceTree = "<group>"; };
 		335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GeneratedPluginRegistrant.swift; sourceTree = "<group>"; };
 		33CC10ED2044A3C60003C045 /* Theja's Aura.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Theja's Aura.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -187,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				331C80D7294CF71000263BE5 /* RunnerTests.swift */,
+				4A5B6C7D8E9F0A1B2C3D4E5F /* AuraDNSProxyTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -311,6 +321,7 @@
 			);
 			dependencies = (
 				331C80DA294CF71000263BE5 /* PBXTargetDependency */,
+				4A5B6C7D8E9F0A1B2C3D4E5F8 /* PBXTargetDependency */,
 			);
 			name = RunnerTests;
 			productName = RunnerTests;
@@ -484,6 +495,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */,
+				4A5B6C7D8E9F0A1B2C3D4E5F6 /* AuraDNSProxyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -535,6 +547,11 @@
 			isa = PBXTargetDependency;
 			target = 33CC111A2044C6BA0003C045 /* Flutter Assemble */;
 			targetProxy = 33CC111F2044C79F0003C045 /* PBXContainerItemProxy */;
+		};
+		4A5B6C7D8E9F0A1B2C3D4E5F8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 254CA94A30ADCA26009F78C6 /* AuraDNSProxy */;
+			targetProxy = 4A5B6C7D8E9F0A1B2C3D4E5F7 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
